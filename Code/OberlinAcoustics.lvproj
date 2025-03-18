@@ -27,6 +27,7 @@
 		<Item Name="VerySimpleCalibCheck.vi" Type="VI" URL="../VerySimpleCalibCheck.vi"/>
 		<Item Name="ZipUpCode.vi" Type="VI" URL="../ZipUpCode.vi"/>
 		<Item Name="SavedSignal.vi" Type="VI" URL="../SavedSignal.vi"/>
+		<Item Name="Claudia_Fun.vi" Type="VI" URL="../ViolinSubs/Claudia_Fun.vi"/>
 		<Item Name="Dependencies" Type="Dependencies">
 			<Item Name="vi.lib" Type="Folder">
 				<Item Name="2D Compass Datatype.lvclass" Type="LVClass" URL="/&lt;vilib&gt;/Math Plots/2D Math Plots/2D Compass/2D Compass Datatype/2D Compass Datatype.lvclass"/>
