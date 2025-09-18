@@ -1,4 +1,7 @@
-from .TechElementConsts import *
+try:
+    from .TechElementConsts import *
+except:
+    from TechElementConsts import *
 
 hubType = 'TechElement'
 

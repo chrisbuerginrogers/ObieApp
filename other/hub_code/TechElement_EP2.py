@@ -1,6 +1,11 @@
 import struct
-#from TechElementConsts import *
-#from TechElement import *
+try:
+    from .TechElementConsts import *
+    from .TechElement import *
+except:
+    from TechElementConsts import *
+    from TechElement import *
+
 
 hubType = 'TechElement-old'
 
