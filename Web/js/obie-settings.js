@@ -69,9 +69,9 @@ async function loadDataFolderHandle() {
 const _GH_BASE = 'https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/ObieApp%20Settings/';
 
 const _TEMPLATE_SEEDS = [
-  ['HV 24 Obie Rig_template.json',    _GH_BASE + 'template/HV%2024%20Obie%20Rig_template.json'],
-  ['ScratchPad_template.json',         _GH_BASE + 'template/ScratchPad_template.json'],
-  ['Scratchpad Obie 26_template.json', _GH_BASE + 'template/Scratchpad%20Obie%2026_template.json'],
+  ['HV 24 Obie Rig_template.txt',    _GH_BASE + 'template/HV%2024%20Obie%20Rig_template.txt'],
+  ['ScratchPad_template.txt',         _GH_BASE + 'template/ScratchPad_template.txt'],
+  ['Scratchpad Obie 26_template.txt', _GH_BASE + 'template/Scratchpad%20Obie%2026_template.txt'],
 ];
 
 const _BAND_SEEDS = [

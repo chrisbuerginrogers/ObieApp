@@ -197,7 +197,7 @@ window.onStateChange = function(jsonStr) {
   if      (s.state === 'idle')      { txt = 'Idle — press Start to begin acquisition'; }
   else if (s.state === 'armed')     { txt = `● Armed  ·  ${s.label}  ·  Hit ${s.hit_n}/${s.n_taps}`; cls = 'armed'; }
   else if (s.state === 'triggered') { txt = `⚡ Triggered  ·  ${s.label}  —  capturing…`; cls = 'triggered'; }
-  else if (s.state === 'complete')  { txt = `✓ Run complete — ${s.n_positions} positions measured`; cls = 'complete'; }
+  else if (s.state === 'complete')  { txt = `✓ Run complete — ${s.n_positions} positions measured`; cls = 'complete'; _resetForNextRun(); }
   if (bar) { bar.textContent = txt; bar.className = `acq-status-txt ${cls}`; }
 
   _updateStopBtn();
@@ -232,19 +232,38 @@ window.onHistoryAdd = function(freq_js, H1db_js, label) {
   // frfCache already has this; onHistoryAdd is just informational here
 };
 
+function _setSaveStatus(saving, detail) {
+  const el = document.getElementById('save-status-ind');
+  if (!el) return;
+  if (saving === null) {
+    el.textContent = '🔸 scratch — not saved';
+    el.style.color = 'var(--muted)';
+  } else if (saving) {
+    el.textContent = `💾 ${detail}`;
+    el.style.color = 'var(--accent)';
+  } else {
+    el.textContent = `⚠️ Not saved${detail ? ': ' + detail : ''}`;
+    el.style.color = '#b71c1c';
+  }
+}
+
+let _lastSavedWav = null;   // filename of most-recently saved hit WAV
+
 /** Auto-save hit WAV to run folder */
 window.onSaveHit = async function(b64, pos, hitN) {
-  if (!_rawHandle) return;
+  if (!_rawHandle) { _setSaveStatus(false); return; }
   const pfx = (document.getElementById('inp-prefix')?.value || 'H').trim();
   const p   = String(Number(pos) + 1).padStart(3, '0');
   const h   = String(Number(hitN)).padStart(3, '0');
   const inst = _runName || 'run';
-  await _writeFile(_rawHandle, `${inst} ${pfx}_${p}_${h}.wav`, b64);
+  const filename = `${inst} ${pfx}_${p}_${h}.wav`;
+  _lastSavedWav = filename;
+  await _writeFile(_rawHandle, filename, b64);
 };
 
 /** Auto-save TRF when position completes */
 window.onSaveTRF = async function(b64, pos) {
-  if (!_trfHandle) return;
+  if (!_trfHandle) { _setSaveStatus(false); return; }
   const pfx = (document.getElementById('inp-prefix')?.value || 'H').trim();
   const p   = String(Number(pos) + 1).padStart(3, '0');
   const inst = _runName || 'run';
@@ -449,6 +468,10 @@ window.acqRescaleMic = function() {
 
 window.acqDeleteLastHit = function() {
   if (window.pyDeleteLastHit) window.pyDeleteLastHit();
+  if (_rawHandle && _lastSavedWav) {
+    _rawHandle.removeEntry(_lastSavedWav).catch(() => {});
+    _lastSavedWav = null;
+  }
 };
 
 window.acqStartOver = async function() {
@@ -541,8 +564,8 @@ function _populatePrefsForm(overridePrefs) {
   if (swapEl) swapEl.checked = prefs.swap_channels ?? false;
   set('inp-soundcard',   prefs.soundcard);
   const instrVal = prefs.instrument || 'scratch';
-  set('inp-instrument',        instrVal);
-  set('inp-instrument-banner', instrVal);
+  const instrDisp = document.getElementById('inp-instrument-banner');
+  if (instrDisp) instrDisp.textContent = instrVal;
   set('inp-line-width',  prefs.line_width);
   // populate device selector
   _enumeratePrefsDevices();
@@ -585,7 +608,7 @@ window.acqSavePrefs = function() {
     ham_cal:       parseFloat(g('inp-ham-cal'))     || 1.0,
     swap_channels: document.getElementById('inp-swap-channels')?.checked ?? false,
     soundcard:     g('inp-soundcard'),
-    instrument:    g('inp-instrument'),
+    instrument:    (document.getElementById('inp-instrument-banner')?.textContent || '').trim() || 'scratch',
     deviceId:      g('prefs-device'),
     line_width:    parseFloat(g('inp-line-width'))  || 0.5,
   };
@@ -706,12 +729,60 @@ let _selectedTpl = null;
 
 function _tplMeta(s) {
   const bits = [];
-  if (s.taps      != null) bits.push(`${s.taps} hits`);
-  if (s.frf_x_max != null) bits.push(`≤${s.frf_x_max} Hz`);
-  if (s.threshold != null) bits.push(`thr ${s.threshold}`);
-  if (s.ham_cal   != null && s.ham_cal !== 1) bits.push(`ham×${s.ham_cal}`);
-  if (s.mic_cal   != null && s.mic_cal !== 1) bits.push(`mic×${s.mic_cal}`);
+  if (s.positions  != null) bits.push(`${s.positions} pos`);
+  if (s.taps       != null) bits.push(`${s.taps} hits`);
+  if (s.frf_x_max  != null) bits.push(`≤${s.frf_x_max} Hz`);
+  if (s.threshold  != null) bits.push(`thr ${s.threshold}`);
+  if (s.ham_cal    != null && s.ham_cal !== 1) bits.push(`ham×${s.ham_cal}`);
+  if (s.mic_cal    != null && s.mic_cal !== 1) bits.push(`mic×${s.mic_cal}`);
   return bits.join(' · ');
+}
+
+// JS port of Python/fileio/labview_txt.py — parse LabVIEW Key=<value/> format
+function _parseLVTxt(text) {
+  const result = {};
+  const lines = text.split('\n');
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const eq = line.indexOf('=<');
+    if (eq === -1) { i++; continue; }
+    const key  = line.slice(0, eq).trim();
+    const rest = line.slice(eq + 2);
+    if (rest.trimEnd().endsWith('/>')) {
+      result[key] = rest.trimEnd().slice(0, -2);
+      i++;
+    } else {
+      const parts = [rest];
+      i++;
+      while (i < lines.length) {
+        const cur = lines[i];
+        if (cur.trimEnd() === '/>') { i++; break; }
+        if (cur.trimEnd().endsWith('/>')) { parts.push(cur.trimEnd().slice(0, -2)); i++; break; }
+        parts.push(cur);
+        i++;
+      }
+      result[key] = parts.join('\n');
+    }
+  }
+  return result;
+}
+
+function _lvFieldsToSettings(fields) {
+  return {
+    positions:         parseInt(fields['Positions']          ?? '12'),
+    taps:              parseInt(fields['Taps/Position']      ?? '5'),
+    threshold:         parseFloat(fields['Hammer Threshold'] ?? '0.05'),
+    pre_trig_s:        parseFloat(fields['Pre-trigger (s)']  ?? '0.01'),
+    post_trig_s:       parseFloat(fields['Sample time (s)']  ?? '0.30'),
+    time_cutoff_s:     parseFloat(fields['Hammer cutoff']    ?? '0.30'),
+    mic_time_cutoff_s: parseFloat(fields['Mic cutoff']       ?? '0.30'),
+    ham_cal:           parseFloat(fields['Hammer Cal']       ?? '1'),
+    mic_cal:           parseFloat(fields['Mic Cal']          ?? '1'),
+    prefix:            (fields['Set Names'] || 'H').split(',')[0].trim(),
+    soundcard:         (fields['Soundcard'] || '').trim(),
+    swap_channels:     (fields['flip?'] || '').trim().toLowerCase() === 'true',
+  };
 }
 
 function _renderTemplateList() {
@@ -772,19 +843,25 @@ window.acqSelectTpl = function(i) {
 
 window.acqBrowseTemplate = async function() {
   const input = document.createElement('input');
-  input.type = 'file'; input.accept = '.json,application/json';
+  input.type = 'file'; input.accept = '.txt,.json';
   input.onchange = async () => {
     const file = input.files[0]; if (!file) return;
     try {
       const text = await file.text();
-      const data = JSON.parse(text);
-      // Support both single template object and array
-      const arr  = Array.isArray(data) ? data : [data];
-      _templates = arr;
-      _selectedTpl = arr.length === 1 ? 0 : null;
+      let tpl;
+      if (file.name.toLowerCase().endsWith('.txt')) {
+        const fields  = _parseLVTxt(text);
+        const tplName = file.name.replace(/_template\.txt$/i, '').replace(/_/g, ' ').trim();
+        tpl = { name: tplName, settings: _lvFieldsToSettings(fields) };
+      } else {
+        const data = JSON.parse(text);
+        tpl = Array.isArray(data) ? data[0] : data;
+      }
+      _templates = [tpl];
+      _selectedTpl = 0;
       _renderTemplateList();
     } catch (e) {
-      alert('Invalid JSON template: ' + e.message);
+      alert('Could not load template: ' + e.message);
     }
   };
   input.click();
@@ -860,13 +937,109 @@ let _rootDirHandle   = null;   // root data folder handle
 let _pendingTestName = '';  // proposed test folder name, editable before first Start
 let _currentTemplateName = '';  // template last applied
 
-window.acqUpdatePendingTest = function(val) { _pendingTestName = val.trim(); };
+window.acqRenameTest = async function() {
+  if (!_rootDirHandle) { alert('Set a Data Folder first.'); return; }
+  const instrument = (document.getElementById('inp-instrument-banner')?.textContent || '').trim() || 'scratch';
+  if (instrument === 'scratch') { alert('Switch to a real instrument first.'); return; }
+  const current = _runName || _pendingTestName || '';
+  const newName = prompt('Rename this test:', current);
+  if (!newName || !newName.trim() || newName.trim() === current) return;
+  const name = newName.trim();
+  try {
+    const instrHandle = await _rootDirHandle.getDirectoryHandle(instrument, { create: true });
+    const testHandle  = await instrHandle.getDirectoryHandle(name, { create: true });
+    _rawHandle = await testHandle.getDirectoryHandle('raw', { create: true });
+    _trfHandle = await testHandle.getDirectoryHandle('TRF', { create: true });
+    _runName   = name;
+    _pendingTestName = name;
+    const testDisp = document.getElementById('inp-test-banner');
+    if (testDisp) testDisp.textContent = name;
+    _setSaveStatus(true, name);
+  } catch (e) {
+    alert('Could not rename: ' + e.message);
+  }
+};
+
+window.acqSetInstrument = function() {
+  if (!_rootDirHandle) { alert('Set a Data Folder first.'); return; }
+  const current = (document.getElementById('inp-instrument-banner')?.textContent || '').trim();
+  const inp = document.getElementById('instrument-inp');
+  if (inp) { inp.value = current === '—' ? '' : current; }
+  document.getElementById('instrument-modal')?.classList.add('open');
+  requestAnimationFrame(() => document.getElementById('instrument-inp')?.focus());
+};
+
+window.acqCloseInstrument = function() {
+  document.getElementById('instrument-modal')?.classList.remove('open');
+};
+
+window.acqConfirmInstrument = async function() {
+  const inp  = document.getElementById('instrument-inp');
+  const name = inp?.value.trim();
+  if (!name) return;
+  const msg = document.getElementById('instrument-modal-msg');
+  if (msg) msg.textContent = 'Setting up…';
+  await _refreshInstrumentFolder(name);
+  if (msg) msg.textContent = '';
+  document.getElementById('instrument-modal')?.classList.remove('open');
+};
+
+async function _refreshInstrumentFolder(instrumentName) {
+  if (!_rootDirHandle || !instrumentName || instrumentName === 'scratch') return;
+  try {
+    const instrHandle = await _rootDirHandle.getDirectoryHandle(instrumentName, { create: true });
+    _testsHandle = instrHandle;
+
+    // Find the highest existing run number to auto-name the next one.
+    let maxNum = 0;
+    try {
+      for await (const [name, h] of instrHandle.entries()) {
+        if (h.kind === 'directory') {
+          const m = name.match(/_(\d+)$/);
+          if (m) { const n = parseInt(m[1]); if (n > maxNum) maxNum = n; }
+        }
+      }
+    } catch (_) {}
+
+    _pendingTestName = `${instrumentName}_${String(maxNum + 1).padStart(2, '0')}`;
+
+    // Create the test subfolder right now so Start never has to.
+    const testHandle = await instrHandle.getDirectoryHandle(_pendingTestName, { create: true });
+    _rawHandle = await testHandle.getDirectoryHandle('raw', { create: true });
+    _trfHandle = await testHandle.getDirectoryHandle('TRF', { create: true });
+    _runName   = _pendingTestName;
+
+    // Reset Python acquisition state so hit/position counters start from zero
+    if (window.pyResetAll) window.pyResetAll();
+
+    // Write settings snapshot into the test folder
+    try {
+      const fh = await testHandle.getFileHandle('settings.json', { create: true });
+      const w  = await fh.createWritable();
+      await w.write(JSON.stringify(_loadPrefs(), null, 2));
+      await w.close();
+    } catch (_) {}
+
+    const instrDisp = document.getElementById('inp-instrument-banner');
+    if (instrDisp) instrDisp.textContent = instrumentName;
+    const testDisp = document.getElementById('inp-test-banner');
+    if (testDisp) testDisp.textContent = _pendingTestName;
+    const ind = document.getElementById('folder-name-ind');
+    if (ind) ind.textContent = _pendingTestName;
+    _setSaveStatus(true, _pendingTestName);
+  } catch (e) {
+    console.error('_refreshInstrumentFolder:', e);
+    alert(`⚠️ Could not set up folder for "${instrumentName}":\n${e.message}`);
+    _setSaveStatus(false, e.message);
+  }
+}
 
 // Core folder-setup logic, callable with any directory handle (manual pick or auto-restore)
 async function _applyDataFolder(dirHandle) {
   _rootDirHandle = dirHandle;
 
   // ObieAppSettings first — gives us the saved instrument name
+  let _acqFolderIsNew;
   ({ settingsHandle: _settingsHandle, templatesHandle: _templatesHandle, isNew: _acqFolderIsNew } =
       await openObieAppSettings(dirHandle));
   if (_acqFolderIsNew) alert('This is a new Data Folder and I moved over the default settings folder.');
@@ -880,32 +1053,8 @@ async function _applyDataFolder(dirHandle) {
     _pushSettingsFromPrefs(savedPrefs);
   } catch (_) {}
 
-  // Determine instrument name: banner > prefs > 'scratch'
-  const instrument =
-    (document.getElementById('inp-instrument-banner')?.value.trim()) ||
-    (savedPrefs?.instrument || '') ||
-    'scratch';
-
-  // Structure: DataFolder/<instrument>/<instrument>_XX/raw, TRF
-  const instrHandle = await dirHandle.getDirectoryHandle(instrument, { create: true });
-  let maxNum = 0;
-  for await (const [name, h] of instrHandle.entries()) {
-    if (h.kind === 'directory') {
-      const m = name.match(/_(\d+)$/);
-      if (m) { const n = parseInt(m[1]); if (n > maxNum) maxNum = n; }
-    }
-  }
-  _pendingTestName = `${instrument}_${String(maxNum + 1).padStart(2, '0')}`;
-  _testsHandle     = instrHandle;
-
-  const instrBannerEl = document.getElementById('inp-instrument-banner');
-  if (instrBannerEl && !instrBannerEl.value) instrBannerEl.value = instrument;
-  const testBannerEl = document.getElementById('inp-test-banner');
-  if (testBannerEl) testBannerEl.value = _pendingTestName;
-
-  _rawHandle = null;   // created on first Start
-  _trfHandle = null;
-  _runName   = '';
+  // Determine instrument name: prefs > 'scratch'
+  const instrument = (savedPrefs?.instrument || '') || 'scratch';
 
   // Load templates
   _templates = [];
@@ -913,14 +1062,25 @@ async function _applyDataFolder(dirHandle) {
 
   const btn = document.getElementById('data-folder-btn');
   if (btn) btn.textContent = '📁 ' + dirHandle.name;
-  const ind = document.getElementById('folder-name-ind');
-  if (ind) ind.textContent = _pendingTestName || dirHandle.name;
+
+  // Set up instrument folder (creates test subfolder + raw/TRF, sets _rawHandle)
+  const instrBannerEl = document.getElementById('inp-instrument-banner');
+  if (instrBannerEl) instrBannerEl.textContent = instrument;
+  if (instrument !== 'scratch') {
+    await _refreshInstrumentFolder(instrument);
+  } else {
+    _setSaveStatus(null);
+    const testDisp = document.getElementById('inp-test-banner');
+    if (testDisp) testDisp.textContent = '—';
+  }
 
   // Hide the no-folder overlay
   document.getElementById('folder-overlay')?.classList.add('hidden');
 }
 
+let _folderApplying = false;
 window.acqSetDataFolder = async function() {
+  if (_folderApplying) return;
   if (!HAS_FS) {
     alert('Directory picker requires Chrome/Edge. Use the download buttons for manual export.');
     return;
@@ -932,8 +1092,16 @@ window.acqSetDataFolder = async function() {
     if (e.name !== 'AbortError') alert('Folder error: ' + e.message);
     return;
   }
-  await _applyDataFolder(dirHandle);
-  await saveDataFolderHandle(dirHandle);
+  _folderApplying = true;
+  const btn = document.querySelector('#folder-overlay .tb-btn');
+  if (btn) { btn.textContent = 'Setting up folder…'; btn.disabled = true; }
+  try {
+    await _applyDataFolder(dirHandle);
+    await saveDataFolderHandle(dirHandle);
+  } finally {
+    _folderApplying = false;
+    if (btn) { btn.textContent = 'Select Data Folder…'; btn.disabled = false; }
+  }
 };
 
 async function _writeFile(folderHandle, filename, b64) {
@@ -959,10 +1127,19 @@ async function _saveAcqSettings() {
 async function _loadTemplatesFromFolder(dir) {
   try {
     for await (const [name, h] of dir.entries()) {
-      if (h.kind !== 'file' || !name.toLowerCase().endsWith('.json')) continue;
+      if (h.kind !== 'file') continue;
+      const lower = name.toLowerCase();
       try {
-        const tpl = JSON.parse(await (await h.getFile()).text());
-        _templates.push(...(Array.isArray(tpl) ? tpl : [tpl]));
+        const text = await (await h.getFile()).text();
+        if (lower.endsWith('.txt')) {
+          const fields   = _parseLVTxt(text);
+          const tplName  = name.replace(/_template\.txt$/i, '').replace(/_/g, ' ').trim();
+          _templates.push({ name: tplName, settings: _lvFieldsToSettings(fields) });
+        } else if (lower.endsWith('.json')) {
+          const data = JSON.parse(text);
+          const arr  = Array.isArray(data) ? data : [data];
+          _templates.push(...arr);
+        }
       } catch (_) {}
     }
   } catch (_) {}
@@ -1001,32 +1178,14 @@ async function _startAudio() {
   const prefs    = _loadPrefs();
   const deviceId = prefs.deviceId;
 
-  // Create the test run folder on the very first Start after a data folder is set
-  if (_testsHandle && !_rawHandle && _pendingTestName) {
-    try {
-      const testName = document.getElementById('inp-test-banner')?.value.trim() || _pendingTestName;
-      _pendingTestName = testName;
-      const testHandle = await _testsHandle.getDirectoryHandle(testName, { create: true });
-      _rawHandle = await testHandle.getDirectoryHandle('raw', { create: true });
-      _trfHandle = await testHandle.getDirectoryHandle('TRF', { create: true });
-      _runName   = testName;
-      // Copy settings into test folder
-      const fh1 = await testHandle.getFileHandle('settings.json', { create: true });
-      const w1  = await fh1.createWritable();
-      await w1.write(JSON.stringify(_loadPrefs(), null, 2));
-      await w1.close();
-      // Copy notes if any exist
-      const notes = localStorage.getItem('obieAcquire_notes_' + testName)
-                 || localStorage.getItem('obieAcquire_notes_default') || '';
-      if (notes) {
-        const fh2 = await testHandle.getFileHandle('notes.txt', { create: true });
-        const w2  = await fh2.createWritable();
-        await w2.write(notes);
-        await w2.close();
-      }
-      const ind = document.getElementById('folder-name-ind');
-      if (ind) ind.textContent = testName;
-    } catch (e) { console.warn('Failed to create test folder:', e); }
+  // Folder is created by _refreshInstrumentFolder (called from Instrument modal
+  // and after each run completes). Just warn if somehow not ready.
+  const _instrument = (document.getElementById('inp-instrument-banner')?.textContent || '').trim() || 'scratch';
+  if (_instrument === 'scratch') {
+    _setSaveStatus(null);
+  } else if (!_rawHandle) {
+    // Folder wasn't pre-created — try now as a fallback
+    await _refreshInstrumentFolder(_instrument);
   }
 
   try {
@@ -1088,6 +1247,17 @@ async function _stopAudio() {
   if (audioCtx)     { await audioCtx.close();   audioCtx   = null; }
   if (mediaStream)  { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
   window.pyStopAudio();
+  _resetForNextRun();
+}
+
+function _resetForNextRun() {
+  _rawHandle = null;
+  _trfHandle = null;
+  _runName   = '';
+  const instrument = (document.getElementById('inp-instrument-banner')?.textContent || '').trim();
+  if (instrument && instrument !== '—' && instrument !== 'scratch' && _rootDirHandle) {
+    _refreshInstrumentFolder(instrument);  // rescans and increments test number
+  }
 }
 
 
@@ -1184,9 +1354,7 @@ window.addEventListener('load', () => {
   _S.xMin         = prefs.frf_x_min        ?? 100;
   _S.xMax         = prefs.frf_x_max        ?? 12000;
   const instrEl = document.getElementById('inp-instrument-banner');
-  if (instrEl && !instrEl.value) instrEl.value = prefs.instrument || 'scratch';
-  const hiddenEl = document.getElementById('inp-instrument');
-  if (hiddenEl) hiddenEl.value = instrEl?.value || 'scratch';
+  if (instrEl && instrEl.textContent.trim() === '—') instrEl.textContent = prefs.instrument || 'scratch';
   _initPlots();
   _initResizer();
   _updateStopBtn();

@@ -570,9 +570,12 @@
   // ── Data Folder helpers ───────────────────────────────────────────────
   const _SCAN_EXTS = new Set(['.trf','.trv','.avc','.avr','.csv','.wav']);
 
+  const _NON_INSTRUMENT_DIRS = new Set(['ObieAppSettings', 'Test_Samples']);
   async function _countTopDirs(dh) {
     let n = 0;
-    for await (const [, h] of dh.entries()) { if (h.kind === 'directory') n++; }
+    for await (const [name, h] of dh.entries()) {
+      if (h.kind === 'directory' && !_NON_INSTRUMENT_DIRS.has(name)) n++;
+    }
     return n;
   }
 
@@ -595,10 +598,10 @@
   async function _applyFolder(dir) {
     const st = $('explore-status');
     if (st) st.textContent = 'Scanning folder…';
-    _dataDir  = dir;
-    _dirFiles = await _scanDir(dir, '');
+    _dataDir = dir;
 
-    // Load settings, bands, and templates from ObieAppSettings/
+    // Load settings first — openObieAppSettings seeds Test_Samples on new folders,
+    // so the scan must happen after to include those files.
     try {
       let templatesHandle;
       let _expFolderIsNew;
@@ -636,6 +639,9 @@
         ).join('');
       } catch (_) {}
     } catch (_) {}
+
+    // Scan after seeding so newly created folders (Test_Samples, etc.) are included
+    _dirFiles = await _scanDir(dir, '');
 
     const nDirs = await _countTopDirs(dir);
     const btn = $('data-folder-btn');

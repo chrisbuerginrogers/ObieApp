@@ -130,6 +130,10 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 .acq-meta-inp:hover { border-color: #90caf9; }
 .acq-meta-inp:focus { outline: none; border-color: #1565c0; background: #e8f0fe; }
 .acq-meta-inp::placeholder { color: #bbb; font-weight: 400; }
+.acq-meta-disp {
+  font-size: 11px; font-weight: 600; color: #1565c0;
+  padding: 1px 4px; min-width: 40px;
+}
 .acq-meta-sep { font-size: 11px; color: var(--muted); flex-shrink: 0; }
 .acq-tpl-ind {
   display: flex; align-items: center; padding: 2px 8px;

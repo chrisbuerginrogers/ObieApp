@@ -48,7 +48,9 @@
 
       <button class="tb-btn" onclick="acqNotes()">Notes</button>
       <button id="data-folder-btn" class="tb-btn" onclick="acqSetDataFolder()">📁 Data Folder</button>
-      <span id="folder-name-ind" class="folder-name-disp"></span>
+      <button id="instrument-btn" class="tb-btn" onclick="acqSetInstrument()">🎻 Instrument</button>
+      <span id="save-status-ind" style="font-size:0.75rem;font-weight:600;margin-left:6px;cursor:pointer"
+            title="Click to rename this test" onclick="acqRenameTest()"></span>
 
       <div class="tb-flex"></div>
 
@@ -61,16 +63,9 @@
   <!-- ── Banner row: run meta + position tabs + template indicator ──────── -->
   <div class="acq-banner-row">
     <div class="acq-run-meta">
-      <input id="inp-instrument" type="text" style="display:none" aria-hidden="true">
-      <input id="inp-instrument-banner" type="text" class="acq-meta-inp"
-             placeholder="Instrument"
-             oninput="document.getElementById('inp-instrument').value=this.value"
-             title="Instrument name">
+      <span id="inp-instrument-banner" class="acq-meta-disp" title="Click 🎻 Instrument to change">—</span>
       <span class="acq-meta-sep">/</span>
-      <input id="inp-test-banner" type="text" class="acq-meta-inp"
-             placeholder="Test name"
-             oninput="acqUpdatePendingTest(this.value)"
-             title="Test name — set when Data Folder is selected; editable before Start">
+      <span id="inp-test-banner" class="acq-meta-disp">—</span>
     </div>
     <div id="pos-banner" class="acq-banner">
       <span style="font-size:10px;color:var(--muted);font-style:italic">Loading…</span>
@@ -288,6 +283,33 @@
         <button class="btn primary" onclick="acqSavePrefs()">Apply &amp; Save</button>
         <button class="btn" onclick="acqResetPrefs()">Reset defaults</button>
         <span id="prefs-save-msg" class="save-msg"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Instrument modal
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="instrument-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(92vw,380px)">
+    <div class="modal-header">
+      <span class="modal-title">Set Instrument</span>
+      <button class="modal-close" onclick="acqCloseInstrument()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="pref-row">
+        <label for="instrument-inp">Instrument name</label>
+        <input id="instrument-inp" type="text" placeholder="e.g. Violin"
+               style="flex:1;max-width:200px"
+               onkeydown="if(event.key==='Enter') acqConfirmInstrument()">
+      </div>
+      <p class="pref-hint">Creates the folder if it doesn't exist, then queues the next test number.</p>
+      <div class="save-row">
+        <button class="btn primary" onclick="acqConfirmInstrument()">Set</button>
+        <button class="btn" onclick="acqCloseInstrument()">Cancel</button>
+        <span id="instrument-modal-msg" class="save-msg"></span>
       </div>
     </div>
   </div>
