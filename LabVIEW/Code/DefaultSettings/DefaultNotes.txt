@@ -1,0 +1,14 @@
+Instrument info: 
+
+
+
+Template: 
+
+Measured at: 
+
+Mic: Behringer EDM 8000
+
+Mic distance: 20 cm
+
+Soundcard: Mackie, Onxy Producer2.2 
+ 

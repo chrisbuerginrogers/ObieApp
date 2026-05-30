@@ -1,0 +1,22 @@
+{
+  "id": "scratchpad_obie26",
+  "name": "Scratchpad Obie 26",
+  "description": "Single-position scratchpad with Obie 26 hammer and Onyx soundcard",
+  "run": {
+    "soundcard":         "Line (Onyx Producer 2-2)",
+    "positions":         1,
+    "taps":              10,
+    "prefix":            "H",
+    "threshold":         0.01108,
+    "pre_trig_s":        0.001,
+    "post_trig_s":       0.300,
+    "time_cutoff_s":     0.01875,
+    "mic_time_cutoff_s": 0.300,
+    "ham_cal":           1.0,
+    "mic_cal":           1.0,
+    "swap_channels":     true,
+    "frf_x_min":         200,
+    "frf_x_max":         7000
+  },
+  "notes": "Instrument info:\n\n\nMic: Behringer ECM 8000 at 20 cm.\nHammer: Obie 26 Thor"
+}

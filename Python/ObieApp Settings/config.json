@@ -1,0 +1,36 @@
+{
+  "data": {
+    "base_dir": "SampleData"
+  },
+  "audio": {
+    "device_name": "485B39 200083408035100798118210422",
+    "format": "float",
+    "sample_rate": 48000,
+    "chunk_size": 1024
+  },
+  "display": {
+    "display_seconds": 0.03,
+    "min_max_decay": 0.995,
+    "freq_min": 200,
+    "freq_max": 7000
+  },
+  "trigger": {
+    "threshold": 0.05,
+    "pre_secs": 0.01,
+    "post_secs": 0.30
+  },
+  "run": {
+    "instrument": "Test violin",
+    "folder": "test2",
+    "designation": "H",
+    "hits": 5,
+    "positions": 2
+  },
+  "bands": [
+    { "label": "Low body",    "start": 200,  "end": 400  },
+    { "label": "Bridge rise", "start": 400,  "end": 800  },
+    { "label": "Bridge hill", "start": 800,  "end": 1600 },
+    { "label": "Upper mid",   "start": 1600, "end": 3200 },
+    { "label": "High",        "start": 3200, "end": 7000 }
+  ]
+}

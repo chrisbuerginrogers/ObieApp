@@ -1,0 +1,24 @@
+{
+  "lists": [
+    {
+      "name": "Jackson Stradivari",
+      "description": "Horizontal and vertical drive measurements of the Jackson Stradivari",
+      "files": ["JacksonStrad H.AvC", "JacksonStrad V.AvC"]
+    },
+    {
+      "name": "Stradivari Reference Set",
+      "description": "Key Stradivari reference measurements for comparison",
+      "files": ["Strad_H.AvC", "Strad_V.AvC", "Strad_H.TRF"]
+    },
+    {
+      "name": "Guarneri del Gesù Collection",
+      "description": "del Gesù instruments horizontal and vertical drives",
+      "files": ["Guarneri_H.AvC", "Guarneri_V.AvC"]
+    },
+    {
+      "name": "Modern Violin Batch",
+      "description": "Contemporary workshop violins for comparison",
+      "files": ["Modern1_H.AvC", "Modern1_V.AvC", "Modern2_H.AvC", "Modern2_V.AvC"]
+    }
+  ]
+}

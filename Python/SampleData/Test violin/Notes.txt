@@ -1,0 +1,9 @@
+================================================
+Date/Time:   2026-05-24 06:04:04
+Instrument:  Test violin
+Folder:      test2
+Designation: H
+Positions:   2   Hits/pos: 5
+Sample rate: 48000 Hz
+Threshold:   0.05   Pre: 0.01 s   Post: 0.3 s
+

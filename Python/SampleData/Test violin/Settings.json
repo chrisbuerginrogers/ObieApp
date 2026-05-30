@@ -1,0 +1,29 @@
+{
+  "data": {
+    "base_dir": "SampleData"
+  },
+  "audio": {
+    "device_name": "485B39 200083408035100798118210422",
+    "format": "float",
+    "sample_rate": 48000,
+    "chunk_size": 1024
+  },
+  "display": {
+    "display_seconds": 0.03,
+    "min_max_decay": 0.995,
+    "freq_min": 200,
+    "freq_max": 7000
+  },
+  "trigger": {
+    "threshold": 0.05,
+    "pre_secs": 0.01,
+    "post_secs": 0.3
+  },
+  "run": {
+    "instrument": "Test violin",
+    "folder": "test2",
+    "designation": "H",
+    "hits": 5,
+    "positions": 2
+  }
+}

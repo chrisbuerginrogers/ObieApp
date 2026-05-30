@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LiveView — Acquire</title>
+  <link rel="stylesheet" href="../../css/theme.css">
+  <link rel="stylesheet" href="../../css/acquire.css">
+  <style>
+    body { overflow: hidden; }
+    .lv-page { display:flex; flex-direction:column; height:100vh; }
+    .obie-header { padding:6px 14px; }
+
+    .lv-body { display:flex; flex:1; overflow:hidden; }
+
+    /* ── Left panel ─────────────────────────────────────────────── */
+    .lv-left {
+      width:220px; flex-shrink:0;
+      background:var(--surface); border-right:1px solid var(--border);
+      overflow-y:auto; padding:10px 12px;
+      display:flex; flex-direction:column; gap:10px;
+    }
+    .lv-sect {
+      font-size:10px; font-weight:700; text-transform:uppercase;
+      letter-spacing:0.6px; color:var(--muted); margin-bottom:4px;
+    }
+    .lv-row { display:flex; align-items:center; gap:6px; margin-bottom:5px; }
+    .lv-row label { font-size:11px; color:var(--muted); min-width:86px; }
+    .lv-row input, .lv-row select { flex:1; font-size:11px; padding:2px 5px; }
+    .lv-unit { font-size:10px; color:var(--muted); flex-shrink:0; }
+
+    /* mode toggle */
+    .mode-row { display:flex; gap:3px; }
+    .mode-btn {
+      flex:1; padding:4px 0; font-size:11px; font-family:inherit;
+      border:1px solid var(--border); border-radius:4px;
+      background:var(--bg); cursor:pointer; text-align:center;
+      transition:background .12s;
+    }
+    .mode-btn.active {
+      background:var(--accent); border-color:var(--accent);
+      color:#fff; font-weight:600;
+    }
+
+    .lv-stat { font-size:13px; font-weight:700; color:var(--accent);
+               text-align:center; margin-top:2px; }
+    .lv-status { font-size:10px; color:var(--muted); text-align:center;
+                 font-style:italic; line-height:1.4; min-height:28px; }
+
+    /* Green start / red stop */
+    #start-btn { background:#2e7d32; border-color:#1b5e20; color:#fff; font-weight:700; }
+    #start-btn:hover { background:#1b5e20; }
+    #start-btn.stopping { background:#c62828; border-color:#b71c1c; }
+    #start-btn.stopping:hover { background:#b71c1c; }
+
+    /* ── Right panel: 3 stacked canvases ───────────────────────── */
+    .lv-right {
+      flex:1; display:flex; flex-direction:column;
+      overflow:hidden; padding:6px; gap:4px;
+    }
+    .lv-chart-wrap { flex:1; display:flex; flex-direction:column; min-height:0; }
+    .lv-chart-title {
+      font-size:10px; font-weight:700; text-transform:uppercase;
+      letter-spacing:0.4px; color:var(--muted); padding:1px 4px; flex-shrink:0;
+    }
+    canvas.lv-canvas {
+      flex:1; width:100%; min-height:0;
+      background:#fff; border:1px solid var(--border); border-radius:4px;
+    }
+  </style>
+</head>
+<body>
+<div class="lv-page">
+
+  <header class="obie-header">
+    <a class="brand" href="../../index.html">
+      <div class="logo-icon">🎻</div><h1>ObieWebApp 2</h1>
+    </a>
+    <span class="crumb">· Acquire · LiveView</span>
+    <div class="gap"></div>
+    <button id="start-btn" class="btn primary" onclick="toggleCapture()">▶ Start</button>
+  </header>
+
+  <div class="lv-body">
+
+    <!-- Left settings panel -->
+    <div class="lv-left">
+
+      <div>
+        <div class="lv-sect">Input Device</div>
+        <select id="mic-sel" style="width:100%;font-size:11px;margin-bottom:6px"></select>
+      </div>
+
+      <div>
+        <div class="lv-sect">Mode</div>
+        <div class="mode-row">
+          <button class="mode-btn active" id="mode-live"    onclick="setMode('live')">Live</button>
+          <button class="mode-btn"        id="mode-trigger" onclick="setMode('trigger')">Wait for Trigger</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="lv-sect">Trigger</div>
+        <div class="lv-row">
+          <label>Threshold</label>
+          <input id="inp-thr"  type="number" value="0.05" step="0.005" min="0.001" max="1">
+          <span class="lv-unit">V</span>
+        </div>
+        <div class="lv-row">
+          <label>Pre-trig</label>
+          <input id="inp-pre"  type="number" value="0.01" step="0.005" min="0.001" max="0.5">
+          <span class="lv-unit">s</span>
+        </div>
+        <div class="lv-row">
+          <label>Post-trig</label>
+          <input id="inp-post" type="number" value="0.30" step="0.05"  min="0.05"  max="5">
+          <span class="lv-unit">s</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="lv-sect">Display</div>
+        <div class="lv-row">
+          <label>Averages</label>
+          <input id="num-avg" type="number" value="4" min="1" max="50">
+        </div>
+      </div>
+
+      <div>
+        <div id="lv-status" class="lv-status">Press Start to begin</div>
+        <div id="lv-level-h" class="lv-stat">–</div>
+        <div style="font-size:9px;color:var(--muted);text-align:center">Hammer peak</div>
+        <div id="lv-level-m" class="lv-stat" style="color:#1565c0">–</div>
+        <div style="font-size:9px;color:var(--muted);text-align:center">Mic peak</div>
+        <div id="lv-hits" style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px"></div>
+        <button id="clear-btn" class="btn" style="width:100%;margin-top:6px;display:none"
+                onclick="clearFRF()">Clear FRF</button>
+      </div>
+
+    </div><!-- lv-left -->
+
+    <!-- Right: three live charts -->
+    <div class="lv-right">
+      <div class="lv-chart-wrap">
+        <div class="lv-chart-title" style="color:#c62828">Hammer — Channel R (red)</div>
+        <canvas id="hammer-canvas" class="lv-canvas"></canvas>
+      </div>
+      <div class="lv-chart-wrap">
+        <div class="lv-chart-title" style="color:#1565c0">Microphone — Channel L (blue)</div>
+        <canvas id="mic-canvas" class="lv-canvas"></canvas>
+      </div>
+      <div class="lv-chart-wrap">
+        <div class="lv-chart-title" id="frf-title" style="color:#6a1b9a">FRF  (Mic / Hammer)</div>
+        <canvas id="frf-canvas" class="lv-canvas"></canvas>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── AudioWorklet blob ─────────────────────────────────────────────────────
+const WORKLET_SRC = `
+class LVCaptureProcessor extends AudioWorkletProcessor {
+  process(inputs) {
+    const inp = inputs[0];
+    if (inp && inp[0] && inp[0].length > 0) {
+      const L = inp[0];
+      const R = inp.length > 1 && inp[1] && inp[1].length > 0 ? inp[1] : inp[0];
+      this.port.postMessage({ l: L.slice(), r: R.slice() });
+    }
+    return true;
+  }
+}
+registerProcessor('lv-capture', LVCaptureProcessor);
+`;
+
+// ── Audio objects ─────────────────────────────────────────────────────────
+let _audioCtx    = null;
+let _workletNode = null;
+let _source      = null;
+let _stream      = null;
+let _running     = false;
+let _rafId       = null;
+let _sr          = 44100;
+
+// ── Ring buffer (hammer=R, mic=L) ─────────────────────────────────────────
+const RING_SECS = 4;
+let _ringH    = new Float32Array(RING_SECS * 44100);
+let _ringM    = new Float32Array(RING_SECS * 44100);
+let _ringSz   = RING_SECS * 44100;
+let _ringWr   = 0;
+
+function _reallocRing(sr) {
+  _sr    = sr;
+  _ringSz = RING_SECS * sr;
+  _ringH  = new Float32Array(_ringSz);
+  _ringM  = new Float32Array(_ringSz);
+  _ringWr = 0;
+}
+
+function _pushRing(L, R) {
+  for (let i = 0; i < L.length; i++) {
+    _ringH[_ringWr] = R[i];
+    _ringM[_ringWr] = L[i];
+    _ringWr = (_ringWr + 1) % _ringSz;
+  }
+}
+
+function _ringTail(n) {
+  n = Math.min(n, _ringSz);
+  const H = new Float32Array(n), M = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const idx = (_ringWr - n + i + _ringSz) % _ringSz;
+    H[i] = _ringH[idx]; M[i] = _ringM[idx];
+  }
+  return { H, M };
+}
+
+function _ringWindowAt(center, pre, post) {
+  const n = pre + post;
+  const H = new Float32Array(n), M = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const idx = (center - pre + i + _ringSz) % _ringSz;
+    H[i] = _ringH[idx]; M[i] = _ringM[idx];
+  }
+  return { H, M };
+}
+
+// ── Mode ──────────────────────────────────────────────────────────────────
+let _mode = 'live';  // 'live' | 'trigger'
+
+function setMode(m) {
+  _mode = m;
+  document.getElementById('mode-live').classList.toggle('active', m === 'live');
+  document.getElementById('mode-trigger').classList.toggle('active', m === 'trigger');
+  document.getElementById('frf-title').textContent =
+    m === 'live' ? 'FRF  (live estimate — Mic / Hammer spectra)'
+                 : 'FRF  (H1 from triggered hits)';
+  document.getElementById('clear-btn').style.display = m === 'trigger' ? '' : 'none';
+  document.getElementById('lv-hits').textContent = '';
+  if (m === 'trigger') { _trigState = 'armed'; }
+  _frfGxx = null; _frfGxy = null; _frfCount = 0;
+  _capturedH = null; _capturedM = null; _capturedFRF = null;
+}
+
+// ── Trigger state ─────────────────────────────────────────────────────────
+let _trigState    = 'armed';  // 'armed' | 'triggered' | 'holding'
+let _trigRingPos  = 0;
+let _postLeft     = 0;
+let _capturedH    = null;
+let _capturedM    = null;
+let _capturedFRF  = null;  // { freqs, mags }
+
+// ── FRF accumulation ──────────────────────────────────────────────────────
+let _frfGxx   = null;
+let _frfGxy   = null;
+let _frfFreqs = null;
+let _frfCount = 0;
+
+function clearFRF() {
+  _frfGxx = null; _frfGxy = null; _frfCount = 0;
+  _capturedH = null; _capturedM = null; _capturedFRF = null;
+  document.getElementById('lv-hits').textContent = '';
+}
+
+// ── FFT (radix-2 Cooley-Tukey, in-place) ─────────────────────────────────
+function _nextPow2(n) {
+  let p = 1; while (p < n) p <<= 1; return p;
+}
+
+function _fftInPlace(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) {
+      let t = re[i]; re[i] = re[j]; re[j] = t;
+          t = im[i]; im[i] = im[j]; im[j] = t;
+    }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const theta = -2 * Math.PI / len;
+    const wr = Math.cos(theta), wi = Math.sin(theta);
+    for (let i = 0; i < n; i += len) {
+      let ur = 1, ui = 0;
+      for (let k = 0; k < (len >> 1); k++) {
+        const ar = re[i+k], ai = im[i+k];
+        const br = re[i+k+(len>>1)]*ur - im[i+k+(len>>1)]*ui;
+        const bi = re[i+k+(len>>1)]*ui + im[i+k+(len>>1)]*ur;
+        re[i+k]         = ar + br; im[i+k]         = ai + bi;
+        re[i+k+(len>>1)] = ar - br; im[i+k+(len>>1)] = ai - bi;
+        const ur2 = ur*wr - ui*wi; ui = ur*wi + ui*wr; ur = ur2;
+      }
+    }
+  }
+}
+
+function _spectrum(samples, N) {
+  const re = new Float64Array(N), im = new Float64Array(N);
+  const len = Math.min(samples.length, N);
+  for (let i = 0; i < len; i++) {
+    const w = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (len - 1));
+    re[i] = samples[i] * w;
+  }
+  _fftInPlace(re, im);
+  return { re, im };
+}
+
+function _computeH1(hamWin, micWin) {
+  const N = _nextPow2(Math.max(hamWin.length, micWin.length));
+  const H = _spectrum(hamWin, N);
+  const M = _spectrum(micWin, N);
+  const bins  = N >> 1;
+  const freqs = new Float32Array(bins);
+  const Gxx   = new Float64Array(bins);
+  const Gxy_re = new Float64Array(bins), Gxy_im = new Float64Array(bins);
+  for (let i = 0; i < bins; i++) {
+    freqs[i]    = i * _sr / N;
+    Gxx[i]      = H.re[i]*H.re[i] + H.im[i]*H.im[i];
+    Gxy_re[i]   = M.re[i]*H.re[i] + M.im[i]*H.im[i];
+    Gxy_im[i]   = M.im[i]*H.re[i] - M.re[i]*H.im[i];
+  }
+  return { freqs, Gxx, Gxy_re, Gxy_im, N };
+}
+
+function _h1ToDb(Gxx, Gxy_re, Gxy_im) {
+  const bins = Gxx.length;
+  const mags = new Float32Array(bins);
+  for (let i = 0; i < bins; i++) {
+    const den = Gxx[i] + 1e-30;
+    const hr  = Gxy_re[i] / den, hi = Gxy_im[i] / den;
+    mags[i] = 20 * Math.log10(Math.sqrt(hr*hr + hi*hi) + 1e-10);
+  }
+  return mags;
+}
+
+// ── Canvas helpers ────────────────────────────────────────────────────────
+const hamCanvas = document.getElementById('hammer-canvas');
+const micCanvas = document.getElementById('mic-canvas');
+const frfCanvas = document.getElementById('frf-canvas');
+const hamCtx    = hamCanvas.getContext('2d');
+const micCtx    = micCanvas.getContext('2d');
+const frfCtx    = frfCanvas.getContext('2d');
+
+function resizeCanvases() {
+  [hamCanvas, micCanvas, frfCanvas].forEach(c => {
+    c.width  = c.offsetWidth  * devicePixelRatio;
+    c.height = c.offsetHeight * devicePixelRatio;
+  });
+}
+window.addEventListener('resize', () => { resizeCanvases(); });
+setTimeout(resizeCanvases, 80);
+
+function drawTimeDomain(canvas, ctx, samples, color, preSamples, threshold, showThr) {
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  if (!samples || !samples.length) return;
+  const n = samples.length;
+
+  // Auto-scale y to peak
+  let pk = 0;
+  for (let i = 0; i < n; i++) if (Math.abs(samples[i]) > pk) pk = Math.abs(samples[i]);
+  pk = Math.max(pk * 1.2, threshold * 1.5, 0.02);
+
+  const yOf = v => h * (0.5 - v / (2 * pk));
+
+  // Zero line
+  ctx.strokeStyle = '#e0e0e0'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, h/2); ctx.lineTo(w, h/2); ctx.stroke();
+
+  // Threshold (dotted purple) if requested
+  if (showThr && threshold > 0) {
+    const yt = yOf(threshold), yb = yOf(-threshold);
+    ctx.setLineDash([4 * devicePixelRatio, 4 * devicePixelRatio]);
+    ctx.strokeStyle = '#7c2bc8'; ctx.lineWidth = 1.5 * devicePixelRatio;
+    ctx.beginPath(); ctx.moveTo(0, yt); ctx.lineTo(w, yt); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, yb); ctx.lineTo(w, yb); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Signal
+  ctx.strokeStyle = color; ctx.lineWidth = 1.5 * devicePixelRatio;
+  ctx.beginPath();
+  const step = Math.max(1, Math.floor(n / w));
+  for (let i = 0; i < n; i += step) {
+    const x = w * i / n, y = yOf(samples[i]);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+
+  // Peak label
+  ctx.fillStyle = '#aaa';
+  ctx.font = `${9 * devicePixelRatio}px sans-serif`;
+  ctx.textBaseline = 'top';
+  ctx.fillText(`pk ${(pk/1.2).toFixed(3)} V`, 4 * devicePixelRatio, 3 * devicePixelRatio);
+}
+
+function drawFRF(canvas, ctx, freqs, mags) {
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  if (!freqs || !freqs.length) {
+    ctx.fillStyle = '#ccc'; ctx.font = `${11*devicePixelRatio}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(_mode === 'trigger' ? 'Waiting for trigger…' : 'No data', w/2, h/2);
+    ctx.textAlign = 'left';
+    return;
+  }
+
+  // X axis: match acquire defaults — log, 100 Hz to 12 kHz
+  const fMin = 100, fMax = 12000;
+  const fMinLog = Math.log10(fMin), fMaxLog = Math.log10(fMax);
+
+  // Y range: auto from data within display window
+  let yMax = -Infinity, yMin = Infinity;
+  for (let i = 0; i < freqs.length; i++) {
+    if (freqs[i] < fMin || freqs[i] > fMax) continue;
+    if (isFinite(mags[i]) && mags[i] > -200) {
+      if (mags[i] > yMax) yMax = mags[i];
+      if (mags[i] < yMin) yMin = mags[i];
+    }
+  }
+  if (!isFinite(yMax)) { yMax = 20; yMin = -60; }
+  yMax = yMax + 5; yMin = yMax - 60;
+
+  const xOf = f => w * (Math.log10(Math.max(f, 0.1)) - fMinLog) / (fMaxLog - fMinLog);
+  const yOf = v => h * (1 - (v - yMin) / (yMax - yMin));
+
+  // Grid lines
+  ctx.strokeStyle = '#ececec'; ctx.lineWidth = 1;
+  [100, 200, 500, 1000, 2000, 5000, 10000].forEach(f => {
+    const x = xOf(f);
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  });
+
+  // Draw signal
+  ctx.strokeStyle = '#6a1b9a'; ctx.lineWidth = 1.8 * devicePixelRatio;
+  ctx.beginPath();
+  let started = false;
+  for (let i = 1; i < freqs.length; i++) {
+    if (freqs[i] < fMin || freqs[i] > fMax || !isFinite(mags[i]) || mags[i] < -200) {
+      started = false; continue;
+    }
+    const x = xOf(freqs[i]), y = yOf(mags[i]);
+    if (!started) { ctx.moveTo(x, y); started = true; }
+    else { ctx.lineTo(x, y); }
+  }
+  ctx.stroke();
+
+  // Axis labels
+  ctx.fillStyle = '#aaa';
+  ctx.font = `${9 * devicePixelRatio}px sans-serif`;
+  ctx.textBaseline = 'bottom';
+  [100, 200, 500, 1000, 2000, 5000, 10000].forEach(f => {
+    const x = xOf(f);
+    ctx.fillText(f >= 1000 ? (f/1000)+'k' : f, x + 1*devicePixelRatio, h - 1*devicePixelRatio);
+  });
+  ctx.textBaseline = 'top';
+  ctx.fillText(`${yMax.toFixed(0)} dB`, 2*devicePixelRatio, 2*devicePixelRatio);
+  ctx.fillText(`${yMin.toFixed(0)} dB`, 2*devicePixelRatio, h - 12*devicePixelRatio);
+}
+
+// ── Prefs sync ────────────────────────────────────────────────────────────
+function _loadAcqPrefs() {
+  try { return JSON.parse(localStorage.getItem('obieAcquire_prefs') || '{}'); }
+  catch(_) { return {}; }
+}
+function _saveDeviceToPrefs(deviceId) {
+  const p = _loadAcqPrefs(); p.deviceId = deviceId;
+  localStorage.setItem('obieAcquire_prefs', JSON.stringify(p));
+}
+
+function _applyPrefsToForm() {
+  const p = _loadAcqPrefs();
+  const set = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.value = val; };
+  set('inp-thr',  p.threshold   ?? 0.05);
+  set('inp-pre',  p.pre_trig_s  ?? 0.01);
+  set('inp-post', p.post_trig_s ?? 0.30);
+}
+
+// ── Enumerate mics ────────────────────────────────────────────────────────
+async function enumerateMics() {
+  try {
+    const tmp = await navigator.mediaDevices.getUserMedia({ audio: true });
+    tmp.getTracks().forEach(t => t.stop());
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const sel     = document.getElementById('mic-sel');
+    const savedId = _loadAcqPrefs().deviceId || '';
+    sel.innerHTML = '';
+    devices.filter(d => d.kind === 'audioinput').forEach(d => {
+      const o = document.createElement('option');
+      o.value = d.deviceId;
+      o.textContent = d.label || `Mic (${d.deviceId.slice(0,8)}…)`;
+      if (d.deviceId === savedId) o.selected = true;
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change', () => _saveDeviceToPrefs(sel.value));
+  } catch(e) { setSt('Mic access denied: ' + e.message); }
+}
+
+function setSt(msg) { document.getElementById('lv-status').textContent = msg; }
+
+// ── Start / Stop ──────────────────────────────────────────────────────────
+async function toggleCapture() {
+  if (_running) { stopCapture(); return; }
+
+  const deviceId = document.getElementById('mic-sel').value;
+  try {
+    setSt('Requesting microphone…');
+    _stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        deviceId:         deviceId ? { exact: deviceId } : undefined,
+        channelCount:     { ideal: 2 },
+        sampleRate:       { ideal: 44100 },
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl:  false,
+      }
+    });
+    _audioCtx = new AudioContext();
+    _reallocRing(_audioCtx.sampleRate);
+
+    const blob = new Blob([WORKLET_SRC], { type: 'application/javascript' });
+    const blobURL = URL.createObjectURL(blob);
+    await _audioCtx.audioWorklet.addModule(blobURL);
+    URL.revokeObjectURL(blobURL);
+
+    _source = _audioCtx.createMediaStreamSource(_stream);
+    _workletNode = new AudioWorkletNode(_audioCtx, 'lv-capture', {
+      numberOfInputs: 1, numberOfOutputs: 0,
+      channelCount: 2, channelCountMode: 'explicit',
+    });
+
+    _workletNode.port.onmessage = ({ data }) => {
+      _pushRing(data.l, data.r);
+      if (_mode === 'trigger') _checkTrigger(data.r);
+    };
+
+    _source.connect(_workletNode);
+
+    _running = true;
+    _trigState = 'armed';
+    document.getElementById('start-btn').textContent = '■ Stop';
+    document.getElementById('start-btn').classList.add('stopping');
+    setSt(_mode === 'live' ? 'Running — live mode' : 'Armed — waiting for trigger…');
+    _loop();
+  } catch(e) { setSt('Error: ' + e.message); }
+}
+
+function stopCapture() {
+  _running = false;
+  if (_rafId) cancelAnimationFrame(_rafId);
+  if (_workletNode) { _workletNode.disconnect(); _workletNode = null; }
+  if (_source)      { _source.disconnect();      _source = null; }
+  if (_stream)      { _stream.getTracks().forEach(t => t.stop()); _stream = null; }
+  if (_audioCtx)    { _audioCtx.close(); _audioCtx = null; }
+  document.getElementById('start-btn').textContent = '▶ Start';
+  document.getElementById('start-btn').classList.remove('stopping');
+  setSt('Stopped');
+}
+
+// ── Trigger detection (called from worklet message handler) ───────────────
+function _checkTrigger(hammerBatch) {
+  const thr = parseFloat(document.getElementById('inp-thr').value) || 0.05;
+
+  if (_trigState === 'armed') {
+    for (let i = 0; i < hammerBatch.length; i++) {
+      if (Math.abs(hammerBatch[i]) > thr) {
+        // Ring position of the trigger sample
+        _trigRingPos = (_ringWr - hammerBatch.length + i + _ringSz) % _ringSz;
+        const postS  = parseFloat(document.getElementById('inp-post').value) || 0.30;
+        _postLeft    = Math.ceil(postS * _sr) - (hammerBatch.length - i - 1);
+        _trigState   = _postLeft <= 0 ? 'capture_now' : 'triggered';
+        if (_trigState === 'capture_now') _doCapture();
+        break;
+      }
+    }
+  } else if (_trigState === 'triggered') {
+    _postLeft -= hammerBatch.length;
+    if (_postLeft <= 0) _doCapture();
+  }
+}
+
+function _doCapture() {
+  _trigState = 'holding';  // prevent re-trigger during processing
+  const preS   = parseFloat(document.getElementById('inp-pre').value)  || 0.01;
+  const postS  = parseFloat(document.getElementById('inp-post').value) || 0.30;
+  const preN   = Math.ceil(preS  * _sr);
+  const postN  = Math.ceil(postS * _sr);
+  const { H, M } = _ringWindowAt(_trigRingPos, preN, postN);
+
+  _capturedH = H;
+  _capturedM = M;
+  _capturedPreN = preN;
+
+  // H1 accumulation
+  const result = _computeH1(H, M);
+  if (!_frfGxx) {
+    _frfGxx   = new Float64Array(result.Gxx);
+    _frfGxy_re = new Float64Array(result.Gxy_re);
+    _frfGxy_im = new Float64Array(result.Gxy_im);
+    _frfFreqs  = result.freqs;
+  } else {
+    const bins = Math.min(_frfGxx.length, result.Gxx.length);
+    for (let i = 0; i < bins; i++) {
+      _frfGxx[i]    += result.Gxx[i];
+      _frfGxy_re[i] += result.Gxy_re[i];
+      _frfGxy_im[i] += result.Gxy_im[i];
+    }
+  }
+  _frfCount++;
+
+  const mags = _h1ToDb(_frfGxx, _frfGxy_re, _frfGxy_im);
+  _capturedFRF = { freqs: _frfFreqs, mags };
+
+  document.getElementById('lv-hits').textContent = `${_frfCount} hit${_frfCount > 1 ? 's' : ''} averaged`;
+  setSt(`Hit ${_frfCount} captured — re-arming…`);
+
+  setTimeout(() => {
+    if (_running) {
+      _trigState = 'armed';
+      setSt('Armed — waiting for trigger…');
+    }
+  }, 200);
+}
+
+let _capturedPreN = 0;
+let _frfGxy_re = null, _frfGxy_im = null;
+
+// ── Live FRF from continuous ring buffer ──────────────────────────────────
+let _liveFrameCount = 0;
+let _liveFRF = null;
+
+function _updateLiveFRF() {
+  const postS  = parseFloat(document.getElementById('inp-post').value) || 0.30;
+  const dispN  = Math.ceil(postS * _sr);
+  const nAvg   = parseInt(document.getElementById('num-avg').value) || 4;
+  const { H, M } = _ringTail(dispN);
+  const result   = _computeH1(H, M);
+  const mags     = _h1ToDb(result.Gxx, result.Gxy_re, result.Gxy_im);
+  if (!_liveFRF || _liveFRF.freqs.length !== result.freqs.length) {
+    _liveFRF = { freqs: result.freqs, mags: new Float32Array(mags) };
+  } else {
+    // Running average
+    const a = 1 / nAvg;
+    for (let i = 0; i < mags.length; i++) {
+      _liveFRF.mags[i] = _liveFRF.mags[i] * (1 - a) + mags[i] * a;
+    }
+  }
+}
+
+// ── Render loop ───────────────────────────────────────────────────────────
+function _loop() {
+  if (!_running) return;
+  _rafId = requestAnimationFrame(_loop);
+  _liveFrameCount++;
+
+  const thr = parseFloat(document.getElementById('inp-thr').value) || 0.05;
+
+  if (_mode === 'live') {
+    // Show last window of samples
+    const dispSecs = parseFloat(document.getElementById('inp-post').value) || 0.3;
+    const dispN    = Math.ceil(dispSecs * _sr);
+    const { H, M } = _ringTail(dispN);
+    const pkH = H.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+    const pkM = M.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+    document.getElementById('lv-level-h').textContent =
+      pkH > 1e-6 ? (20*Math.log10(pkH)).toFixed(1)+' dB' : '–';
+    document.getElementById('lv-level-m').textContent =
+      pkM > 1e-6 ? (20*Math.log10(pkM)).toFixed(1)+' dB' : '–';
+    drawTimeDomain(hamCanvas, hamCtx, H, '#c62828', 0, thr, true);
+    drawTimeDomain(micCanvas, micCtx, M, '#1565c0', 0, thr, false);
+
+    // Update live FRF every 6 frames
+    if (_liveFrameCount % 6 === 0) _updateLiveFRF();
+    if (_liveFRF) drawFRF(frfCanvas, frfCtx, _liveFRF.freqs, _liveFRF.mags);
+
+  } else {
+    // Trigger mode — show last captured window (or live tail while waiting)
+    if (_capturedH) {
+      const pkH = _capturedH.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+      const pkM = _capturedM.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+      document.getElementById('lv-level-h').textContent =
+        pkH > 1e-6 ? (20*Math.log10(pkH)).toFixed(1)+' dB' : '–';
+      document.getElementById('lv-level-m').textContent =
+        pkM > 1e-6 ? (20*Math.log10(pkM)).toFixed(1)+' dB' : '–';
+      drawTimeDomain(hamCanvas, hamCtx, _capturedH, '#c62828', _capturedPreN, thr, true);
+      drawTimeDomain(micCanvas, micCtx, _capturedM, '#1565c0', _capturedPreN, thr, false);
+      if (_capturedFRF) drawFRF(frfCanvas, frfCtx, _capturedFRF.freqs, _capturedFRF.mags);
+    } else {
+      // While waiting, show live tail
+      const dispN = Math.ceil(0.1 * _sr);
+      const { H, M } = _ringTail(dispN);
+      drawTimeDomain(hamCanvas, hamCtx, H, '#c62828', 0, thr, true);
+      drawTimeDomain(micCanvas, micCtx, M, '#1565c0', 0, thr, false);
+      drawFRF(frfCanvas, frfCtx, null, null);
+    }
+  }
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+_applyPrefsToForm();
+enumerateMics().then(() => setTimeout(toggleCapture, 300));
+</script>
+</body>
+</html>

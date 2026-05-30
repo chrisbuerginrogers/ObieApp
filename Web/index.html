@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="./coi-serviceworker.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ObieWebApp 2 — Violin Acoustics Toolkit</title>
+  <link rel="stylesheet" href="./css/theme.css">
+  <link rel="stylesheet" href="./css/index.css">
+  <script src="./js/obie-settings.js"></script>
+  <script src="./js/browser-check.js"></script>
+</head>
+<body>
+
+<header class="obie-header">
+  <a class="brand" href="./index.html">
+    <div class="logo-icon">🎻</div>
+    <h1>ObieWebApp 2</h1>
+  </a>
+  <span class="crumb">· Oberlin Acoustics Workshop</span>
+  <div class="gap"></div>
+</header>
+
+<main class="landing">
+
+  <section class="intro">
+    <h2>Tools for analyzing the vibrational characteristics of violins</h2>
+    <p>
+      This is a modular browser-based toolkit for measuring Violin response. 
+     Everything runs locally in your browser — no
+      uploads, no server.  You need to use Chrome or Edge to access the folder picker and local file saving features.
+    </p>
+  </section>
+
+  <!-- ── Data Folder selector ─────────────────────────────────────────── -->
+  <div class="folder-bar" id="folder-bar">
+    <div class="folder-bar-left">
+      <span class="folder-bar-label">📁 Data Folder</span>
+      <span class="folder-bar-name" id="folder-bar-name">No folder selected</span>
+    </div>
+    <button class="folder-bar-btn" id="folder-bar-btn" onclick="pickDataFolder()">Select…</button>
+  </div>
+
+  <hr class="divider">
+
+  <p class="section-label">🔍 Tools</p>
+  <div class="tool-grid">
+
+    <a class="tool-card" href="./tools/explore/">
+      <div class="head">
+        <div class="icon">🔍</div>
+        <span class="name">Explore</span>
+      </div>
+      <p class="desc">
+        Load, compare, and interpret multiple FRF files. Overlaid plots with smoothing, normalization,
+        band averaging, FRF interpretation, and per-dataset convolution playback.
+      </p>
+      <span class="tag app">Tool · PyScript</span>
+    </a>
+
+    <a class="tool-card" href="./tools/convolve-it/">
+      <div class="head">
+        <div class="icon">🔀</div>
+        <span class="name">Convolve It</span>
+      </div>
+      <p class="desc">
+        Load an FRF CSV or TRF and convolve it with any WAV file. Full complex
+        frequency-domain convolution with min-phase or zero-phase
+        reconstruction. Play and save the result.
+      </p>
+      <span class="tag app">Tool · PyScript</span>
+    </a>
+
+    <a class="tool-card" href="./tools/acquire/">
+      <div class="head">
+        <div class="icon">🎯</div>
+        <span class="name">Acquire</span>
+      </div>
+      <p class="desc">
+        Impact-hammer FRF acquisition with auto-accept, calibration factors,
+        overlaid multi-position plots, template support, and session notes.
+        Settings and templates saved to your Data Folder.
+      </p>
+      <span class="tag app">Tool · PyScript</span>
+    </a>
+
+  </div>
+
+  <p class="section-label">📚 References</p>
+  <div class="tool-grid">
+
+    <a class="tool-card" href="./Docs/">
+      <div class="head">
+        <div class="icon">📖</div>
+        <span class="name">Documentation</span>
+      </div>
+      <p class="desc">
+        How to use Explore, Convolve It, and Acquire. Quick-start guide,
+        controls reference, and links to the full technical PDF.
+      </p>
+      <span class="tag">Guide</span>
+    </a>
+
+    <a class="tool-card" href="https://github.com/chrisbuerginrogers/ObieWebApp/tree/main/ObieWebApp2" target="_blank" rel="noopener">
+      <div class="head">
+        <div class="icon">💻</div>
+        <span class="name">Source Code</span>
+      </div>
+      <p class="desc">
+        Browse the full source code on GitHub.
+      </p>
+      <span class="tag">GitHub</span>
+    </a>
+
+  </div>
+
+  <footer class="obie-footer">
+    Oberlin Acoustics Workshop &nbsp;·&nbsp; ObieWebApp 2 &nbsp;·&nbsp;
+    Built by <a href="https://claude.ai/code" target="_blank" rel="noopener">Claude</a>
+    with <a href="https://pyscript.net/" target="_blank" rel="noopener">PyScript</a>
+    &nbsp;+&nbsp; <a href="https://plotly.com/javascript/" target="_blank" rel="noopener">Plotly</a>
+  </footer>
+
+</main>
+
+<script>
+(function () {
+  // Show saved folder name immediately (no IDB needed for display)
+  const saved = localStorage.getItem('obieDataFolderName');
+  if (saved) {
+    document.getElementById('folder-bar-name').textContent = saved;
+    document.getElementById('folder-bar').classList.add('has-folder');
+  }
+
+  window.pickDataFolder = async function () {
+    if (!window.showDirectoryPicker) {
+      alert('Directory picker requires Chrome or Edge.');
+      return;
+    }
+    try {
+      const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      await saveDataFolderHandle(handle);
+      document.getElementById('folder-bar-name').textContent = handle.name;
+      document.getElementById('folder-bar').classList.add('has-folder');
+      document.getElementById('folder-bar-btn').textContent = 'Change…';
+    } catch (e) {
+      if (e.name !== 'AbortError') alert('Folder error: ' + e.message);
+    }
+  };
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../coi-serviceworker.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Convolve It — ObieWebApp 2</title>
+
+  <link rel="stylesheet" href="../../css/theme.css">
+  <link rel="stylesheet" href="../../css/convolve-it.css">
+
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+
+  <!-- PyScript 2026.3.1 -->
+  <link  rel="stylesheet" href="https://pyscript.net/releases/2026.3.1/core.css">
+  <script type="module"   src="https://pyscript.net/releases/2026.3.1/core.js"></script>
+
+  <!-- Shared JS — order matters -->
+  <script src="../../js/plotly-theme.js"></script>
+  <script src="../../js/audio.js"></script>
+  <script src="../../js/obie-settings.js"></script>
+  <script src="../../js/convolve-it.js" defer></script>
+</head>
+<body>
+
+<div id="loading" class="loading-overlay">
+  <div class="spin"></div>
+  <div class="load-title">Loading PyScript + NumPy…</div>
+  <div class="load-sub">First load may take 15–30 s</div>
+</div>
+
+<div class="ci-page">
+
+  <!-- ── Header ──────────────────────────────────────────────────────── -->
+  <header class="obie-header">
+    <a class="brand" href="../../index.html">
+      <div class="logo-icon">🎻</div>
+      <h1>ObieWebApp 2</h1>
+    </a>
+    <span class="crumb">· Convolve It</span>
+    <div class="gap"></div>
+    <a class="btn" href="../../index.html" style="font-size:0.75rem;padding:3px 9px">← All tools</a>
+  </header>
+
+  <!-- ── Toolbar ─────────────────────────────────────────────────────── -->
+  <div class="ci-toolbar">
+    <button id="ci-folder-btn" class="tb-btn" onclick="ciSetDataFolder()">📁 Data Folder</button>
+    <div class="tb-flex"></div>
+    <button id="spec-scale-btn" class="tb-btn" onclick="ciToggleSpecScale()"
+            title="Toggle spectrogram frequency axis between linear and log">Freq: Lin</button>
+  </div>
+
+  <!-- ── Main body ───────────────────────────────────────────────────── -->
+  <div class="ci-body">
+
+    <!-- ── Sidebar ───────────────────────────────────────────────────── -->
+    <aside class="ci-sidebar">
+
+      <!-- FRF Files -->
+      <div class="ci-sect">📂 FRF Files</div>
+      <div class="ci-content">
+        <label class="file-btn">
+          <span id="frf-l-btn-text">Left / Mono FRF</span>
+          <input type="file" id="frf-l-input" accept=".trf,.trv,.avc,.avr,.csv"
+                 onchange="loadFRF('L', this)">
+        </label>
+        <div class="file-status" id="frf-l-status">no file loaded</div>
+        <label class="file-btn" style="margin-top:6px">
+          <span id="frf-r-btn-text">Right FRF — optional</span>
+          <input type="file" id="frf-r-input" accept=".trf,.trv,.avc,.avr,.csv"
+                 onchange="loadFRF('R', this)">
+        </label>
+        <div class="file-status" id="frf-r-status">–</div>
+      </div>
+
+      <!-- WAV Signal -->
+      <div class="ci-sect">🎵 Signal (WAV)</div>
+      <div class="ci-content">
+        <label class="file-btn">
+          Load WAV
+          <input type="file" id="wav-input" accept=".wav,audio/wav,audio/*"
+                 onchange="loadWAV(this)">
+        </label>
+        <div class="file-status" id="wav-status">no file loaded</div>
+        <button id="play-wav-btn" class="tb-btn accent" data-label="WAV"
+                onclick="togglePlayWAV()" style="display:none;width:100%;margin-top:6px">
+          ▶ Play WAV
+        </button>
+      </div>
+
+      <!-- Settings -->
+      <div class="ci-sect">⚙️ Settings</div>
+      <div class="ci-content">
+        <div class="ci-gain-hdr">
+          <label>Output gain</label>
+          <span class="ci-gain-val" id="gain-disp">+0 dB</span>
+        </div>
+        <input type="range" id="gain-sl" class="ci-gain-slider"
+               min="-24" max="24" value="0" step="1">
+        <div class="ci-row" style="margin-top:8px">
+          <label>Output device</label>
+          <select id="out-device-sel">
+            <option value="">Default output</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Convolve action -->
+      <div class="ci-action">
+        <button id="conv-btn" class="tb-btn start"
+                onclick="runConvolution()" disabled>⚡ Convolve</button>
+        <div class="prog-msg" id="prog-msg"></div>
+      </div>
+
+      <!-- Result (hidden until convolution completes) -->
+      <div id="result-card" style="display:none">
+        <div class="ci-sect">▶ Result</div>
+        <div class="ci-content">
+          <div class="fileinfo" id="out-info"></div>
+          <div class="ci-result-btns">
+            <button id="play-btn" class="tb-btn accent" data-label="Result"
+                    onclick="togglePlay()" style="flex:1">▶ Play Result</button>
+            <button id="save-btn" class="tb-btn" onclick="saveWAV()">💾 Save</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Info -->
+      <div class="ci-sect">ℹ Info</div>
+      <div class="ci-content">
+        <div class="ci-info-body">
+          <span>Y(f) = H(f) · X(f)</span>
+          <span>Log-space FRF interpolation</span>
+          <span>Hann-windowed FFT</span>
+        </div>
+      </div>
+
+    </aside><!-- ci-sidebar -->
+
+    <!-- Drag resize handle -->
+    <div id="ci-resizer" class="ci-resizer"></div>
+
+    <!-- ── 2 × 2 plot grid ─────────────────────────────────────────── -->
+    <div class="ci-plots">
+      <div class="plot-wrap">
+        <div class="plot-label">FRF · Magnitude (dB)</div>
+        <div id="frf-plot" class="plot-div"></div>
+      </div>
+      <div class="plot-wrap">
+        <div class="plot-label">
+          <span id="in-spec-label">Input · Spectrogram</span>
+        </div>
+        <div id="wav-plot" class="plot-div"></div>
+      </div>
+      <div class="plot-wrap">
+        <div class="plot-label">Output · Convolved Waveform</div>
+        <div id="out-plot" class="plot-div"></div>
+      </div>
+      <div class="plot-wrap">
+        <div class="plot-label">
+          <span id="out-spec-label">Output · L Channel</span>
+          <button class="plot-label-btn" id="out-spec-btn" onclick="ciToggleBotSpec()"
+                  style="display:none">Show R ▶</button>
+        </div>
+        <div id="spec-plot" class="plot-div"></div>
+      </div>
+    </div>
+
+  </div><!-- ci-body -->
+
+</div><!-- ci-page -->
+
+<script type="py" src="./main.py" config="./pyscript.toml" async></script>
+
+</body>
+</html>

@@ -1,0 +1,1 @@
+{"Pattern (eg. H,V)":"hv","File type":{"AvR":true,"AvC":false,"trf":true,"wav":false,"All":false},"keywords 1":"2001.10","keywords 2":"","keywords 3":""}

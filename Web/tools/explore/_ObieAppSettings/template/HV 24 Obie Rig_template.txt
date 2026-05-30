@@ -1,0 +1,60 @@
+Name of test=<Asdfsdfa--Asdfsdfa 01/>
+Date=<3862638541/>
+Location=<Home/>
+Template=<1 1 HV 24 Obie Rig/>
+Soundcard=<Line (Onyx Producer 2-2)/>
+resolution=<24/>
+Sampling rate=<48000/>
+Ch1 Gain =<20.000000/>
+Ch2 Gain=<20.000000/>
+Sample time (s)=<0.300000/>
+Pre-trigger (s)=<0.001000/>
+Hammer Threshold=<0.010000/>
+Positions=<12/>
+Taps/Position=<5/>
+Set Names=<H,V/>
+Freq resolution=<1.000000/>
+Hammer cutoff=<0.025000/>
+Mic cutoff=<0.250000/>
+Double bounce =<1.000000/>
+Hammer Cal=<1.000000/>
+dB Offset=<0.000000/>
+Accel Cal=<1.000000/>
+Vibrometer Cal=<1.000000/>
+Mic Cal=<1.000000/>
+Output=<2/>
+Voltage Cal=<1.000000/>
+Vibrometer Port=<ASRL27::INSTR/>
+Range=<50/>
+High Pass=<2/>
+Bandwidth=<25/>
+X Range=<2.000000E+2	1.000000E+4	1.000000E+1	1.000000E+2	2.000000E+2
+0.000000E+0	5.000000E-2	2.500000E-2	2.500000E-3	0.000000E+0
+0.000000E+0	3.000000E-1	1.000000E-1	1.000000E-2	0.000000E+0
+2.000000E+2	1.000000E+4	1.000000E+1	1.000000E+2	1.000000E+3
+/>
+Y Range=<-2.500000E+1	0.000000E+0	5.000000E+0	1.000000E+0	-2.500000E+1
+-1.000000E-1	1.000000E+0	2.500000E-1	5.000000E-2	0.000000E+0
+-1.000000E+0	1.000000E+0	5.000000E-1	1.000000E-1	-1.000000E+0
+-1.100000E+1	2.900000E+1	2.000000E+0	5.000000E-1	-1.000000E+1
+/>
+dB Spread=<40.000000/>
+Trigger=<0/>
+Ch_1=<2/>
+Ch_2=<1/>
+flip?=<false/>
+60Hz=<false/>
+Time offset=<0.000000/>
+Piezo Cal=<1.000000/>
+Default Notes=<Instrument info: 
+
+
+ 
+Template: HV 24  Obie 26
+
+Measured at: 
+
+Mic: Behringer ECM 8000 at 20 cm
+Soundcard:  Mackie Onyx Producer 2.2 
+/>
+Tom=<false/>

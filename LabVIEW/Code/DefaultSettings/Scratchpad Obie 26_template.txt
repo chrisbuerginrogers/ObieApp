@@ -1,0 +1,55 @@
+Name of test=<1 1 Scratchpad Obie 26/>
+Date=<3862644811/>
+Location=<Scratch/>
+Template=<1 1 Scratchpad Obie 26/>
+Soundcard=<Line (Onyx Producer 2-2)/>
+resolution=<24/>
+Sampling rate=<48000/>
+Ch1 Gain =<0.000000/>
+Ch2 Gain=<0.000000/>
+Sample time (s)=<0.300000/>
+Pre-trigger (s)=<0.001000/>
+Hammer Threshold=<0.011083/>
+Positions=<1/>
+Taps/Position=<10/>
+Set Names=<H/>
+Freq resolution=<1.000000/>
+Hammer cutoff=<0.018750/>
+Mic cutoff=<0.300000/>
+Double bounce =<1.000000/>
+Hammer Cal=<1.000000/>
+dB Offset=<0.000000/>
+Accel Cal=<1.000000/>
+Vibrometer Cal=<1.000000/>
+Mic Cal=<1.000000/>
+Output=<2/>
+Voltage Cal=<1.000000/>
+Vibrometer Port=<ASRL27::INSTR/>
+Range=<20/>
+High Pass=<2/>
+Bandwidth=<25/>
+X Range=<2.000000E+2	1.000000E+4	1.000000E+1	1.000000E+2	2.000000E+2
+-1.000000E-2	5.000000E-2	2.000000E-2	2.000000E-3	0.000000E+0
+-1.000000E-1	4.000000E-1	1.000000E-1	2.000000E-2	-1.000000E-1
+2.000000E+2	7.000000E+3	1.000000E+1	1.000000E+2	1.000000E+3
+/>
+Y Range=<-2.500000E+1	0.000000E+0	2.500000E+1	1.000000E+0	-2.500000E+1
+-2.000000E-2	1.000000E+0	2.000000E-1	5.000000E-2	0.000000E+0
+-1.000000E+0	1.000000E+0	5.000000E-1	1.000000E-1	-1.000000E+0
+-1.300000E+1	2.200000E+1	2.500000E+0	5.000000E-1	-1.250000E+1
+/>
+dB Spread=<35.000000/>
+Trigger=<0/>
+Ch_1=<2/>
+Ch_2=<1/>
+flip?=<false/>
+60Hz=<false/>
+Time offset=<0.000000/>
+Piezo Cal=<1.000000/>
+Default Notes=<Instrument info: 
+
+
+Mic:  Behringer ECM 8000 mic at 20 cm.
+Mic distance: 20 cm. 
+Hammer: Obie 26 Thor />
+Tom=<false/>

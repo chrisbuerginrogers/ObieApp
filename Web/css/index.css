@@ -1,0 +1,143 @@
+/* ─────────────────────────────────────────────────────────────────────
+ * index.css — landing-page-specific styles (cards grid)
+ * ───────────────────────────────────────────────────────────────────── */
+
+main.landing {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+.intro {
+  text-align: center;
+  margin-bottom: 36px;
+}
+.intro h2 {
+  font-size: 1.7rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+  letter-spacing: -0.5px;
+}
+.intro p {
+  color: var(--muted);
+  max-width: 620px;
+  margin: 0 auto;
+  font-size: 1rem;
+}
+
+.section-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+  margin: 26px 0 12px;
+  font-weight: 600;
+}
+
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.tool-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+  box-shadow: var(--shadow);
+}
+.tool-card:hover {
+  background: #fff8e8;
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+
+.tool-card .head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tool-card .icon {
+  width: 36px; height: 36px;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.tool-card .name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.tool-card .desc {
+  font-size: 0.87rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.tool-card .tag {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 2px 9px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  letter-spacing: 0.3px;
+}
+.tag.app    { border-color: #b35c0055; color: var(--accent); }
+.tag.future { border-color: #c9b48f; color: var(--muted); font-style: italic; }
+
+/* ── Data-folder bar ─────────────────────────────────────────────────── */
+.folder-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 10px 16px;
+  border: 2px dashed var(--border); border-radius: 8px;
+  background: var(--bg-deep); margin-bottom: 8px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.folder-bar.has-folder {
+  border-style: solid; border-color: #2e7d32; background: #f1f8f1;
+}
+.folder-bar-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.folder-bar-label {
+  font-size: 0.85rem; font-weight: 700; color: var(--text); white-space: nowrap;
+}
+.folder-bar-name {
+  font-size: 0.85rem; color: var(--muted); font-style: italic;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.folder-bar.has-folder .folder-bar-name {
+  color: #2e7d32; font-style: normal; font-weight: 600;
+}
+.folder-bar-btn {
+  flex-shrink: 0; padding: 5px 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 5px; font-size: 0.82rem; font-family: inherit;
+  cursor: pointer; white-space: nowrap;
+  transition: background 0.1s, border-color 0.1s;
+}
+.folder-bar-btn:hover { background: #e4e8ee; border-color: #9aa0aa; }
+/* ─────────────────────────────────────────────────────────────────────── */
+
+footer.obie-footer {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--muted);
+  padding: 24px 0 12px;
+  border-top: 1px solid var(--border);
+  margin-top: 30px;
+}

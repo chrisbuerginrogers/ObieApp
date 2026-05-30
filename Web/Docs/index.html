@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documentation — ObieWebApp 2</title>
+  <link rel="stylesheet" href="../css/theme.css">
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+
+    .obie-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; background: var(--bg-card);
+      border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; }
+    .brand h1 { font-size: 1rem; margin: 0; font-weight: 700; }
+    .logo-icon { font-size: 1.3rem; }
+    .crumb { font-size: 0.85rem; color: var(--muted); }
+    .gap { flex: 1; }
+    .back-btn {
+      font-size: 0.75rem; padding: 3px 9px; border-radius: 4px;
+      background: var(--bg-deep); border: 1px solid var(--border);
+      color: var(--fg); text-decoration: none; cursor: pointer;
+    }
+    .back-btn:hover { background: var(--border); }
+
+    .doc-main { max-width: 820px; margin: 0 auto; padding: 32px 20px 60px; }
+
+    h2.doc-title { font-size: 1.5rem; margin: 0 0 6px; }
+    p.doc-lead { color: var(--muted); margin: 0 0 32px; font-size: 0.95rem; }
+
+    .toc { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+           padding: 16px 20px; margin-bottom: 36px; }
+    .toc h3 { margin: 0 0 10px; font-size: 0.85rem; text-transform: uppercase;
+              letter-spacing: 0.06em; color: var(--muted); }
+    .toc ul { margin: 0; padding: 0 0 0 18px; }
+    .toc li { margin: 4px 0; font-size: 0.9rem; }
+    .toc a { color: var(--accent); text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    .tool-section { margin-bottom: 52px; }
+    .tool-header {
+      display: flex; align-items: center; gap: 10px;
+      border-bottom: 2px solid var(--accent); padding-bottom: 8px; margin-bottom: 20px;
+    }
+    .tool-header .icon { font-size: 1.5rem; }
+    .tool-header h2 { font-size: 1.25rem; margin: 0; }
+    .tool-header .tag {
+      margin-left: auto; font-size: 0.7rem; background: var(--bg-deep);
+      border: 1px solid var(--border); border-radius: 4px; padding: 2px 7px;
+      color: var(--muted); font-weight: 600; letter-spacing: 0.04em;
+    }
+
+    .tool-link {
+      display: inline-block; margin-bottom: 16px;
+      font-size: 0.85rem; padding: 5px 12px; border-radius: 5px;
+      background: var(--accent); color: #fff; text-decoration: none; font-weight: 600;
+    }
+    .tool-link:hover { opacity: 0.85; }
+
+    p { font-size: 0.9rem; line-height: 1.65; margin: 0 0 12px; }
+    h3 { font-size: 0.95rem; margin: 22px 0 8px; color: var(--fg); }
+    h4 { font-size: 0.85rem; margin: 18px 0 6px; text-transform: uppercase;
+         letter-spacing: 0.06em; color: var(--muted); }
+
+    .steps { margin: 0 0 14px; padding: 0 0 0 20px; }
+    .steps li { font-size: 0.9rem; line-height: 1.6; margin: 5px 0; }
+
+    .key-table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 0.85rem; }
+    .key-table th { text-align: left; font-size: 0.75rem; text-transform: uppercase;
+                    letter-spacing: 0.05em; color: var(--muted); border-bottom: 1px solid var(--border);
+                    padding: 4px 8px; }
+    .key-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .key-table tr:last-child td { border-bottom: none; }
+    .key-table td:first-child { font-weight: 600; white-space: nowrap; color: var(--accent); }
+
+    .callout {
+      background: var(--bg-deep); border-left: 3px solid var(--accent);
+      border-radius: 0 6px 6px 0; padding: 10px 14px; margin: 14px 0; font-size: 0.85rem;
+    }
+    .callout strong { display: block; margin-bottom: 3px; }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 10px 0 16px; }
+    @media (max-width: 560px) { .two-col { grid-template-columns: 1fr; } }
+    .mini-card {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px;
+    }
+    .mini-card h5 { margin: 0 0 6px; font-size: 0.8rem; text-transform: uppercase;
+                    letter-spacing: 0.05em; color: var(--muted); }
+    .mini-card ul { margin: 0; padding: 0 0 0 16px; }
+    .mini-card li { font-size: 0.82rem; line-height: 1.55; margin: 3px 0; }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+    .pdf-ref {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+      padding: 16px 18px; margin-top: 36px;
+    }
+    .pdf-ref .pdf-icon { font-size: 2rem; flex-shrink: 0; }
+    .pdf-ref p { margin: 0; font-size: 0.88rem; }
+    .pdf-ref a { color: var(--accent); font-weight: 600; text-decoration: none; }
+    .pdf-ref a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<header class="obie-header">
+  <a class="brand" href="../index.html">
+    <div class="logo-icon">🎻</div>
+    <h1>ObieWebApp 2</h1>
+  </a>
+  <span class="crumb">· Documentation</span>
+  <div class="gap"></div>
+  <a class="back-btn" href="../index.html">← All tools</a>
+</header>
+
+<main class="doc-main">
+
+  <h2 class="doc-title">ObieWebApp 2 — User Guide</h2>
+  <p class="doc-lead">How to use Explore, Convolve It, and Acquire to measure, compare, and auralize violin FRFs.</p>
+
+  <!-- Table of contents -->
+  <div class="toc">
+    <h3>Contents</h3>
+    <ul>
+      <li><a href="#getting-started">Getting Started — Data Folder</a></li>
+      <li><a href="#explore">Explore — Compare FRF files</a></li>
+      <li><a href="#convolve">Convolve It — Auralize an FRF</a></li>
+      <li><a href="#acquire">Acquire — Impact-hammer FRF measurement</a></li>
+    </ul>
+  </div>
+
+  <!-- ── Getting Started ─────────────────────────────────────────────── -->
+  <section class="tool-section" id="getting-started">
+    <div class="tool-header">
+      <div class="icon">📁</div>
+      <h2>Getting Started — Data Folder</h2>
+    </div>
+
+    <p>
+      All three tools are browser-based and run entirely locally — nothing is uploaded to any server.
+      They use the <strong>File System Access API</strong> (Chrome or Edge 86+ required) to read and
+      write files in a folder you choose on your computer.
+    </p>
+
+    <h3>Select a Data Folder</h3>
+    <p>
+      Before using any tool, click the <strong>Data Folder</strong> button (on the home page or inside
+      any tool) and select the folder that holds your measurement files. The folder name is remembered
+      between visits. Grant read/write access when the browser asks — this allows the tools to load
+      FRF files and save new measurements automatically.
+    </p>
+
+    <div class="callout">
+      <strong>Folder layout expected by the tools</strong>
+      Measurement files (AvR, AvC, TRF, CSV) can be anywhere inside the Data Folder.
+      Acquire saves each run into a timestamped sub-folder. Settings files
+      (templates, band presets, lists) are stored in <code>ObieAppSettings/</code> inside
+      your Data Folder and are loaded automatically on startup.
+    </div>
+
+    <h3>Supported file formats</h3>
+    <table class="key-table">
+      <thead><tr><th>Extension</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>.avr / .avc</td><td>Averaged FRF (real/imaginary columns) — main format for Explore and Convolve It</td></tr>
+        <tr><td>.trf / .trv</td><td>Transfer-function format — also supported by Explore and Convolve It</td></tr>
+        <tr><td>.csv</td><td>Two-column CSV (frequency, magnitude dB) — quick import for Convolve It</td></tr>
+        <tr><td>.wav</td><td>Audio file used as the dry signal in Convolve It; also storable as a sound snippet in Explore</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── Explore ─────────────────────────────────────────────────────── -->
+  <section class="tool-section" id="explore">
+    <div class="tool-header">
+      <div class="icon">🔍</div>
+      <h2>Explore</h2>
+      <span class="tag">PyScript</span>
+    </div>
+
+    <a class="tool-link" href="../tools/explore/">Open Explore →</a>
+
+    <p>
+      Explore lets you load multiple FRF files at once, overlay them on a single interactive
+      plot, and compare them with smoothing, normalization, band averaging, and per-dataset
+      convolution playback.
+    </p>
+
+    <h3>Loading files</h3>
+    <p>Three ways to load FRF files:</p>
+    <ol class="steps">
+      <li><strong>Browse</strong> — opens a file picker; select one or more FRF files directly.</li>
+      <li><strong>Search</strong> — opens the Search modal. Type a filename pattern
+          (comma-separated for OR logic), filter by file type, and load all matching files from
+          your Data Folder with one click.</li>
+      <li><strong>Drag &amp; drop</strong> — drag files from your desktop onto the plot area.</li>
+    </ol>
+
+    <h4>Plot controls</h4>
+    <table class="key-table">
+      <thead><tr><th>Control</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>Y = lin / log</td><td>Toggles the Y axis between linear and dB (log) scale.</td></tr>
+        <tr><td>↕Y</td><td>Auto-scales the Y axis to the current data range.</td></tr>
+        <tr><td>dB range field</td><td>Sets the displayed Y range in dB (e.g. 38 dB).</td></tr>
+        <tr><td>X = log / lin</td><td>Toggles the X (frequency) axis between log and linear.</td></tr>
+        <tr><td>Smoothing</td><td>Applies fractional-octave smoothing from ¼ semitone to one full octave.</td></tr>
+        <tr><td>Normalization</td><td>As measured, normalize by peak, or normalize by average over a custom Hz range.</td></tr>
+      </tbody>
+    </table>
+
+    <h4>Dataset list (left panel)</h4>
+    <table class="key-table">
+      <thead><tr><th>Button / control</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>Eye icon (👁)</td><td>Show or hide an individual dataset on the plot.</td></tr>
+        <tr><td>▶ (play)</td><td>Convolves the dataset's FRF with your saved sound snippet and plays it back in real time.</td></tr>
+        <tr><td>Color swatch</td><td>Click to change the line color for that dataset.</td></tr>
+        <tr><td>See All / See None</td><td>Show or hide all datasets at once.</td></tr>
+        <tr><td>Reduce</td><td>Removes datasets that are currently hidden.</td></tr>
+        <tr><td>Clear All</td><td>Removes all loaded datasets.</td></tr>
+        <tr><td>Undo</td><td>Restores the last dataset removed by Reduce or Clear All.</td></tr>
+      </tbody>
+    </table>
+
+    <h4>Band averaging</h4>
+    <p>
+      Select a band preset from the <strong>Bands</strong> dropdown (presets are loaded from
+      <code>ObieAppSettings/bands/</code> in your Data Folder). The band table below the dataset list
+      shows the average dB level for each dataset in each frequency band. Toggle <strong>shade</strong>
+      to highlight the band regions on the plot. Click <strong>Excel</strong> to export the band data
+      as a CSV file.
+    </p>
+
+    <h4>Interpret</h4>
+    <p>
+      Click <strong>Interpret</strong> to open a reference overlay showing the standard Oberlin mode
+      labels (A0, CBR, B1−, B1+, Bridge Hill, etc.) with their typical frequency ranges drawn on a
+      copy of the current plot. Includes links to violinacoustics.com and euphonics.org.
+    </p>
+
+    <h4>Other toolbar buttons</h4>
+    <table class="key-table">
+      <thead><tr><th>Button</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>Settings</td><td>Opens Explore Preferences (default Y range, X range, line width, sound snippet WAV, output device).</td></tr>
+        <tr><td>Lists</td><td>Shows predefined file lists stored in your Data Folder — useful for quickly loading a curated set of FRFs.</td></tr>
+        <tr><td>Share</td><td>Copies a shareable URL (or file list) to the clipboard so a colleague can open the same set of files.</td></tr>
+        <tr><td>Colors</td><td>Switches the entire palette (Default, Warm, Cool, High Contrast).</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Tip — convolution playback</strong>
+      Set a sound snippet WAV in Settings (open <em>Settings → Sound snippet → Browse…</em>).
+      This dry audio is then convolved on-the-fly when you press ▶ on any dataset, letting you
+      audition what the violin "sounds like" given that FRF.
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── Convolve It ─────────────────────────────────────────────────── -->
+  <section class="tool-section" id="convolve">
+    <div class="tool-header">
+      <div class="icon">🔀</div>
+      <h2>Convolve It</h2>
+      <span class="tag">PyScript</span>
+    </div>
+
+    <a class="tool-link" href="../tools/convolve-it/">Open Convolve It →</a>
+
+    <p>
+      Convolve It applies a measured FRF to a dry audio file using full complex
+      frequency-domain convolution: <em>Y(f) = H(f) · X(f)</em>. The result
+      sounds like the dry signal played through (or by) the measured instrument.
+    </p>
+
+    <h3>Step-by-step workflow</h3>
+    <ol class="steps">
+      <li>
+        <strong>Load an FRF.</strong> Under <em>FRF Files</em>, click <em>Left / Mono FRF</em>
+        and pick an AvR, AvC, TRF, or CSV file. For stereo output, also load a <em>Right FRF</em>;
+        the tool then produces a two-channel result with independent left and right filtering.
+      </li>
+      <li>
+        <strong>Load a WAV.</strong> Under <em>Signal (WAV)</em>, click <em>Load WAV</em> and
+        select any WAV file (mono or stereo). Use <em>▶ Play WAV</em> to confirm the dry signal.
+      </li>
+      <li>
+        <strong>Set the output gain.</strong> Drag the <em>Output gain</em> slider (−24 to +24 dB)
+        to avoid clipping or to match levels.
+      </li>
+      <li>
+        <strong>Convolve.</strong> Click <em>⚡ Convolve</em>. The button is enabled only once
+        both an FRF and a WAV are loaded.
+      </li>
+      <li>
+        <strong>Listen and save.</strong> Press <em>▶ Play Result</em> to audition, then
+        <em>💾 Save</em> to download the convolved WAV to your computer.
+      </li>
+    </ol>
+
+    <h3>The four plots</h3>
+    <div class="two-col">
+      <div class="mini-card">
+        <h5>FRF · Magnitude (dB)</h5>
+        <ul>
+          <li>Shows the loaded FRF on a log-frequency axis.</li>
+          <li>Both L and R channels are drawn if stereo.</li>
+        </ul>
+      </div>
+      <div class="mini-card">
+        <h5>Input · Spectrogram</h5>
+        <ul>
+          <li>Time-frequency spectrogram of the dry WAV.</li>
+          <li>Toggle dB / linear amplitude with <em>Spec: dB</em> in the toolbar.</li>
+        </ul>
+      </div>
+      <div class="mini-card">
+        <h5>Output · Convolved Waveform</h5>
+        <ul>
+          <li>Time-domain waveform of the convolved result.</li>
+          <li>Useful for checking for clipping.</li>
+        </ul>
+      </div>
+      <div class="mini-card">
+        <h5>Output · Spectrogram</h5>
+        <ul>
+          <li>Spectrogram of the convolved result.</li>
+          <li>Compare with the input spectrogram to see the FRF shaping effect.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout">
+      <strong>Technical details</strong>
+      Convolution is performed in the frequency domain using a Hann-windowed FFT.
+      The FRF is interpolated onto the audio-sample frequency grid using log-space
+      interpolation. The result is reconstructed with minimum-phase or zero-phase
+      methods as appropriate for the file type.
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── Acquire ─────────────────────────────────────────────────────── -->
+  <section class="tool-section" id="acquire">
+    <div class="tool-header">
+      <div class="icon">🎯</div>
+      <h2>Acquire</h2>
+      <span class="tag">PyScript</span>
+    </div>
+
+    <a class="tool-link" href="../tools/acquire/">Open Acquire →</a>
+
+    <p>
+      Acquire turns your laptop and a USB audio interface into an impact-hammer FRF measurement
+      system. It records hammer and microphone signals simultaneously, detects hits automatically,
+      averages multiple hits per position, and saves each position as an AvR CSV file.
+    </p>
+
+    <h3>Hardware setup</h3>
+    <ol class="steps">
+      <li>Connect your USB audio interface (e.g. Focusrite Scarlett 2i2) before opening the page.</li>
+      <li>Plug the impact hammer into <strong>Input 1</strong> and the microphone into <strong>Input 2</strong>
+          (or swap in Settings if your hardware is wired differently).</li>
+      <li>Use Chrome or Edge — Safari and Firefox do not support the required audio APIs.</li>
+    </ol>
+
+    <h3>First-time setup (Settings)</h3>
+    <p>Click <strong>Settings</strong> in the toolbar and configure:</p>
+    <table class="key-table">
+      <thead><tr><th>Setting</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Input device</td><td>Choose your audio interface from the dropdown. Defaults to the system default if left blank.</td></tr>
+        <tr><td>Soundcard type</td><td>Free-text label saved into each output file for traceability.</td></tr>
+        <tr><td>Trigger threshold</td><td>Voltage level (V) that triggers a hit. Lower values catch lighter taps; raise it to ignore ambient noise.</td></tr>
+        <tr><td>Time before / after hit</td><td>Pre- and post-trigger capture window in seconds.</td></tr>
+        <tr><td>Hammer / Mic time cutoff</td><td>Signal is zeroed after this time — suppresses late reflections. Shown as a green line on the mini plots.</td></tr>
+        <tr><td>Hammer calibration (N/V)</td><td>Converts raw voltage to Newtons. Enter the value from your hammer's calibration sheet.</td></tr>
+        <tr><td>Mic calibration (Pa/V)</td><td>Converts raw voltage to Pascals. Enter the value from your microphone calibration sheet.</td></tr>
+        <tr><td>Hits per position</td><td>Number of good hits to average before advancing to the next position.</td></tr>
+        <tr><td>Number of positions</td><td>Total positions in the measurement run (e.g. 12 for a standard plate grid).</td></tr>
+        <tr><td>Position prefix</td><td>Short label prepended to position names (e.g. "H" gives H1, H2, …).</td></tr>
+      </tbody>
+    </table>
+    <p>Click <strong>Apply &amp; Save</strong>. Settings are stored locally in the browser and also saved to your Data Folder template.</p>
+
+    <h3>Running a measurement</h3>
+    <ol class="steps">
+      <li>Click <strong>📁 Data Folder</strong> and select the folder where results should be saved.
+          A new timestamped run sub-folder is created automatically on first hit.</li>
+      <li>Enter the <strong>Instrument</strong> and <strong>Test name</strong> in the banner fields.</li>
+      <li>Click <strong>▶ Start</strong>. The app begins listening for hammer hits.</li>
+      <li>Strike the instrument. The three mini plots (Hammer FFT, Hammer time, Mic time) update
+          after each hit. Check that the hammer pulse is clean — a double-hit shows two bumps in the
+          Hammer time plot.</li>
+      <li>After the required number of good hits the app auto-advances to the next position and
+          saves the averaged FRF to your Data Folder.</li>
+      <li>Use <strong>↩ Undo Hit</strong> to remove a bad last hit, or <strong>🗑 Clear</strong>
+          to restart the current position. <strong>↺ Start over</strong> clears all positions.</li>
+      <li>When all positions are complete, click <strong>■ Stop</strong>.</li>
+    </ol>
+
+    <h3>Reviewing the FRF plot</h3>
+    <p>
+      The main plot on the right shows all completed positions overlaid in different colors.
+      Use the plot-toolbar controls to toggle log/linear X axis, rescale Y, or adjust the dB range.
+      Hover over any curve to read out the exact frequency and level.
+    </p>
+
+    <h3>Templates</h3>
+    <p>
+      A template is a JSON file that stores your complete measurement setup
+      (soundcard, threshold, calibration factors, hit count, position count, etc.).
+      Templates are loaded automatically from <code>ObieAppSettings/Templates/</code>
+      inside your Data Folder when Acquire starts.
+    </p>
+    <ol class="steps">
+      <li>Click <strong>Template…</strong> to open the template manager.</li>
+      <li>Select a template from the list (it will preview the settings as JSON), then click <strong>Apply</strong>.</li>
+      <li>To save the current settings as a new template, click <strong>Save as Template</strong>.</li>
+      <li>Use <strong>Browse…</strong> to import a template file from outside your Data Folder.</li>
+    </ol>
+
+    <h3>Session Notes</h3>
+    <p>
+      Click <strong>Notes</strong> to open the Notes panel. Enter any free-text observations about
+      the measurement session. Notes are saved per run-folder name in the browser and persist across
+      reloads.
+    </p>
+
+    <h3>LiveView</h3>
+    <p>
+      Click <strong>LiveView</strong> to open a large full-screen view of the FRF plot — useful when
+      the laptop is placed away from the instrument during measurement.
+    </p>
+
+    <div class="callout">
+      <strong>Tip — adjusting the threshold on the fly</strong>
+      You can change the trigger threshold directly in the Hammer mini-plot header without
+      opening Settings. Edit the number next to <em>V</em> and press Enter to apply immediately.
+      The purple dotted threshold line on the Hammer time plot updates in real time.
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- PDF reference -->
+  <div class="pdf-ref">
+    <div class="pdf-icon">📄</div>
+    <div>
+      <p><strong>Full technical reference</strong></p>
+      <p>
+        For detailed signal-processing documentation, file format specifications, and
+        background on the Oberlin acoustic analysis framework, see the
+        <a href="./ObieDocs.pdf" target="_blank" rel="noopener">ObieDocs PDF</a>.
+      </p>
+    </div>
+  </div>
+
+  <footer style="margin-top:40px;font-size:0.78rem;color:var(--muted);text-align:center">
+    Oberlin Acoustics Workshop &nbsp;·&nbsp; ObieWebApp 2 &nbsp;·&nbsp;
+    Built by <a href="https://claude.ai/code" target="_blank" rel="noopener" style="color:var(--accent)">Claude</a>
+    with <a href="https://pyscript.net/" target="_blank" rel="noopener" style="color:var(--accent)">PyScript</a>
+    &nbsp;+&nbsp; <a href="https://plotly.com/javascript/" target="_blank" rel="noopener" style="color:var(--accent)">Plotly</a>
+  </footer>
+
+</main>
+</body>
+</html>

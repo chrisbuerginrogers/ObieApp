@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../coi-serviceworker.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acquire — ObieWebApp 2</title>
+
+  <link rel="stylesheet" href="../../css/theme.css">
+  <link rel="stylesheet" href="../../css/acquire.css">
+
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+
+  <!-- PyScript 2026.3.1 -->
+  <link  rel="stylesheet" href="https://pyscript.net/releases/2026.3.1/core.css">
+  <script type="module"   src="https://pyscript.net/releases/2026.3.1/core.js"></script>
+
+  <script src="../../js/obie-settings.js"></script>
+  <script src="../../js/browser-check.js"></script>
+  <script src="../../js/acquire.js" defer></script>
+</head>
+<body>
+
+<div id="loading" class="loading-overlay">
+  <div class="spin"></div>
+  <div class="load-title">Loading PyScript + NumPy…</div>
+  <div class="load-sub">First load may take 15–30 s</div>
+</div>
+
+<div class="acq-page">
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <header class="obie-header">
+    <a class="brand" href="../../index.html">
+      <div class="logo-icon">🎻</div>
+      <h1>ObieWebApp 2</h1>
+    </a>
+    <span class="crumb">· Acquire</span>
+    <div class="gap"></div>
+    <a class="btn" href="../../index.html" style="font-size:0.75rem;padding:3px 9px">← All tools</a>
+  </header>
+
+  <!-- ── Toolbar ──────────────────────────────────────────────────────────── -->
+  <div class="acq-toolbar">
+    <div class="tb-r">
+
+      <button class="tb-btn" onclick="acqPreferences()">Settings</button>
+
+      <button class="tb-btn" onclick="acqNotes()">Notes</button>
+      <button id="data-folder-btn" class="tb-btn" onclick="acqSetDataFolder()">📁 Data Folder</button>
+      <span id="folder-name-ind" class="folder-name-disp"></span>
+
+      <div class="tb-flex"></div>
+
+      <button class="tb-btn" onclick="acqTemplate()">Template…</button>
+      <button class="tb-btn" onclick="acqLiveView()">LiveView</button>
+      <button id="acq-start-btn" class="tb-btn start" onclick="acqToggleAcquire()">▶ Start</button>
+    </div>
+  </div>
+
+  <!-- ── Banner row: run meta + position tabs + template indicator ──────── -->
+  <div class="acq-banner-row">
+    <div class="acq-run-meta">
+      <input id="inp-instrument" type="text" style="display:none" aria-hidden="true">
+      <input id="inp-instrument-banner" type="text" class="acq-meta-inp"
+             placeholder="Instrument"
+             oninput="document.getElementById('inp-instrument').value=this.value"
+             title="Instrument name">
+      <span class="acq-meta-sep">/</span>
+      <input id="inp-test-banner" type="text" class="acq-meta-inp"
+             placeholder="Test name"
+             oninput="acqUpdatePendingTest(this.value)"
+             title="Test name — set when Data Folder is selected; editable before Start">
+    </div>
+    <div id="pos-banner" class="acq-banner">
+      <span style="font-size:10px;color:var(--muted);font-style:italic">Loading…</span>
+    </div>
+    <div id="tpl-ind" class="acq-tpl-ind"></div>
+  </div>
+
+  <!-- ── Status row ───────────────────────────────────────────────────────── -->
+  <div class="acq-status-row">
+    <span id="status-bar" class="acq-status-txt">Idle — press Start to begin acquisition</span>
+    <span id="acq-count" class="acq-count-txt"></span>
+    <span id="soundcard-ind" style="font-size:10px;color:#1565c0;font-weight:600;white-space:nowrap;margin-left:6px"></span>
+  </div>
+
+  <!-- ── Main body ────────────────────────────────────────────────────────── -->
+  <div class="acq-body">
+
+    <!-- Left sidebar: 3 mini plots stacked -->
+    <aside class="acq-sidebar">
+
+      <!-- FFT mini plot -->
+      <div class="mini-section">
+        <div class="mini-hdr">
+          <button class="mini-y-btn" onclick="acqRescaleFFT()" title="Autoscale FFT Y">Y</button>
+          <span class="mini-title">Hammer FFT</span>
+        </div>
+        <div id="plot-fft" class="mini-plot"></div>
+      </div>
+
+      <!-- Hammer time plot (purple dotted threshold) -->
+      <div class="mini-section">
+        <div class="mini-hdr">
+          <button class="mini-y-btn" onclick="acqRescaleHammer()" title="Autoscale Y">Y</button>
+          <span class="mini-title">Hammer</span>
+          <label style="font-size:9px;color:#7c2bc8;display:flex;align-items:center;gap:2px" title="Trigger threshold — Enter to apply">
+            <input id="inp-thr-disp" type="number" step="0.005" min="0.001" max="1" value="0.05"
+              style="font-size:9px;color:#7c2bc8;width:44px;border:none;background:transparent;text-align:right;padding:0"
+              onchange="acqApplyThreshold(this.value)"
+              onkeydown="if(event.key==='Enter'){acqApplyThreshold(this.value);this.blur()}">
+            <span>V</span>
+          </label>
+          <label style="font-size:9px;color:#2e7d32;margin-left:auto;display:flex;align-items:center;gap:2px" title="Hammer time cutoff — Enter to apply">
+            <input id="inp-ham-cut-disp" type="number" step="0.01" min="0.01" max="5" value="0.30"
+              style="font-size:9px;color:#2e7d32;width:44px;border:none;background:transparent;text-align:right;padding:0"
+              onchange="acqApplyHamCutoff(this.value)"
+              onkeydown="if(event.key==='Enter'){acqApplyHamCutoff(this.value);this.blur()}">
+            <span>s</span>
+          </label>
+        </div>
+        <div id="plot-hammer" class="mini-plot"></div>
+      </div>
+
+      <!-- Microphone time plot -->
+      <div class="mini-section">
+        <div class="mini-hdr">
+          <button class="mini-y-btn" onclick="acqRescaleMic()" title="Autoscale Y">Y</button>
+          <span class="mini-title">Microphone</span>
+          <label style="font-size:9px;color:#2e7d32;margin-left:auto;display:flex;align-items:center;gap:2px" title="Mic time cutoff — Enter to apply">
+            <input id="inp-mic-cut-disp" type="number" step="0.01" min="0.01" max="5" value="0.30"
+              style="font-size:9px;color:#2e7d32;width:44px;border:none;background:transparent;text-align:right;padding:0"
+              onchange="acqApplyMicCutoff(this.value)"
+              onkeydown="if(event.key==='Enter'){acqApplyMicCutoff(this.value);this.blur()}">
+            <span>s</span>
+          </label>
+        </div>
+        <div id="plot-mic" class="mini-plot"></div>
+      </div>
+
+    </aside>
+
+    <!-- Drag handle -->
+    <div id="acq-resizer" class="acq-resizer"></div>
+
+    <!-- Main FRF plot area -->
+    <div class="acq-plot-wrap">
+
+      <!-- No-folder overlay — hidden once a Data Folder is connected -->
+      <div id="folder-overlay" class="folder-overlay">
+        <div class="folder-overlay-msg">📁 Select a Data Folder above before continuing</div>
+        <button class="tb-btn start" onclick="acqSetDataFolder()" style="padding:6px 18px;font-size:12px">
+          Select Data Folder…
+        </button>
+        <div class="folder-overlay-sub" id="folder-overlay-sub"></div>
+      </div>
+
+      <!-- Plot controls toolbar -->
+      <div class="plot-toolbar">
+        <button class="tb-btn" onclick="acqRescaleY()" title="Rescale Y to data range">↕Y</button>
+        <input  id="y-db-range" class="tb-inp" type="number" value="30" min="5" max="120"
+                style="width:3.2ch;font-size:9px;padding:0 2px;text-align:right"
+                title="Y dB range" onchange="acqSetYDbRange(this.value)">
+        <span class="tb-lbl">dB</span>
+        <button id="x-log-btn" class="tb-btn active" onclick="acqToggleXLog()" title="Toggle X axis log/linear">X=log</button>
+        <div class="tb-flex"></div>
+        <button id="delete-btn"    class="tb-btn" onclick="acqDeleteLastHit()" disabled title="Delete last hit">↩ Undo Hit</button>
+        <button id="clear-btn"     class="tb-btn" onclick="acqClearPosition()"  disabled title="Clear current position">🗑 Clear</button>
+        <button id="startover-btn" class="tb-btn" onclick="acqStartOver()" title="Clear ALL positions and start over" style="color:#c62828">↺ Start over</button>
+      </div>
+
+      <div id="acq-plot"></div>
+    </div>
+
+  </div><!-- acq-body -->
+
+</div><!-- acq-page -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Preferences modal
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="prefs-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(92vw,540px)">
+    <div class="modal-header">
+      <span class="modal-title">Acquire Preferences</span>
+      <button class="modal-close" onclick="acqClosePrefs()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="pref-section">Audio Device</div>
+      <div class="pref-row">
+        <label for="prefs-device">Input device</label>
+        <select id="prefs-device" style="flex:1;max-width:220px"></select>
+      </div>
+      <div class="pref-row">
+        <label for="inp-soundcard">Soundcard type</label>
+        <input id="inp-soundcard" type="text" placeholder="e.g. Scarlett 2i2" style="flex:1;max-width:220px">
+      </div>
+
+      <div class="pref-section">Hit Detection</div>
+      <div class="pref-row">
+        <label for="inp-threshold">Trigger threshold</label>
+        <input id="inp-threshold" type="number" value="0.05" step="0.005" min="0.001" max="1" style="max-width:80px">
+        <span class="pref-unit">V</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-pre">Time before hit</label>
+        <input id="inp-pre" type="number" value="0.01" step="0.005" min="0.001" max="0.5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-post">Time after hit</label>
+        <input id="inp-post" type="number" value="0.30" step="0.05" min="0.05" max="5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-time-cutoff">Hammer time cutoff (green line)</label>
+        <input id="inp-time-cutoff" type="number" value="0.30" step="0.01" min="0.01" max="5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-mic-time-cutoff">Mic time cutoff (green line)</label>
+        <input id="inp-mic-time-cutoff" type="number" value="0.30" step="0.01" min="0.01" max="5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+      <p class="pref-hint">Signal is zeroed after this time post-trigger.</p>
+
+      <div class="pref-section">FRF Plot Range</div>
+      <div class="pref-row">
+        <label for="inp-frf-x-min">Frequency min</label>
+        <input id="inp-frf-x-min" type="number" value="100" step="50" min="1" max="22000" style="max-width:80px">
+        <span class="pref-unit">Hz</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-frf-x-max">Frequency max</label>
+        <input id="inp-frf-x-max" type="number" value="12000" step="500" min="100" max="22000" style="max-width:80px">
+        <span class="pref-unit">Hz</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-line-width">FRF line width</label>
+        <input id="inp-line-width" type="number" value="0.5" step="0.1" min="0.1" max="10" style="max-width:80px">
+        <span class="pref-unit">px</span>
+      </div>
+
+      <div class="pref-section">Calibration</div>
+      <div class="pref-row">
+        <label for="inp-ham-cal">Hammer calibration factor</label>
+        <input id="inp-ham-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px">
+        <span class="pref-unit">N/V</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-mic-cal">Microphone calibration factor</label>
+        <input id="inp-mic-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px">
+        <span class="pref-unit">Pa/V</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-swap-channels">Hammer on left input (swap channels)</label>
+        <input id="inp-swap-channels" type="checkbox">
+      </div>
+
+      <div class="pref-section">Run Settings</div>
+      <div class="pref-row">
+        <label for="inp-taps">Hits per position</label>
+        <input id="inp-taps" type="number" value="5" min="1" max="20" style="max-width:80px">
+      </div>
+      <div class="pref-row">
+        <label for="inp-positions">Number of positions</label>
+        <input id="inp-positions" type="number" value="12" min="1" max="40" style="max-width:80px">
+      </div>
+      <div class="pref-row">
+        <label for="inp-prefix">Position prefix</label>
+        <input id="inp-prefix" type="text" value="H" maxlength="3" style="max-width:60px">
+      </div>
+      <div class="save-row">
+        <button class="btn primary" onclick="acqSavePrefs()">Apply &amp; Save</button>
+        <button class="btn" onclick="acqResetPrefs()">Reset defaults</button>
+        <span id="prefs-save-msg" class="save-msg"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Notes modal
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="notes-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(92vw,520px)">
+    <div class="modal-header">
+      <span class="modal-title">Session Notes</span>
+      <button class="modal-close" onclick="acqCloseNotes()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:11px;color:var(--muted);margin-bottom:8px">
+        Notes are saved per run folder name and persist in the browser.
+      </p>
+      <textarea id="notes-textarea" rows="12" placeholder="Enter notes about this measurement session…"></textarea>
+      <div class="save-row" style="margin-top:10px">
+        <button class="btn primary" onclick="acqSaveNotes()">Save Notes</button>
+        <button class="btn" onclick="acqCloseNotes()">Close</button>
+        <span id="notes-save-msg" class="save-msg"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Template modal
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="template-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(92vw,480px)">
+    <div class="modal-header">
+      <span class="modal-title">Import Template</span>
+      <button class="modal-close" onclick="acqCloseTemplate()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:11px;color:var(--muted);margin-bottom:10px">
+        Templates store your measurement setup (soundcard, threshold, calibration
+        factors, etc.). When a Data Folder is set, templates load automatically from
+        <code>ObieAppSettings/Templates/</code> inside it. Use Browse to import a
+        standalone file, or Save as Template to write the current settings back to
+        the folder.
+      </p>
+      <div id="tpl-list" class="tpl-list">
+        <div style="font-size:11px;color:var(--muted)">No templates loaded.</div>
+      </div>
+
+      <div style="margin-bottom:12px">
+        <p id="tpl-json-lbl" style="font-size:10px;color:var(--muted);margin-bottom:6px;font-style:italic">
+          Select a template above to preview its settings
+        </p>
+        <pre id="tpl-json" style="font-size:9px;background:var(--bg-deep);padding:8px;border-radius:4px;color:var(--muted);overflow:auto;max-height:220px;margin:0"></pre>
+      </div>
+
+      <div class="save-row">
+        <button class="btn" onclick="acqBrowseTemplate()">Browse…</button>
+        <button class="btn primary" onclick="acqApplyTemplate()">Apply</button>
+        <button class="btn" onclick="acqSaveAsTemplate()">Save as Template</button>
+        <button class="btn" onclick="acqCloseTemplate()">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script type="py" src="./main.py" config="./pyscript.toml" async></script>
+
+</body>
+</html>

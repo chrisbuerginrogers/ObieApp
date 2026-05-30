@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LiveView — Explore</title>
+  <link rel="stylesheet" href="../../css/theme.css">
+  <link rel="stylesheet" href="../../css/explore.css">
+  <style>
+    :root { --lv-bg: #f8f4ee; }
+    body { overflow: hidden; }
+    .lv-page { display: flex; flex-direction: column; height: 100vh; }
+
+    /* Header */
+    .obie-header { padding: 6px 14px; }
+
+    /* Content */
+    .lv-body { display: flex; flex: 1; overflow: hidden; }
+
+    /* Left panel */
+    .lv-left {
+      width: 220px; flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 12px;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .lv-section { font-size: 10px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); margin-bottom:6px; }
+    .lv-row { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+    .lv-row label { font-size:11px; color:var(--muted); min-width:90px; }
+    .lv-row input, .lv-row select { flex:1; font-size:11px; padding:3px 6px; }
+    .lv-row .unit { font-size:10px; color:var(--muted); }
+    .lv-stat { font-size:11px; color:var(--accent); font-weight:600; text-align:center; }
+
+    /* Tabs */
+    .lv-tabs { display:flex; gap:2px; margin-bottom:8px; }
+    .lv-tab {
+      flex:1; padding:4px 6px; font-size:11px; text-align:center; cursor:pointer;
+      background:var(--bg); border:1px solid var(--border); border-radius:4px;
+      transition:background 0.12s;
+    }
+    .lv-tab.active { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+
+    /* Right panel: charts */
+    .lv-right {
+      flex:1; display:flex; flex-direction:column; overflow:hidden;
+      padding:8px; gap:6px;
+    }
+    .lv-chart-wrap {
+      flex:1; display:flex; flex-direction:column; min-height:0;
+    }
+    .lv-chart-title {
+      font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px;
+      color:var(--muted); padding:2px 4px; flex-shrink:0;
+    }
+    canvas.lv-canvas {
+      flex:1; width:100%; min-height:0;
+      background:#fff; border:1px solid var(--border); border-radius:4px;
+    }
+
+    .lv-status { font-size:11px; color:var(--muted); text-align:center; padding:4px; font-style:italic; }
+  </style>
+</head>
+<body>
+
+<div class="lv-page">
+
+  <header class="obie-header">
+    <a class="brand" href="../../index.html">
+      <div class="logo-icon">🎻</div><h1>ObieWebApp 2</h1>
+    </a>
+    <span class="crumb">· Explore · LiveView</span>
+    <div class="gap"></div>
+    <button id="start-btn" class="btn primary" onclick="toggleCapture()">▶ Start</button>
+  </header>
+
+  <div class="lv-body">
+
+    <!-- Left settings panel -->
+    <div class="lv-left">
+      <div>
+        <div class="lv-section">Input Device</div>
+        <div class="lv-row">
+          <label>Microphone</label>
+          <select id="mic-sel" style="flex:1;font-size:11px"></select>
+        </div>
+      </div>
+
+      <div>
+        <div class="lv-section">Acquisition</div>
+        <div class="lv-row">
+          <label>Sample time (s)</label>
+          <input id="sample-time" type="number" value="0.3" min="0.05" max="5" step="0.05">
+          <span class="unit">s</span>
+        </div>
+        <div class="lv-row">
+          <label>FFT size</label>
+          <select id="fft-size">
+            <option value="1024">1024</option>
+            <option value="2048" selected>2048</option>
+            <option value="4096">4096</option>
+          </select>
+        </div>
+        <div class="lv-row">
+          <label>Freq max</label>
+          <input id="freq-max" type="number" value="5000" min="500" max="22050" step="500">
+          <span class="unit">Hz</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="lv-section">Display</div>
+        <div class="lv-row">
+          <label>Averages</label>
+          <input id="num-avg" type="number" value="4" min="1" max="50">
+        </div>
+      </div>
+
+      <div id="lv-status" class="lv-status">Press Start to begin</div>
+      <div id="lv-level" class="lv-stat" style="font-size:16px">–</div>
+    </div>
+
+    <!-- Right: three live charts -->
+    <div class="lv-right">
+
+      <!-- Waveform -->
+      <div class="lv-chart-wrap">
+        <div class="lv-chart-title">Raw values from the Soundcard</div>
+        <canvas id="waveform-canvas" class="lv-canvas"></canvas>
+      </div>
+
+      <!-- Power Spectrum -->
+      <div class="lv-chart-wrap">
+        <div class="lv-chart-title">Mic Power Spectrum</div>
+        <canvas id="spectrum-canvas" class="lv-canvas"></canvas>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ── State ────────────────────────────────────────────────────────────────
+  let _audioCtx   = null;
+  let _analyser   = null;
+  let _source     = null;
+  let _stream     = null;
+  let _running    = false;
+  let _rafId      = null;
+
+  // Averaging buffer for spectrum
+  let _specAvg    = null;
+  let _avgCount   = 0;
+
+  // ── Canvas helpers ───────────────────────────────────────────────────────
+  const wfCanvas  = document.getElementById('waveform-canvas');
+  const spCanvas  = document.getElementById('spectrum-canvas');
+  const wfCtx     = wfCanvas.getContext('2d');
+  const spCtx     = spCanvas.getContext('2d');
+
+  function resizeCanvases() {
+    [wfCanvas, spCanvas].forEach(c => {
+      c.width  = c.offsetWidth  * devicePixelRatio;
+      c.height = c.offsetHeight * devicePixelRatio;
+    });
+  }
+  window.addEventListener('resize', resizeCanvases);
+  setTimeout(resizeCanvases, 100);
+
+  // ── Enumerate mics ───────────────────────────────────────────────────────
+  async function enumerateMics() {
+    try {
+      // Request permission first so labels are visible
+      const tmp = await navigator.mediaDevices.getUserMedia({audio:true});
+      tmp.getTracks().forEach(t=>t.stop());
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const sel = document.getElementById('mic-sel');
+      sel.innerHTML = '';
+      devices.filter(d=>d.kind==='audioinput').forEach(d=>{
+        const o=document.createElement('option');
+        o.value=d.deviceId; o.textContent=d.label||`Mic (${d.deviceId.slice(0,8)}…)`;
+        sel.appendChild(o);
+      });
+    } catch(e) { setSt('Microphone access denied: '+e.message); }
+  }
+
+  function setSt(msg) { document.getElementById('lv-status').textContent = msg; }
+
+  // ── Start / stop ─────────────────────────────────────────────────────────
+  async function toggleCapture() {
+    if (_running) { stopCapture(); return; }
+
+    const deviceId = document.getElementById('mic-sel').value;
+    const fftSize  = parseInt(document.getElementById('fft-size').value);
+
+    try {
+      setSt('Requesting microphone…');
+      _stream = await navigator.mediaDevices.getUserMedia({
+        audio: { deviceId: deviceId ? {exact:deviceId} : undefined, echoCancellation:false, noiseSuppression:false }
+      });
+      _audioCtx = new AudioContext();
+      _analyser = _audioCtx.createAnalyser();
+      _analyser.fftSize = fftSize;
+      _analyser.smoothingTimeConstant = 0.0;
+      _source   = _audioCtx.createMediaStreamSource(_stream);
+      _source.connect(_analyser);
+
+      _specAvg  = new Float32Array(_analyser.frequencyBinCount).fill(0);
+      _avgCount = 0;
+      _running  = true;
+
+      document.getElementById('start-btn').textContent = '■ Stop';
+      setSt('Running');
+      _loop();
+    } catch(e) { setSt('Error: '+e.message); }
+  }
+
+  function stopCapture() {
+    _running = false;
+    if (_rafId) cancelAnimationFrame(_rafId);
+    if (_source)   _source.disconnect();
+    if (_stream)   _stream.getTracks().forEach(t=>t.stop());
+    if (_audioCtx) _audioCtx.close();
+    _audioCtx=null; _analyser=null; _source=null; _stream=null;
+    document.getElementById('start-btn').textContent = '▶ Start';
+    setSt('Stopped');
+  }
+
+  // ── Render loop ──────────────────────────────────────────────────────────
+  function _loop() {
+    if (!_running) return;
+    _rafId = requestAnimationFrame(_loop);
+
+    const N    = _analyser.fftSize;
+    const bins = _analyser.frequencyBinCount;  // N/2
+    const nAvg = parseInt(document.getElementById('num-avg').value) || 4;
+
+    // ── Waveform ────────────────────────────────────────────────────────
+    const timeData = new Float32Array(N);
+    _analyser.getFloatTimeDomainData(timeData);
+
+    const w = wfCanvas.width, h = wfCanvas.height;
+    wfCtx.clearRect(0,0,w,h);
+    wfCtx.strokeStyle = '#1565c0';
+    wfCtx.lineWidth   = 1.5 * devicePixelRatio;
+    wfCtx.beginPath();
+    const step = Math.max(1, Math.floor(N/w));
+    for (let i=0; i<N; i+=step) {
+      const x = (i/N)*w;
+      const y = (0.5 - timeData[i]*0.45) * h;
+      i===0 ? wfCtx.moveTo(x,y) : wfCtx.lineTo(x,y);
+    }
+    wfCtx.stroke();
+    _drawAxes(wfCtx, w, h, {yMin:-0.1, yMax:0.1, xLabel:'Time (s)', yLabel:'Input', sr:_audioCtx.sampleRate, nSamples:N});
+
+    // Peak level indicator
+    const peak = Math.max(...Array.from(timeData).map(Math.abs));
+    document.getElementById('lv-level').textContent = peak > 0 ? (20*Math.log10(peak)).toFixed(1)+' dB' : '–';
+
+    // ── Spectrum ─────────────────────────────────────────────────────────
+    const freqData = new Float32Array(bins);
+    _analyser.getFloatFrequencyData(freqData);  // dBFS
+
+    // Running average
+    for (let i=0;i<bins;i++) _specAvg[i] += (freqData[i] - _specAvg[i]) / Math.min(++_avgCount, nAvg);
+
+    const sw = spCanvas.width, sh = spCanvas.height;
+    const sr  = _audioCtx.sampleRate;
+    const fMax = parseFloat(document.getElementById('freq-max').value) || 5000;
+    const binMax = Math.min(bins-1, Math.floor(fMax / (sr/N)));
+    const dBmin = -280, dBmax = -200;
+
+    spCtx.clearRect(0,0,sw,sh);
+    spCtx.fillStyle = '#1565c0';
+    for (let i=1; i<=binMax; i++) {
+      const x0 = ((i-1)/binMax)*sw;
+      const x1 = (i/binMax)*sw;
+      const db = _specAvg[i];
+      const y  = sh - ((db-dBmin)/(dBmax-dBmin))*sh;
+      spCtx.fillRect(x0, Math.max(0,y), Math.max(1,x1-x0), sh-Math.max(0,y));
+    }
+    _drawAxes(spCtx, sw, sh, {xLabel:'Frequency', yLabel:'dB', yMin:dBmin, yMax:dBmax, sr, nSamples:N, freqAxis:true, binMax, fMax});
+  }
+
+  function _drawAxes(ctx, w, h, opts) {
+    ctx.fillStyle   = '#aaa';
+    ctx.font        = `${10*devicePixelRatio}px sans-serif`;
+    ctx.textBaseline = 'top';
+    // Y zero line
+    if (opts.yMin !== undefined && opts.yMax !== undefined) {
+      const y0 = h * (1 - (0 - opts.yMin)/(opts.yMax - opts.yMin));
+      if (y0 >= 0 && y0 <= h) {
+        ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(0,y0); ctx.lineTo(w,y0); ctx.stroke();
+      }
+    }
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────────
+  enumerateMics();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,7 @@
+packages = ["numpy"]
+
+[files]
+"../../py/config.py"        = "./config.py"
+"../../py/acquire_logic.py" = "./acquire_logic.py"
+"https://raw.githubusercontent.com/chrisbuerginrogers/ObieWebApp/main/Python%20Code/processing/frf.py"     = "./frf.py"
+"https://raw.githubusercontent.com/chrisbuerginrogers/ObieWebApp/main/Python%20Code/fileio/trf_fileio.py" = "./trf_fileio.py"
