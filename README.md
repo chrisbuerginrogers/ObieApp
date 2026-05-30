@@ -1,2 +1,2 @@
 # ObieApp
- LabVIEW Code for the ObieApp
+This contains all the ObieApp source code.  There are three different approaches:  LabVIEW (the original approach), Python (bare minimum to etablish a set of trusted code to read/write files and do all the signal processing), and Web (Claude developed JS and PyScript code that calls the trusted Python drivers).  For full support, see https://sites.google.com/view/OberlinAcoustics or look at the documentation in the Web App.
