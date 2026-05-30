@@ -6,6 +6,7 @@ Registers Python functions as JS-callable proxies.
 import js
 from pyscript.ffi import create_proxy
 from config import configure, load, save
+from labview_txt import parse as _lv_parse
 from acquire_logic import (
     apply_settings as _apply_settings_impl,
     init_positions,
@@ -107,7 +108,48 @@ _set('inp-frf-x-max',       _r.get('frf_x_max', 12000))
 _set('inp-soundcard',       _r['soundcard'])
 _set('inp-instrument',      _r.get('instrument', ''))
 
+# ── Load settings from a LabVIEW .txt file ───────────────────────────────────
+_LV_FIELD_MAP = {
+    'Hammer Threshold': 'inp-threshold',
+    'Pre-trigger (s)':  'inp-pre',
+    'Sample time (s)':  'inp-post',
+    'Hammer cutoff':    'inp-time-cutoff',
+    'Mic cutoff':       'inp-mic-time-cutoff',
+    'Taps/Position':    'inp-taps',
+    'Positions':        'inp-positions',
+    'Set Names':        'inp-prefix',
+    'Mic Cal':          'inp-mic-cal',
+    'Hammer Cal':       'inp-ham-cal',
+    'Soundcard':        'inp-soundcard',
+}
+
+def load_settings_txt(text_js):
+    fields = _lv_parse(str(text_js))
+    for lv_key, elem_id in _LV_FIELD_MAP.items():
+        val = fields.get(lv_key)
+        if val is None:
+            continue
+        el = js.document.getElementById(elem_id)
+        if el is not None:
+            el.value = val.strip()
+
+    name = fields.get('Name of test', '').strip()
+    if name:
+        for eid in ('inp-instrument', 'inp-instrument-banner'):
+            el = js.document.getElementById(eid)
+            if el is not None:
+                el.value = name
+
+    flip = fields.get('flip?', '').strip().lower()
+    swap_el = js.document.getElementById('inp-swap-channels')
+    if swap_el is not None and flip in ('true', 'false'):
+        swap_el.checked = (flip == 'true')
+
+    _save_run_settings()
+
+
 # ── Expose Python functions to JS ─────────────────────────────────────────────
+js.window.pyLoadSettingsTxt  = create_proxy(load_settings_txt)
 js.window.pyApplySettings    = create_proxy(apply_settings)
 js.window.pyInitPositions    = create_proxy(init_positions)
 js.window.pyProcessAudio     = create_proxy(process_audio)

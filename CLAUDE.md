@@ -178,6 +178,29 @@ All parsers return a standard dict `{freq, mag, header, warnings}` — match tha
 
 ---
 
+## Data Folder — Shared Handle Pattern
+
+All tools share a single data-folder handle stored in the `ObieWebApp` IndexedDB and `obieDataFolderName` localStorage key via two functions in `Web/js/obie-settings.js`:
+
+```javascript
+await saveDataFolderHandle(handle);   // write — called when any tool picks a folder
+const handle = await loadDataFolderHandle();  // read — called on every tool startup
+```
+
+**Rules:**
+- Every tool's startup must call `loadDataFolderHandle()` to restore the last folder. Never read from a tool-private IDB for the folder handle.
+- Every tool's folder-picker must call `saveDataFolderHandle(handle)` after a successful pick. This keeps all tools in sync.
+- Tools may keep their own `localStorage` key (e.g., `obieExplore_folderName`) as a display cache, but the authoritative handle always comes from the shared store.
+- `_IDB` (a tool-private IndexedDB) is only for data that belongs exclusively to that tool, such as Explore's `'wavData'` sound snippet. Never store `'dataFolderHandle'` in a private IDB.
+
+**New folder detection:**
+`openObieAppSettings(dirHandle)` returns `{ settingsHandle, templatesHandle, bandsHandle, colorsHandle, isNew }`. When `isNew` is true, show:
+> "This is a new Data Folder and I moved over the default settings folder."
+
+Call `openObieAppSettings` wherever a folder is applied (home page, Explore, Acquire) so this alert fires consistently.
+
+---
+
 ## CSS / Theming
 
 - Global design tokens live in `Web/css/theme.css` — do not hardcode colours or font sizes.

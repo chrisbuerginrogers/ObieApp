@@ -661,7 +661,6 @@
       if (localStorage.getItem('obieExplore_folderName') !== dir.name)
         localStorage.removeItem('obieExplore_folderPath');
       await _applyFolder(dir);
-      _IDB.put('dataFolderHandle', dir).catch(() => {});
       localStorage.setItem('obieExplore_folderName', dir.name);
       saveDataFolderHandle(dir).catch(() => {});  // sync to shared cross-tool IDB
     } catch(e) { if (e.name !== 'AbortError') console.warn('expSetDataFolder:', e); }
@@ -1079,18 +1078,21 @@
     _renderList();
     window.addEventListener('resize', () => Plotly.Plots.resize('explore-plot'));
 
-    // Restore last data folder display, auto-rescan if permission already granted
-    const savedName = localStorage.getItem('obieExplore_folderName');
+    // Restore last data folder — prefer the shared handle (written by home page / other tools)
+    const savedName  = localStorage.getItem('obieExplore_folderName');
+    const sharedName = localStorage.getItem('obieDataFolderName');
+    const nameToShow = sharedName || savedName;
     const _pathInd    = $('folder-name-ind');
     const _overlaySub = $('folder-overlay-sub');
-    if (savedName) {
-      if (_pathInd)    _pathInd.textContent    = savedName + '  (click 📁 to reconnect)';
-      if (_overlaySub) _overlaySub.textContent = `"${savedName}" needs permission — click to reconnect`;
-      _IDB.get('dataFolderHandle').then(async h => {
+    if (nameToShow) {
+      if (_pathInd)    _pathInd.textContent    = nameToShow + '  (click 📁 to reconnect)';
+      if (_overlaySub) _overlaySub.textContent = `"${nameToShow}" needs permission — click to reconnect`;
+      loadDataFolderHandle().then(async h => {
         if (!h) return;
         const perm = await h.queryPermission({ mode: 'read' }).catch(() => 'denied');
         if (perm !== 'granted') return;
         await _applyFolder(h);
+        localStorage.setItem('obieExplore_folderName', h.name);
       }).catch(() => {});
     }
   };

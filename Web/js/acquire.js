@@ -504,6 +504,18 @@ window.acqClosePrefs = function() {
   document.getElementById('prefs-modal')?.classList.remove('open');
 };
 
+window.acqLoadSettingsTxt = async function(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const text = await file.text();
+  if (window.pyLoadSettingsTxt) {
+    window.pyLoadSettingsTxt(text);
+    const msg = document.getElementById('prefs-load-msg');
+    if (msg) { msg.textContent = `Loaded: ${file.name}`; setTimeout(() => msg.textContent = '', 3000); }
+  }
+  input.value = '';
+};
+
 function _populatePrefsForm(overridePrefs) {
   const set = (id, val) => {
     const el = document.getElementById(id);

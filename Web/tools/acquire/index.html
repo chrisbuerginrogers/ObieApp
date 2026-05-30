@@ -189,6 +189,17 @@
     </div>
     <div class="modal-body">
 
+      <div class="pref-section">Load from File</div>
+      <div class="pref-row">
+        <label>Settings.txt</label>
+        <label class="file-btn" style="flex:1;max-width:220px">
+          Load Settings…
+          <input type="file" accept=".txt" onchange="acqLoadSettingsTxt(this)" style="display:none">
+        </label>
+        <span id="prefs-load-msg" class="save-msg" style="margin-left:8px"></span>
+      </div>
+      <p class="pref-hint">Load a LabVIEW Settings.txt to populate all fields below.</p>
+
       <div class="pref-section">Audio Device</div>
       <div class="pref-row">
         <label for="prefs-device">Input device</label>

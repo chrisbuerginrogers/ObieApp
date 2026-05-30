@@ -76,15 +76,31 @@ const _TEMPLATE_SEEDS = [
 
 const _BAND_SEEDS = [
   ['1 flat (200-7000)_filter.txt',
-    _GH_BASE + 'filter/1%20flat%20(200-7000)_filter.txt'],
+    _GH_BASE + 'bands/1%20flat%20(200-7000)_filter.txt'],
   ['2 JC vln 4 band (200-780-1740-2930-7000)_filter.txt',
-    _GH_BASE + 'filter/2%20JC%20vln%204%20band%20%20(200-780-1740-2930-7000)_filter.txt'],
+    _GH_BASE + 'bands/2%20JC%20vln%204%20band%20%20(200-780-1740-2930-7000)_filter.txt'],
   ['3 JC vln 5 band (200-780-1740-3000-5200-7000)_filter.txt',
-    _GH_BASE + 'filter/3%20JC%20vln%205%20band%20(200-780-1740-3000-5200-7000)_filter.txt'],
+    _GH_BASE + 'bands/3%20JC%20vln%205%20band%20(200-780-1740-3000-5200-7000)_filter.txt'],
   ['4 JC vla 4 band (200-650-1500-2700-6300)_filter.txt',
-    _GH_BASE + 'filter/4%20JC%20vla%204%20band%20%7B200-650-1500-2700-6300%7D_filter.txt'],
+    _GH_BASE + 'bands/4%20JC%20vla%204%20band%20%7B200-650-1500-2700-6300%7D_filter.txt'],
   ['Bark (200-9500)_filter.txt',
-    _GH_BASE + 'filter/Bark%20%20(200-300-400-510-630-770-920-1080-1270-1480-1700-2000-2330-3000-3150-3700-4400-5300-6400-7700-9500)_filter.txt'],
+    _GH_BASE + 'bands/Bark%20%20(200-300-400-510-630-770-920-1080-1270-1480-1700-2000-2330-3000-3150-3700-4400-5300-6400-7700-9500)_filter.txt'],
+];
+
+const _COLOR_SEEDS = [
+  ['24_colors.txt',       _GH_BASE + 'colors/24_colors.txt'],
+  ['JC 5 colors.txt',     _GH_BASE + 'colors/JC%205%20colors.txt'],
+  ['JC 5_colors.json',    _GH_BASE + 'colors/JC%205_colors.json'],
+  ['Kelly 24_colors.json', _GH_BASE + 'colors/Kelly%2024_colors.json'],
+];
+
+const _SETTINGS_SEEDS = [
+  ['DefaultFormat.txt', _GH_BASE + 'DefaultFormat.txt'],
+];
+
+const _TEST_SAMPLE_SEEDS = [
+  ['JacksonStrad H.AvC', _GH_BASE + 'Test_Samples/JacksonStrad%20H.AvC'],
+  ['Titian Strad H.AvC', _GH_BASE + 'Test_Samples/Titian%20Strad%20H.AvC'],
 ];
 
 async function _seedFiles(dirHandle, seeds) {
@@ -94,7 +110,7 @@ async function _seedFiles(dirHandle, seeds) {
       if (!r.ok) continue;
       const fh = await dirHandle.getFileHandle(name, { create: true });
       const w  = await fh.createWritable();
-      await w.write(await r.text());
+      await w.write(await r.arrayBuffer());
       await w.close();
     } catch (e) { console.warn('ObieAppSettings seed failed for', name, e); }
   }
@@ -124,8 +140,12 @@ async function openObieAppSettings(dirHandle) {
   const colorsHandle    = await settingsHandle.getDirectoryHandle('colors',    { create: true });
 
   if (isNew) {
+    await _seedFiles(settingsHandle,  _SETTINGS_SEEDS);
     await _seedFiles(templatesHandle, _TEMPLATE_SEEDS);
     await _seedFiles(bandsHandle,     _BAND_SEEDS);
+    await _seedFiles(colorsHandle,    _COLOR_SEEDS);
+    const samplesHandle = await dirHandle.getDirectoryHandle('Test_Samples', { create: true });
+    await _seedFiles(samplesHandle, _TEST_SAMPLE_SEEDS);
   }
 
   return { settingsHandle, templatesHandle, bandsHandle, colorsHandle, isNew };
