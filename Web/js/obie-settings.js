@@ -66,7 +66,7 @@ async function loadDataFolderHandle() {
 
 // ── Seed content ──────────────────────────────────────────────────────────────
 
-const _GH_BASE = 'https://raw.githubusercontent.com/chrisbuerginrogers/ObieWebApp/main/Python%20Code/ObieApp%20Settings/';
+const _GH_BASE = 'https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/ObieApp%20Settings/';
 
 const _TEMPLATE_SEEDS = [
   ['HV 24 Obie Rig_template.json',    _GH_BASE + 'template/HV%2024%20Obie%20Rig_template.json'],
