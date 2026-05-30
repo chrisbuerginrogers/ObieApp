@@ -2,23 +2,23 @@
 runio.py
 
 Run folder management: creates the directory structure for a measurement run,
-saves a Settings.json snapshot, appends to Notes.txt, and saves per-position
-FRF and coherence as .trf files.
+saves a Settings.txt snapshot (LabVIEW format, backward-compatible), appends
+to Notes.txt, and saves per-position FRF and coherence as .trf files.
 
 Folder layout:
     <data.base_dir>/<instrument>/
     ├── Raw/          ← WAV captures
     ├── trf/          ← FRF + coherence .trf files per position
-    ├── Settings.json ← snapshot of config at run time
+    ├── Settings.txt  ← merged config snapshot in LabVIEW Key=<value/> format
     └── Notes.txt     ← appended entry for each run
 """
 
-import json
 import numpy as np
 from datetime import datetime
 from pathlib import Path
 
 from .trf_fileio import build_trf
+from .obieapp_config import save_as_template
 
 
 def run_dir(cfg: dict) -> Path:
@@ -30,13 +30,12 @@ def run_dir(cfg: dict) -> Path:
 
 
 def setup_run(cfg: dict) -> None:
-    """Create folder structure, write Settings.json, and append a Notes.txt entry."""
+    """Create folder structure, write Settings.txt, and append a Notes.txt entry."""
     rd = run_dir(cfg)
     (rd / "Raw").mkdir(parents=True, exist_ok=True)
     (rd / "trf").mkdir(parents=True, exist_ok=True)
 
-    with open(rd / "Settings.json", "w") as f:
-        json.dump(cfg, f, indent=2)
+    save_as_template(rd / "Settings.txt", cfg)
 
     run     = cfg["run"]
     audio   = cfg["audio"]

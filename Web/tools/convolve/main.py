@@ -1,5 +1,5 @@
 """
-main.py — Convolve It entry point.
+main.py — Convolve entry point.
 """
 
 import js

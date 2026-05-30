@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────────────────────
- * convolve-it.js  —  UI wiring for the Convolve It tool
+ * convolve.js  —  UI wiring for the Convolve tool
  *
  * Requires (loaded before this file):
  *   plotly-theme.js   — cssVar(), plotLayout(), pcfg, COL
@@ -330,24 +330,6 @@ function clearProgMsg() { document.getElementById('prog-msg').textContent = ''; 
 // Python signals ready — trigger default WAV load now that pyLoadWAV is registered.
 window.onPythonReady = function() {
   loadDefaultWAV();
-};
-
-// ── Data Folder (ObieAppSettings) ────────────────────────────────────
-let _ciSettingsHandle = null;
-
-window.ciSetDataFolder = async function() {
-  if (!window.showDirectoryPicker) {
-    alert('Directory picker requires Chrome or Edge.');
-    return;
-  }
-  try {
-    const dir = await window.showDirectoryPicker({ mode: 'readwrite' });
-    ({ settingsHandle: _ciSettingsHandle } = await openObieAppSettings(dir));
-    const btn = document.getElementById('ci-folder-btn');
-    if (btn) btn.textContent = '📁 ' + dir.name;
-  } catch (e) {
-    if (e.name !== 'AbortError') alert('Folder error: ' + e.message);
-  }
 };
 
 // ── Sidebar resize (matches Acquire pattern) ──────────────────────────

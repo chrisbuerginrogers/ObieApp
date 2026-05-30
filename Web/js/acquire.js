@@ -855,8 +855,9 @@ async function _applyDataFolder(dirHandle) {
   _rootDirHandle = dirHandle;
 
   // ObieAppSettings first — gives us the saved instrument name
-  ({ settingsHandle: _settingsHandle, templatesHandle: _templatesHandle } =
+  ({ settingsHandle: _settingsHandle, templatesHandle: _templatesHandle, isNew: _acqFolderIsNew } =
       await openObieAppSettings(dirHandle));
+  if (_acqFolderIsNew) alert('This is a new Data Folder and I moved over the default settings folder.');
 
   // Load saved prefs (instrument name comes from here)
   let savedPrefs = null;

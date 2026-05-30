@@ -112,6 +112,9 @@ main.landing {
 .folder-bar.has-folder {
   border-style: solid; border-color: #2e7d32; background: #f1f8f1;
 }
+.folder-bar.needs-reconnect {
+  border-style: solid; border-color: #b71c1c; background: #fdf1f1;
+}
 .folder-bar-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .folder-bar-label {
   font-size: 0.85rem; font-weight: 700; color: var(--text); white-space: nowrap;
@@ -122,6 +125,9 @@ main.landing {
 }
 .folder-bar.has-folder .folder-bar-name {
   color: #2e7d32; font-style: normal; font-weight: 600;
+}
+.folder-bar.needs-reconnect .folder-bar-name {
+  color: #b71c1c; font-style: normal; font-weight: 600;
 }
 .folder-bar-btn {
   flex-shrink: 0; padding: 5px 14px;

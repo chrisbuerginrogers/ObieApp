@@ -601,8 +601,10 @@
     // Load settings, bands, and templates from ObieAppSettings/
     try {
       let templatesHandle;
-      ({ settingsHandle: _exploreSettingsHandle, bandsHandle: _bandsHandle, templatesHandle }
+      let _expFolderIsNew;
+      ({ settingsHandle: _exploreSettingsHandle, bandsHandle: _bandsHandle, templatesHandle, isNew: _expFolderIsNew }
         = await openObieAppSettings(dir));
+      if (_expFolderIsNew) alert('This is a new Data Folder and I moved over the default settings folder.');
 
       // Load explore prefs from explore.json
       try {
@@ -641,6 +643,7 @@
     const ind = $('folder-name-ind');
     if (ind) ind.textContent = dir.name + (nDirs > 0 ? '  (' + nDirs + ' instruments)' : '');
     if (st) { st.textContent = `Folder: ${dir.name} — ${_dirFiles.length} files`; setTimeout(() => st.textContent = '', 4000); }
+    $('folder-overlay')?.classList.add('hidden');
   }
 
   // ── Data Folder ───────────────────────────────────────────────────────
@@ -1078,9 +1081,11 @@
 
     // Restore last data folder display, auto-rescan if permission already granted
     const savedName = localStorage.getItem('obieExplore_folderName');
-    const _pathInd  = $('folder-name-ind');
-    if (_pathInd && savedName) _pathInd.textContent = savedName + '  (click 📁 to reconnect)';
+    const _pathInd    = $('folder-name-ind');
+    const _overlaySub = $('folder-overlay-sub');
     if (savedName) {
+      if (_pathInd)    _pathInd.textContent    = savedName + '  (click 📁 to reconnect)';
+      if (_overlaySub) _overlaySub.textContent = `"${savedName}" needs permission — click to reconnect`;
       _IDB.get('dataFolderHandle').then(async h => {
         if (!h) return;
         const perm = await h.queryPermission({ mode: 'read' }).catch(() => 'denied');

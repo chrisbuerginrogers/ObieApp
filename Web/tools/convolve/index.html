@@ -4,10 +4,10 @@
   <script src="../../coi-serviceworker.js"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Convolve It — ObieWebApp 2</title>
+  <title>Convolve — ObieWebApp 2</title>
 
   <link rel="stylesheet" href="../../css/theme.css">
-  <link rel="stylesheet" href="../../css/convolve-it.css">
+  <link rel="stylesheet" href="../../css/convolve.css">
 
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 
@@ -19,7 +19,7 @@
   <script src="../../js/plotly-theme.js"></script>
   <script src="../../js/audio.js"></script>
   <script src="../../js/obie-settings.js"></script>
-  <script src="../../js/convolve-it.js" defer></script>
+  <script src="../../js/convolve.js" defer></script>
 </head>
 <body>
 
@@ -37,14 +37,13 @@
       <div class="logo-icon">🎻</div>
       <h1>ObieWebApp 2</h1>
     </a>
-    <span class="crumb">· Convolve It</span>
+    <span class="crumb">· Convolve</span>
     <div class="gap"></div>
     <a class="btn" href="../../index.html" style="font-size:0.75rem;padding:3px 9px">← All tools</a>
   </header>
 
   <!-- ── Toolbar ─────────────────────────────────────────────────────── -->
   <div class="ci-toolbar">
-    <button id="ci-folder-btn" class="tb-btn" onclick="ciSetDataFolder()">📁 Data Folder</button>
     <div class="tb-flex"></div>
     <button id="spec-scale-btn" class="tb-btn" onclick="ciToggleSpecScale()"
             title="Toggle spectrogram frequency axis between linear and log">Freq: Lin</button>

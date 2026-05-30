@@ -119,7 +119,7 @@
 <main class="doc-main">
 
   <h2 class="doc-title">ObieWebApp 2 — User Guide</h2>
-  <p class="doc-lead">How to use Explore, Convolve It, and Acquire to measure, compare, and auralize violin FRFs.</p>
+  <p class="doc-lead">How to use Explore, Convolve, and Acquire to measure, compare, and auralize violin FRFs.</p>
 
   <!-- Table of contents -->
   <div class="toc">
@@ -127,7 +127,7 @@
     <ul>
       <li><a href="#getting-started">Getting Started — Data Folder</a></li>
       <li><a href="#explore">Explore — Compare FRF files</a></li>
-      <li><a href="#convolve">Convolve It — Auralize an FRF</a></li>
+      <li><a href="#convolve">Convolve — Auralize an FRF</a></li>
       <li><a href="#acquire">Acquire — Impact-hammer FRF measurement</a></li>
     </ul>
   </div>
@@ -165,10 +165,10 @@
     <table class="key-table">
       <thead><tr><th>Extension</th><th>Description</th></tr></thead>
       <tbody>
-        <tr><td>.avr / .avc</td><td>Averaged FRF (real/imaginary columns) — main format for Explore and Convolve It</td></tr>
-        <tr><td>.trf / .trv</td><td>Transfer-function format — also supported by Explore and Convolve It</td></tr>
-        <tr><td>.csv</td><td>Two-column CSV (frequency, magnitude dB) — quick import for Convolve It</td></tr>
-        <tr><td>.wav</td><td>Audio file used as the dry signal in Convolve It; also storable as a sound snippet in Explore</td></tr>
+        <tr><td>.avr / .avc</td><td>Averaged FRF (real/imaginary columns) — main format for Explore and Convolve</td></tr>
+        <tr><td>.trf / .trv</td><td>Transfer-function format — also supported by Explore and Convolve</td></tr>
+        <tr><td>.csv</td><td>Two-column CSV (frequency, magnitude dB) — quick import for Convolve</td></tr>
+        <tr><td>.wav</td><td>Audio file used as the dry signal in Convolve; also storable as a sound snippet in Explore</td></tr>
       </tbody>
     </table>
   </section>
@@ -265,18 +265,18 @@
 
   <hr class="divider">
 
-  <!-- ── Convolve It ─────────────────────────────────────────────────── -->
+  <!-- ── Convolve ─────────────────────────────────────────────────── -->
   <section class="tool-section" id="convolve">
     <div class="tool-header">
       <div class="icon">🔀</div>
-      <h2>Convolve It</h2>
+      <h2>Convolve</h2>
       <span class="tag">PyScript</span>
     </div>
 
-    <a class="tool-link" href="../tools/convolve-it/">Open Convolve It →</a>
+    <a class="tool-link" href="../tools/convolve/">Open Convolve →</a>
 
     <p>
-      Convolve It applies a measured FRF to a dry audio file using full complex
+      Convolve applies a measured FRF to a dry audio file using full complex
       frequency-domain convolution: <em>Y(f) = H(f) · X(f)</em>. The result
       sounds like the dry signal played through (or by) the measured instrument.
     </p>

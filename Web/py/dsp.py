@@ -1,5 +1,5 @@
 """
-dsp.py — DSP core for ObieWebApp2 (Convolve It tool).
+dsp.py — DSP core for ObieWebApp2 (Convolve tool).
 
 Public functions
 ----------------

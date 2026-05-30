@@ -2,7 +2,7 @@
  * obie-settings.js — Shared ObieAppSettings folder management + cross-tool
  * folder-handle persistence via IndexedDB.
  *
- * Exposes functions used by Acquire, Explore, and Convolve It:
+ * Exposes functions used by Acquire, Explore, and Convolve:
  *
  *   const { settingsHandle, templatesHandle, bandsHandle, colorsHandle }
  *         = await openObieAppSettings(dirHandle);
@@ -128,5 +128,5 @@ async function openObieAppSettings(dirHandle) {
     await _seedFiles(bandsHandle,     _BAND_SEEDS);
   }
 
-  return { settingsHandle, templatesHandle, bandsHandle, colorsHandle };
+  return { settingsHandle, templatesHandle, bandsHandle, colorsHandle, isNew };
 }

@@ -1,0 +1,44 @@
+Name of test=<ScratchPad/>
+Date=<0/>
+Location=<Home/>
+Default Template=<ScratchPad/>
+Soundcard=<1-2 (OCTA-CAPTURE)/>
+resolution=<32/>
+Sampling rate=<48000/>
+Ch1 Gain =<10.000000/>
+Ch2 Gain=<20.000000/>
+Sample time (s)=<0.300000/>
+Pre-trigger (s)=<0.001000/>
+Hammer Threshold=<0.010000/>
+Positions=<1/>
+Taps/Position=<5/>
+Set Names=<H/>
+Freq resolution=<1.000000/>
+Hammer cutoff=<0.025000/>
+Mic cutoff=<0.250000/>
+Double bounce =<0.010000/>
+Hammer Cal=<1.000000/>
+dB Offset=<0.000000/>
+Accel Cal=<1.000000/>
+Vibrometer Cal=<1.000000/>
+Mic Cal=<49.380000/>
+Output=<2/>
+Voltage Cal=<13.800000/>
+Vibrometer Port=<ASRL27::INSTR/>
+Range=<4/>
+High Pass=<2/>
+Bandwidth=<4/>
+X Range=<2.000000E+2	1.000000E+4	2.500000E+3	5.000000E+2	2.000000E+2
+0.000000E+0	5.000000E-2	2.500000E-2	2.500000E-3	0.000000E+0
+0.000000E+0	3.000000E-1	1.000000E-1	1.000000E-2	0.000000E+0
+2.000000E+2	1.000000E+4	1.000000E+1	1.000000E+2	2.000000E+2
+/>
+Y Range=<-2.500000E+1	0.000000E+0	5.000000E+0	1.000000E+0	-2.500000E+1
+-1.000000E-1	1.000000E+0	2.500000E-1	5.000000E-2	-1.000000E-1
+-1.000000E+0	1.000000E+0	5.000000E-1	1.000000E-1	-1.000000E+0
+-3.000000E+1	3.000000E+1	5.000000E+0	1.000000E+0	-3.000000E+1
+/>
+dB Spread=<40.000000/>
+Trigger=<0/>
+Ch_1=<1/>
+Ch_2=<2/>

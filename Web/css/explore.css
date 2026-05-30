@@ -199,8 +199,25 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 .band-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 2px; vertical-align: middle; }
 .muted-txt { font-size: 10px; color: var(--muted); }
 
+/* ── No-folder overlay ───────────────────────────────────────────────── */
+.folder-overlay {
+  position: absolute; inset: 0; z-index: 30;
+  background: rgba(255,255,255,0.93);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 14px;
+}
+.folder-overlay.hidden { display: none; }
+.folder-overlay-msg {
+  font-size: 15px; font-weight: 600; color: var(--muted); text-align: center;
+}
+.folder-overlay-sub {
+  font-size: 11px; color: var(--muted); font-style: italic; text-align: center;
+}
+
 /* ── Plot area ───────────────────────────────────────────────────────── */
 .ex-plot-wrap {
+  position: relative;
   flex: 1; display: flex; flex-direction: column;
   overflow: hidden; transition: background 0.1s;
 }

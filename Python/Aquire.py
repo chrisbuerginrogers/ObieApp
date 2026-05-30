@@ -3,6 +3,8 @@ Aquire.py
 
 Reads settings from "ObieApp Settings/config.json", captures triggered audio
 across all positions and hits, computes averaged FRF and coherence, and exits.
+A Settings.txt snapshot (LabVIEW Key=<value/> format) is written to the run
+folder alongside Notes.txt for backward compatibility with older software.
 """
 
 from fileio.obieapp_config import load

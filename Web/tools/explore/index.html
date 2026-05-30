@@ -105,6 +105,15 @@
     <!-- Right: plot controls strip + plot -->
     <div id="explore-drop-area" class="ex-plot-wrap">
 
+      <!-- No-folder overlay — hidden once a Data Folder is connected -->
+      <div id="folder-overlay" class="folder-overlay">
+        <div class="folder-overlay-msg">📁 Select a Data Folder above before continuing</div>
+        <button class="tb-btn start" onclick="expSetDataFolder()" style="padding:6px 18px;font-size:12px">
+          Select Data Folder…
+        </button>
+        <div class="folder-overlay-sub" id="folder-overlay-sub"></div>
+      </div>
+
       <div class="plot-toolbar">
         <button id="y-log-btn" class="tb-btn" onclick="expToggleYLog()" title="Toggle Y axis log/linear">Y=lin</button>
         <button class="tb-btn" onclick="expRescaleY()" title="Rescale Y to data range">↕Y</button>
