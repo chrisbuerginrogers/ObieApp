@@ -682,12 +682,20 @@ window.acqLoadSettingsTxt = async function(input) {
     if (msg) { msg.textContent = `Loaded: ${file.name}`; setTimeout(() => msg.textContent = '', 3000); }
   }
   // Copy Default Notes into the run notes if present in the file
-  const fields = JSON.parse(window.pyParseLabviewTxt(text));
-  const notes  = (fields['Default Notes'] || '').trim();
-  if (notes) {
-    localStorage.setItem(_notesKey(), notes);
-    const ta = document.getElementById('notes-textarea');
-    if (ta) ta.value = notes;
+  if (!window.pyParseLabviewTxt) {
+    alert('Python is still loading — settings file loaded but notes could not be extracted. Try again in a moment.');
+    input.value = ''; return;
+  }
+  try {
+    const fields = JSON.parse(window.pyParseLabviewTxt(text));
+    const notes  = (fields['Default Notes'] || '').trim();
+    if (notes) {
+      localStorage.setItem(_notesKey(), notes);
+      const ta = document.getElementById('notes-textarea');
+      if (ta) ta.value = notes;
+    }
+  } catch (e) {
+    alert('Could not parse settings file: ' + e.message);
   }
   input.value = '';
 };
@@ -808,16 +816,33 @@ window.acqSavePrefs = function() {
   // from reverting a user's interactive plot zoom.
   const formHamMin = parseFloat(g('inp-ham-x-min'));
   const formHamMax = parseFloat(g('inp-ham-x-max'));
-  if (!isNaN(formHamMin) && !isNaN(formHamMax) && formHamMax > 0.001)
+  if (!isNaN(formHamMin) && !isNaN(formHamMax) && formHamMax > 0.001) {
+    if (formHamMin < 0 || formHamMin >= formHamMax) {
+      alert('Hammer time range is invalid: Min must be ≥ 0 and less than Max.'); return;
+    }
     _hamXRange = [formHamMin, formHamMax];
+  }
   const formMicMin = parseFloat(g('inp-mic-x-min'));
   const formMicMax = parseFloat(g('inp-mic-x-max'));
-  if (!isNaN(formMicMin) && !isNaN(formMicMax) && formMicMax > 0.001)
+  if (!isNaN(formMicMin) && !isNaN(formMicMax) && formMicMax > 0.001) {
+    if (formMicMin < 0 || formMicMin >= formMicMax) {
+      alert('Mic time range is invalid: Min must be ≥ 0 and less than Max.'); return;
+    }
     _micXRange = [formMicMin, formMicMax];
+  }
   const formFrfMin = parseFloat(g('inp-frf-x-min'));
   const formFrfMax = parseFloat(g('inp-frf-x-max'));
+  if (!isNaN(formFrfMin) && !isNaN(formFrfMax)) {
+    if (formFrfMin <= 0 || formFrfMin >= formFrfMax) {
+      alert('FRF frequency range is invalid: Min must be > 0 and less than Max.'); return;
+    }
+  }
   if (!isNaN(formFrfMin) && formFrfMin > 0) _S.xMin = formFrfMin;
   if (!isNaN(formFrfMax) && formFrfMax > 0) _S.xMax = formFrfMax;
+  const micCal = parseFloat(g('inp-mic-cal'));
+  const hamCal = parseFloat(g('inp-ham-cal'));
+  if (!isFinite(micCal) || micCal === 0) { alert('Mic calibration must be a non-zero number.'); return; }
+  if (!isFinite(hamCal) || hamCal === 0) { alert('Hammer calibration must be a non-zero number.'); return; }
   const prefs = {
     threshold:     parseFloat(g('inp-threshold'))   || 0.05,
     frf_x_min:     Math.round(_S.xMin ?? 100),
@@ -829,8 +854,8 @@ window.acqSavePrefs = function() {
     taps:          parseInt(g('inp-taps'))          || 5,
     positions:     parseInt(g('inp-positions'))     || 12,
     prefix:        g('inp-prefix')                  || 'H',
-    mic_cal:       parseFloat(g('inp-mic-cal'))     || 1.0,
-    ham_cal:       parseFloat(g('inp-ham-cal'))     || 1.0,
+    mic_cal:       micCal,
+    ham_cal:       hamCal,
     swap_channels: document.getElementById('inp-swap-channels')?.checked ?? false,
     deviceLabel,
     instrument:    (document.getElementById('inp-instrument-banner')?.textContent || '').trim() || 'scratch',
@@ -1421,10 +1446,16 @@ async function _applyDataFolder(dirHandle) {
   _rootDirHandle = dirHandle;
 
   // ObieAppSettings first — gives us the saved instrument name
-  let _acqFolderIsNew;
-  ({ settingsHandle: _settingsHandle, templatesHandle: _templatesHandle, isNew: _acqFolderIsNew } =
+  let _acqFolderIsNew, _acqSeedsFailed;
+  ({ settingsHandle: _settingsHandle, templatesHandle: _templatesHandle,
+     isNew: _acqFolderIsNew, seedsFailed: _acqSeedsFailed } =
       await openObieAppSettings(dirHandle));
-  if (_acqFolderIsNew) alert('This is a new Data Folder and I moved over the default settings folder.');
+  if (_acqFolderIsNew) {
+    const seedNote = _acqSeedsFailed
+      ? '\n\nNote: some default templates and band presets could not be downloaded — check your internet connection and try reselecting the folder.'
+      : '';
+    alert('This is a new Data Folder and I moved over the default settings folder.' + seedNote);
+  }
 
   // Load saved prefs (instrument name comes from here)
   let savedPrefs = null;

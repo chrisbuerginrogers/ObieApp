@@ -145,12 +145,13 @@ const _TEST_SAMPLE_SEEDS = [
 ];
 
 async function _seedFiles(dirHandle, seeds) {
+  let failures = 0;
   for (const [name, urlOrObj] of seeds) {
     try {
       let content;
       if (typeof urlOrObj === 'string') {
         const r = await fetch(urlOrObj);
-        if (!r.ok) continue;
+        if (!r.ok) { failures++; console.warn('ObieAppSettings seed HTTP error for', name, r.status); continue; }
         content = await r.arrayBuffer();
       } else {
         content = JSON.stringify(urlOrObj, null, 2);
@@ -159,8 +160,9 @@ async function _seedFiles(dirHandle, seeds) {
       const w  = await fh.createWritable();
       await w.write(content);
       await w.close();
-    } catch (e) { console.warn('ObieAppSettings seed failed for', name, e); }
+    } catch (e) { failures++; console.warn('ObieAppSettings seed failed for', name, e); }
   }
+  return failures;
 }
 
 /**
@@ -187,14 +189,16 @@ async function openObieAppSettings(dirHandle) {
   const colorsHandle    = await settingsHandle.getDirectoryHandle('colors',    { create: true });
   const listsHandle     = await settingsHandle.getDirectoryHandle('lists',     { create: true });
 
+  let seedsFailed = false;
   if (isNew) {
-    await _seedFiles(templatesHandle, _TEMPLATE_SEEDS);
-    await _seedFiles(bandsHandle,     _BAND_SEEDS);
-    await _seedFiles(colorsHandle,    _COLOR_SEEDS);
-    await _seedFiles(listsHandle,     _LIST_SEEDS);
+    const f1 = await _seedFiles(templatesHandle, _TEMPLATE_SEEDS);
+    const f2 = await _seedFiles(bandsHandle,     _BAND_SEEDS);
+    const f3 = await _seedFiles(colorsHandle,    _COLOR_SEEDS);
+    const f4 = await _seedFiles(listsHandle,     _LIST_SEEDS);
     const samplesHandle = await dirHandle.getDirectoryHandle('Test_Samples', { create: true });
-    await _seedFiles(samplesHandle, _TEST_SAMPLE_SEEDS);
+    const f5 = await _seedFiles(samplesHandle, _TEST_SAMPLE_SEEDS);
+    seedsFailed = (f1 + f2 + f3 + f4 + f5) > 0;
   }
 
-  return { settingsHandle, templatesHandle, bandsHandle, colorsHandle, listsHandle, isNew };
+  return { settingsHandle, templatesHandle, bandsHandle, colorsHandle, listsHandle, isNew, seedsFailed };
 }

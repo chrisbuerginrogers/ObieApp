@@ -169,6 +169,14 @@
           req.onerror   = e => rej(e.target.error);
         });
       },
+      async del(key) {
+        const db = await open();
+        return new Promise((res, rej) => {
+          const tx = db.transaction('kv', 'readwrite');
+          tx.objectStore('kv').delete(key);
+          tx.oncomplete = res; tx.onerror = e => rej(e.target.error);
+        });
+      },
     };
   })();
 
@@ -700,11 +708,17 @@
     // so the scan must happen after to include those files.
     try {
       let templatesHandle;
-      let _expFolderIsNew;
+      let _expFolderIsNew, _expSeedsFailed;
       ({ settingsHandle: _exploreSettingsHandle, bandsHandle: _bandsHandle, templatesHandle,
-         listsHandle: _listsHandle, colorsHandle: _colorsHandle, isNew: _expFolderIsNew }
+         listsHandle: _listsHandle, colorsHandle: _colorsHandle,
+         isNew: _expFolderIsNew, seedsFailed: _expSeedsFailed }
         = await openObieAppSettings(dir));
-      if (_expFolderIsNew) alert('This is a new Data Folder and I moved over the default settings folder.');
+      if (_expFolderIsNew) {
+        const seedNote = _expSeedsFailed
+          ? '\n\nNote: some default templates and band presets could not be downloaded — check your internet connection and try reselecting the folder.'
+          : '';
+        alert('This is a new Data Folder and I moved over the default settings folder.' + seedNote);
+      }
 
       // Load explore prefs from explore.json
       try {
@@ -1194,6 +1208,10 @@
   };
   window.expSetNormRange = function() {
     const lo = parseFloat($('norm-f-lo')?.value), hi = parseFloat($('norm-f-hi')?.value);
+    if (isFinite(lo) && isFinite(hi) && lo >= hi) {
+      alert('Normalization range: lower frequency must be less than upper frequency.');
+      return;
+    }
     if (isFinite(lo)) _S.normFLo = lo;
     if (isFinite(hi)) _S.normFHi = hi;
     render();
@@ -1210,6 +1228,13 @@
     if (!input) return;
     const edges = input.split(',').map(s => parseFloat(s.trim())).filter(isFinite);
     if (edges.length < 2) { alert('Need at least 2 boundary values.'); return; }
+    const sorted = [...edges].sort((a, b) => a - b);
+    const wasUnsorted = edges.some((v, i) => v !== sorted[i]);
+    if (wasUnsorted) alert('Band boundaries were not in order — they have been sorted automatically.');
+    edges.length = 0; sorted.forEach(v => edges.push(v));
+    // Check for duplicate values after sorting (would produce zero-width bands)
+    const hasDupes = sorted.some((v, i) => i > 0 && v === sorted[i - 1]);
+    if (hasDupes) { alert('Band boundaries contain duplicate values. Please enter unique frequencies.'); return; }
     _customBands = _edgesToBands(edges);
     _S.bandPreset = 'custom';
     const sel = $('band-sel');

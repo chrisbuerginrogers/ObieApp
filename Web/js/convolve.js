@@ -79,6 +79,9 @@ async function loadWAV(input) {
   const file = input.files[0]; if (!file) return;
   _wavFileName = file.name;
   setSt('wav-status', 'loading…');
+  if (!window.pyLoadWAV) {
+    setSt('wav-status', 'Python not ready — try again in a moment', 'err'); return;
+  }
   try {
     window.pyLoadWAV(file.name, new Uint8Array(await file.arrayBuffer()));
   } catch (e) {
