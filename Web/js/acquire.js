@@ -61,6 +61,18 @@ let _fftYRange  = null;
 let _hamYRange  = null;
 let _micYRange  = null;
 
+// When true the main FRF plot passes autorange:true to Plotly instead of our dB window
+let _yTrueAutorange = false;
+
+// Individual tap FRF traces
+let tapCache    = {};     // pos → [{freq, H1db}, ...]
+let _showTaps   = false;
+let _tapOpacity = 0.40;
+
+// Mini-plot x-ranges (time domain)
+let _hamXRange = [0, 0.1];
+let _micXRange = [0, 0.3];
+
 // ── Colour palette (same as Explore) ─────────────────────────────────────────
 const PALETTE = [
   '#ff6f00','#2196f3','#4caf50','#e91e63','#9c27b0',
@@ -118,21 +130,32 @@ window.onTriggered = function(t_js, ham_js, mic_js, thr) {
 };
 
 function _drawTrigPlots(t, ham, mic, thrF) {
-  const pkH = Math.max(...ham.map(Math.abs), 0.05);
-  const pkM = Math.max(...mic.map(Math.abs), 0.05);
-  const hamShapes = [hDot(thrF, '#7c2bc8'), vLine(_hamTimeCutoffS, '#2e7d32')];
-  const micShapes = [vLine(_micTimeCutoffS, '#2e7d32')];
+  // Y autoscale uses only data within the visible x range
+  const hamVis = ham.filter((_, i) => t[i] >= _hamXRange[0] && t[i] <= _hamXRange[1]);
+  const micVis = mic.filter((_, i) => t[i] >= _micXRange[0] && t[i] <= _micXRange[1]);
+  const pkH = Math.max(0.05, ...hamVis.map(Math.abs));
+  const pkM = Math.max(0.05, ...micVis.map(Math.abs));
+
+  // Cutoff lines only drawn when the cutoff falls within the visible x range
+  const hamShapes = [hDot(thrF, '#7c2bc8')];
+  if (_hamTimeCutoffS >= _hamXRange[0] && _hamTimeCutoffS <= _hamXRange[1])
+    hamShapes.push(vLine(_hamTimeCutoffS, '#2e7d32'));
+  const micShapes = [];
+  if (_micTimeCutoffS >= _micXRange[0] && _micTimeCutoffS <= _micXRange[1])
+    micShapes.push(vLine(_micTimeCutoffS, '#2e7d32'));
 
   Plotly.react('plot-hammer',
     [{ x: t, y: ham, type: 'scatter', mode: 'lines', line: { color: '#c62828', width: 1 } }],
-    miniLayout('Hammer', 'Time (s)', 'V', {},
+    miniLayout('Hammer', 'Time (s)', 'V',
+      { range: _hamXRange },
       _hamYRange ? { range: _hamYRange } : { range: [-pkH*1.2, pkH*1.2] },
       hamShapes),
     PCFG);
 
   Plotly.react('plot-mic',
     [{ x: t, y: mic, type: 'scatter', mode: 'lines', line: { color: '#1565c0', width: 1 } }],
-    miniLayout('Microphone', 'Time (s)', 'V', {},
+    miniLayout('Microphone', 'Time (s)', 'V',
+      { range: _micXRange },
       _micYRange ? { range: _micYRange } : { range: [-pkM*1.2, pkM*1.2] },
       micShapes),
     PCFG);
@@ -180,10 +203,22 @@ window.onFRFUpdate = function(freq_js, H1db_js, coh_js, pos, nHits) {
   const p = Number(pos);
   if (freq.length > 0) {
     frfCache[p] = { freq, H1db, coh, nHits: Number(nHits) };
+    // Trim tap cache if a hit was deleted
+    if (tapCache[p] && tapCache[p].length > Number(nHits))
+      tapCache[p].length = Number(nHits);
   } else {
     delete frfCache[p];
+    delete tapCache[p];
   }
   renderFRF();
+};
+
+/** Individual tap FRF from Python — one per hammer strike */
+window.onTapFRF = function(freq_js, H1db_js, pos, hitIdx) {
+  const p = Number(pos), idx = Number(hitIdx);
+  if (!tapCache[p]) tapCache[p] = [];
+  tapCache[p][idx] = { freq: Array.from(freq_js), H1db: Array.from(H1db_js) };
+  if (_showTaps) renderFRF();
 };
 
 /** State machine changed */
@@ -261,13 +296,29 @@ window.onSaveHit = async function(b64, pos, hitN) {
   await _writeFile(_rawHandle, filename, b64);
 };
 
-/** Auto-save TRF when position completes */
+/** Overwrite TRF on disk after every hit for the given position */
 window.onSaveTRF = async function(b64, pos) {
   if (!_trfHandle) { _setSaveStatus(false); return; }
   const pfx = (document.getElementById('inp-prefix')?.value || 'H').trim();
   const p   = String(Number(pos) + 1).padStart(3, '0');
   const inst = _runName || 'run';
   await _writeFile(_trfHandle, `${inst} ${pfx}_${p}.trf`, b64);
+};
+
+/** Save AvC (complex average) to the test folder root at session end */
+window.onSaveAvC = async function(b64) {
+  const h    = _testHandle;
+  const name = _runName || 'run';
+  if (!h) return;
+  await _writeFile(h, `${name} AvC.avc`, b64);
+};
+
+/** Save AvR (magnitude average) to the test folder root at session end */
+window.onSaveAvR = async function(b64) {
+  const h    = _testHandle;
+  const name = _runName || 'run';
+  if (!h) return;
+  await _writeFile(h, `${name} AvR.avr`, b64);
 };
 
 /** Manual download fallback */
@@ -289,11 +340,13 @@ window.onDownload = function(b64, filename) {
 // ════════════════════════════════════════════════════════════════════════════
 
 function renderFRF() {
-  const traces = [];
+  const frfTraces = [];
+  const tapTraces = [];
+  const pendingCoh = [];  // collected after FRF traces, mapped once yRange is known
   const positions = Object.keys(frfCache).map(Number).sort((a,b)=>a-b);
 
   const pfx = document.getElementById('inp-prefix')?.value || 'H';
-  positions.forEach((pos, idx) => {
+  positions.forEach((pos) => {
     const d = frfCache[pos];
     if (!d || !d.freq.length) return;
     const mags  = d.H1db;
@@ -301,39 +354,44 @@ function renderFRF() {
     if (!valid.length) return;
     const color = PALETTE[pos % PALETTE.length];
     const label = `${pfx}${String(pos+1).padStart(2,'0')} (${d.nHits} hits)`;
-    traces.push({
+    frfTraces.push({
       x: d.freq, y: mags,
       type: 'scatter', mode: 'lines',
-      name: label,
-      yaxis: 'y',
+      name: label, yaxis: 'y',
       line: { color, width: _lineWidth },
       showlegend: true,
     });
-    if (d.coh?.length) {
-      traces.push({
-        x: d.freq, y: d.coh,
-        type: 'scatter', mode: 'lines',
-        name: label,
-        yaxis: 'y2',
-        line: { color: '#1565c0', width: _lineWidth },
-        showlegend: false,
-        hoverinfo: 'skip',
+    if (d.coh?.length) pendingCoh.push({ freq: d.freq, coh: d.coh });
+
+    // Individual tap traces (rendered below the average)
+    if (_showTaps && tapCache[pos]?.length) {
+      tapCache[pos].forEach((tap, tapIdx) => {
+        if (!tap) return;
+        tapTraces.push({
+          x: tap.freq, y: tap.H1db,
+          type: 'scatter', mode: 'lines', yaxis: 'y',
+          line: { color: PALETTE[tapIdx % PALETTE.length], width: _lineWidth },
+          opacity: _tapOpacity,
+          showlegend: false, hoverinfo: 'skip',
+        });
       });
     }
   });
 
+  // tap traces behind averages, frf traces on top
+  const traces = [...tapTraces, ...frfTraces];
   if (!traces.length) {
     traces.push({ x: [], y: [], type: 'scatter', mode: 'lines', showlegend: false });
   }
 
-  // Y range — use 99th-percentile max so a few noisy outlier bins don't
-  // push the real data to the bottom of the plot.
+  // Y range — 99th-percentile of FRF only (coherence values would skew this).
+  // When _yTrueAutorange is true we let Plotly compute from the data instead.
   let yRange;
   if (_S.yMin != null && _S.yMax != null) {
     yRange = [_S.yMin, _S.yMax];
-  } else {
+  } else if (!_yTrueAutorange) {
     const allY = [];
-    for (const t of traces)
+    for (const t of frfTraces)
       for (const v of t.y)
         if (isFinite(v) && v > -200) allY.push(v);
     if (allY.length) {
@@ -343,15 +401,33 @@ function renderFRF() {
     }
   }
 
+  // Map coherence (0–1) into the lower 25% of the y1 range so it sits
+  // in the middle-low section without interfering with the FRF peaks.
+  if (pendingCoh.length && yRange) {
+    const coBottom = yRange[0];
+    const coTop    = yRange[0] + (yRange[1] - yRange[0]) * 0.25;
+    pendingCoh.forEach(({ freq, coh }) => {
+      traces.push({
+        x: freq,
+        y: coh.map(c => coBottom + Math.max(0, Math.min(1, c)) * (coTop - coBottom)),
+        type: 'scatter', mode: 'lines',
+        yaxis: 'y',
+        line: { color: '#1565c0', width: Math.max(_lineWidth, 1) },
+        showlegend: false,
+        hoverinfo: 'skip',
+      });
+    });
+  }
+
   const xRange = _S.xLog
     ? [Math.log10(Math.max(_S.xMin, 1)), Math.log10(_S.xMax)]
     : [_S.xMin, _S.xMax];
 
   Plotly.react('acq-plot', traces, {
     paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
-    margin: { l: 58, r: 52, t: 12, b: 50 },
+    margin: { l: 58, r: 20, t: 12, b: 50 },
     font: { size: 11, family: 'inherit' },
-    showlegend: traces.length > 1,
+    showlegend: frfTraces.length > 0,
     legend: { font: { size: 9 }, x: 1, xanchor: 'right', y: 1 },
     xaxis: {
       type: _S.xLog ? 'log' : 'linear',
@@ -361,17 +437,8 @@ function renderFRF() {
     },
     yaxis: {
       title: { text: 'Intensity (dB)', font: { size: 11 } },
-      range: yRange,
+      ...( yRange ? { range: yRange } : { autorange: true } ),
       gridcolor: '#c0c4cc', tickfont: { size: 10 },
-    },
-    yaxis2: {
-      title: { text: 'Coherence', font: { size: 11 } },
-      range: [-0.5, 1.5],
-      overlaying: 'y',
-      side: 'right',
-      showgrid: false,
-      tickfont: { size: 10 },
-      tickvals: [0, 0.5, 1],
     },
     autosize: true,
   }, { ...PCFG, displayModeBar: true, displaylogo: false,
@@ -383,8 +450,33 @@ function renderFRF() {
 // Toolbar controls
 // ════════════════════════════════════════════════════════════════════════════
 
+window.acqToggleTaps = function() {
+  _showTaps = !_showTaps;
+  const btn = document.getElementById('taps-btn');
+  if (btn) btn.classList.toggle('active', _showTaps);
+  renderFRF();
+};
+
+// ↑/↓ arrows adjust individual tap opacity when taps are visible
+document.addEventListener('keydown', e => {
+  if (!_showTaps) return;
+  if (document.activeElement?.tagName === 'INPUT' ||
+      document.activeElement?.tagName === 'SELECT' ||
+      document.activeElement?.tagName === 'TEXTAREA') return;
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    _tapOpacity = Math.min(1.0, +(_tapOpacity + 0.05).toFixed(2));
+    renderFRF();
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    _tapOpacity = Math.max(0.05, +(_tapOpacity - 0.05).toFixed(2));
+    renderFRF();
+  }
+});
+
 window.acqRescaleY = function() {
   _S.yMin = null; _S.yMax = null;
+  _yTrueAutorange = false;
   renderFRF();
 };
 
@@ -418,7 +510,8 @@ window.acqApplyThreshold = function(val) {
     const { t, ham, mic } = _lastTrigData;
     _drawTrigPlots(t, ham, mic, v);
   }
-  acqSavePrefs();
+  _patchPrefs({ threshold: v });
+  _callPyApplySettings();
 };
 
 window.acqApplyHamCutoff = function(val) {
@@ -429,7 +522,8 @@ window.acqApplyHamCutoff = function(val) {
   if (pref) pref.value = v;
   _hamTimeCutoffS = v;
   if (_lastTrigData) { const { t, ham, mic, thr } = _lastTrigData; _drawTrigPlots(t, ham, mic, thr); }
-  acqSavePrefs();
+  _patchPrefs({ time_cutoff_s: v });
+  _callPyApplySettings();
 };
 
 window.acqApplyMicCutoff = function(val) {
@@ -440,14 +534,15 @@ window.acqApplyMicCutoff = function(val) {
   if (pref) pref.value = v;
   _micTimeCutoffS = v;
   if (_lastTrigData) { const { t, ham, mic, thr } = _lastTrigData; _drawTrigPlots(t, ham, mic, thr); }
-  acqSavePrefs();
+  _patchPrefs({ mic_time_cutoff_s: v });
+  _callPyApplySettings();
 };
 
 function _updateSoundcardDisplay() {
   const el = document.getElementById('soundcard-ind');
   if (!el) return;
-  const sc = _loadPrefs().soundcard || '';
-  el.textContent = sc ? `Sound card: ${sc}` : '';
+  const label = _loadPrefs().deviceLabel || '';
+  el.textContent = label ? `Device: ${label}` : '';
 }
 
 window.acqRescaleHammer = function() {
@@ -475,11 +570,30 @@ window.acqDeleteLastHit = function() {
 };
 
 window.acqStartOver = async function() {
-  if (!confirm('Clear all positions and start over from the beginning?')) return;
+  if (!confirm('Are you sure you want to start over?\n\nThis will permanently delete all saved WAV and TRF files for this session from your Data Folder and clear all hit data. This cannot be undone.')) return;
+
+  // Capture handles before _stopAudio resets them
+  const rawDir = _rawHandle;
+  const trfDir = _trfHandle;
+
   if (appState !== 'idle' && appState !== 'complete') await _stopAudio();
+
+  // Delete all files in raw/ and TRF/ on disk
+  const clearDir = async (dh) => {
+    if (!dh) return;
+    try {
+      for await (const [name] of dh.entries())
+        await dh.removeEntry(name, { recursive: true }).catch(() => {});
+    } catch (_) {}
+  };
+  await clearDir(rawDir);
+  await clearDir(trfDir);
+
   frfCache = {};
+  tapCache = {};
   renderFRF();
   if (window.pyResetAll) window.pyResetAll();
+  acqToggleAcquire();
 };
 
 window.acqClearPosition = function() {
@@ -534,10 +648,19 @@ function _populatePrefsForm(overridePrefs) {
     if (el && val != null) el.value = val;
   };
   const prefs = overridePrefs || _loadPrefs();
+  // Sync _S.xMin/_S.xMax from the plot's actual displayed range — more reliable than
+  // depending on the plotly_relayout event having fired and been captured.
+  const acqDiv = document.getElementById('acq-plot');
+  if (acqDiv?._fullLayout?.xaxis?.range?.length === 2) {
+    const isLog = acqDiv._fullLayout.xaxis.type === 'log';
+    const xr = acqDiv._fullLayout.xaxis.range;
+    _S.xMin = isLog ? Math.pow(10, xr[0]) : xr[0];
+    _S.xMax = isLog ? Math.pow(10, xr[1]) : xr[1];
+  }
   set('inp-threshold',   prefs.threshold);
   set('inp-thr-disp',    Number(prefs.threshold ?? 0.05).toFixed(3));
-  set('inp-frf-x-min',   prefs.frf_x_min);
-  set('inp-frf-x-max',   prefs.frf_x_max);
+  set('inp-frf-x-min',   Math.round(_S.xMin ?? prefs.frf_x_min ?? 100));
+  set('inp-frf-x-max',   Math.round(_S.xMax ?? prefs.frf_x_max ?? 12000));
   set('inp-pre',         prefs.pre_trig_s);
   set('inp-post',        prefs.post_trig_s);
   set('inp-time-cutoff',     prefs.time_cutoff_s);
@@ -551,13 +674,46 @@ function _populatePrefsForm(overridePrefs) {
   set('inp-ham-cal',     prefs.ham_cal);
   const swapEl = document.getElementById('inp-swap-channels');
   if (swapEl) swapEl.checked = prefs.swap_channels ?? false;
-  set('inp-soundcard',   prefs.soundcard);
   const instrVal = prefs.instrument || 'scratch';
   const instrDisp = document.getElementById('inp-instrument-banner');
   if (instrDisp) instrDisp.textContent = instrVal;
   set('inp-line-width',  prefs.line_width);
+  // Read mini-plot ranges from Plotly's layout — ground truth after user zoom.
+  const hamDiv = document.getElementById('plot-hammer');
+  if (hamDiv?._fullLayout?.xaxis?.range?.length === 2)
+    _hamXRange = [...hamDiv._fullLayout.xaxis.range];
+  const micDiv = document.getElementById('plot-mic');
+  if (micDiv?._fullLayout?.xaxis?.range?.length === 2)
+    _micXRange = [...micDiv._fullLayout.xaxis.range];
+  set('inp-ham-x-min',   _hamXRange[0]);
+  set('inp-ham-x-max',   _hamXRange[1]);
+  set('inp-mic-x-min',   _micXRange[0]);
+  set('inp-mic-x-max',   _micXRange[1]);
   // populate device selector
   _enumeratePrefsDevices();
+}
+
+// Patch only the specified keys into the saved prefs — leaves everything else untouched.
+function _patchPrefs(updates) {
+  const p = { ..._loadPrefs(), ...updates };
+  localStorage.setItem('obieAcquire_prefs', JSON.stringify(p));
+  _saveAcqSettings();   // persist to acquire.json in Data Folder
+  _updateInfoPanel();
+}
+
+// Push the current saved prefs to Python without touching any JS state variables.
+function _callPyApplySettings() {
+  if (!window.pyApplySettings) return;
+  const p  = _loadPrefs();
+  const sr = audioCtx?.sampleRate || 44100;
+  window.pyApplySettings(
+    p.threshold, p.pre_trig_s, p.post_trig_s,
+    p.time_cutoff_s ?? p.post_trig_s ?? 0.30,
+    p.taps, p.positions, p.prefix,
+    p.mic_cal, p.ham_cal, sr,
+    p.swap_channels ?? false,
+    p.mic_time_cutoff_s ?? p.time_cutoff_s ?? p.post_trig_s ?? 0.30
+  );
 }
 
 function _loadPrefs() {
@@ -568,7 +724,8 @@ function _loadPrefs() {
       taps: 5, positions: 12, prefix: 'H',
       mic_cal: 1.0, ham_cal: 1.0, swap_channels: false,
       frf_x_min: 100, frf_x_max: 12000,
-      soundcard: '', instrument: 'scratch', deviceId: '', line_width: 0.5,
+      deviceLabel: '', instrument: 'scratch', deviceId: '', line_width: 0.5,
+      ham_x_min: 0, ham_x_max: 0.1, mic_x_min: 0, mic_x_max: 0.3,
       ...JSON.parse(localStorage.getItem('obieAcquire_prefs') || '{}'),
     };
   } catch (_) {
@@ -576,16 +733,45 @@ function _loadPrefs() {
              time_cutoff_s: 0.30, mic_time_cutoff_s: 0.30,
              taps: 5, positions: 12, prefix: 'H', mic_cal: 1.0, ham_cal: 1.0,
              swap_channels: false, frf_x_min: 100, frf_x_max: 12000,
-             soundcard: '', instrument: 'scratch', deviceId: '', line_width: 0.5 };
+             deviceLabel: '', instrument: 'scratch', deviceId: '', line_width: 0.5,
+             ham_x_min: 0, ham_x_max: 0.1, mic_x_min: 0, mic_x_max: 0.3 };
   }
 }
 
 window.acqSavePrefs = function() {
   const g = id => document.getElementById(id)?.value ?? '';
+  // Only read device fields from the select when the list has been populated
+  // (options.length > 1 means real devices were enumerated, not just the placeholder).
+  // If the select is unpopulated — e.g. when called from an inline control without
+  // the prefs modal ever having been opened — preserve the previously saved values
+  // so we never accidentally overwrite a valid deviceId with ''.
+  const existing   = _loadPrefs();
+  const deviceSel  = document.getElementById('prefs-device');
+  const devReady   = deviceSel && deviceSel.options.length > 1;
+  const deviceId   = devReady ? g('prefs-device') : existing.deviceId;
+  const deviceLabel = devReady
+    ? (deviceSel.value ? (deviceSel.selectedOptions[0]?.text || '') : '')
+    : existing.deviceLabel;
+  // If the Settings modal form has valid x-range values, adopt them into the in-memory
+  // state — this is the path when the user types a new value directly in the modal.
+  // Using _hamXRange/_micXRange as the authoritative source prevents stale form values
+  // from reverting a user's interactive plot zoom.
+  const formHamMin = parseFloat(g('inp-ham-x-min'));
+  const formHamMax = parseFloat(g('inp-ham-x-max'));
+  if (!isNaN(formHamMin) && !isNaN(formHamMax) && formHamMax > 0.001)
+    _hamXRange = [formHamMin, formHamMax];
+  const formMicMin = parseFloat(g('inp-mic-x-min'));
+  const formMicMax = parseFloat(g('inp-mic-x-max'));
+  if (!isNaN(formMicMin) && !isNaN(formMicMax) && formMicMax > 0.001)
+    _micXRange = [formMicMin, formMicMax];
+  const formFrfMin = parseFloat(g('inp-frf-x-min'));
+  const formFrfMax = parseFloat(g('inp-frf-x-max'));
+  if (!isNaN(formFrfMin) && formFrfMin > 0) _S.xMin = formFrfMin;
+  if (!isNaN(formFrfMax) && formFrfMax > 0) _S.xMax = formFrfMax;
   const prefs = {
     threshold:     parseFloat(g('inp-threshold'))   || 0.05,
-    frf_x_min:     parseFloat(g('inp-frf-x-min'))   || 100,
-    frf_x_max:     parseFloat(g('inp-frf-x-max'))   || 12000,
+    frf_x_min:     Math.round(_S.xMin ?? 100),
+    frf_x_max:     Math.round(_S.xMax ?? 12000),
     pre_trig_s:    parseFloat(g('inp-pre'))         || 0.01,
     post_trig_s:   parseFloat(g('inp-post'))        || 0.30,
     time_cutoff_s:     parseFloat(g('inp-time-cutoff'))     || 0.30,
@@ -596,10 +782,14 @@ window.acqSavePrefs = function() {
     mic_cal:       parseFloat(g('inp-mic-cal'))     || 1.0,
     ham_cal:       parseFloat(g('inp-ham-cal'))     || 1.0,
     swap_channels: document.getElementById('inp-swap-channels')?.checked ?? false,
-    soundcard:     g('inp-soundcard'),
+    deviceLabel,
     instrument:    (document.getElementById('inp-instrument-banner')?.textContent || '').trim() || 'scratch',
-    deviceId:      g('prefs-device'),
+    deviceId,
     line_width:    parseFloat(g('inp-line-width'))  || 0.5,
+    ham_x_min:     _hamXRange[0],
+    ham_x_max:     _hamXRange[1],
+    mic_x_min:     _micXRange[0],
+    mic_x_max:     _micXRange[1],
   };
   localStorage.setItem('obieAcquire_prefs', JSON.stringify(prefs));
   _saveAcqSettings();
@@ -633,6 +823,8 @@ function _pushSettingsFromPrefs(prefs) {
   _lineWidth       = prefs.line_width        ?? 0.5;
   _S.xMin          = prefs.frf_x_min        ?? 100;
   _S.xMax          = prefs.frf_x_max        ?? 12000;
+  _hamXRange       = [prefs.ham_x_min ?? 0,   prefs.ham_x_max ?? 0.1];
+  _micXRange       = [prefs.mic_x_min ?? 0,   prefs.mic_x_max ?? 0.3];
   renderFRF();
   if (!window.pyApplySettings) return;
   const sr = audioCtx?.sampleRate || 44100;
@@ -649,6 +841,30 @@ function _pushSettingsFromPrefs(prefs) {
     const { t, ham, mic, thr } = _lastTrigData;
     _drawTrigPlots(t, ham, mic, thr);
   }
+  _updateInfoPanel();
+}
+
+function _updateInfoPanel() {
+  const el = document.getElementById('info-items');
+  if (!el) return;
+  const p = _loadPrefs();
+  const rows = [
+    ['Device',     p.deviceLabel || '—'],
+    ['Threshold',  `${p.threshold} V`],
+    ['Hits/pos',   p.taps],
+    ['Positions',  p.positions],
+    ['Prefix',     p.prefix || 'H'],
+    ['Ham cal',    `${p.ham_cal} N/V`],
+    ['Mic cal',    `${p.mic_cal} Pa/V`],
+    ['Pre-trig',   `${p.pre_trig_s} s`],
+    ['Post-trig',  `${p.post_trig_s} s`],
+    ['Ham cutoff', `${p.time_cutoff_s} s`],
+    ['Mic cutoff', `${p.mic_time_cutoff_s} s`],
+    ['Swap ch',    p.swap_channels ? 'Yes' : 'No'],
+  ];
+  el.innerHTML = rows.map(([k, v]) =>
+    `<div class="info-row"><span class="info-lbl">${k}</span><span class="info-val">${v}</span></div>`
+  ).join('');
 }
 
 async function _enumeratePrefsDevices() {
@@ -699,14 +915,17 @@ window.acqSaveNotes = function() {
 // Template modal
 // ════════════════════════════════════════════════════════════════════════════
 
-window.acqTemplate = function() {
+window.acqTemplate = async function() {
   document.getElementById('template-modal')?.classList.add('open');
   _selectedTpl = null;
-  _renderTemplateList();
   const pre = document.getElementById('tpl-json');
   const lbl = document.getElementById('tpl-json-lbl');
   if (pre) pre.textContent = '';
   if (lbl) lbl.textContent = 'Select a template above to preview its settings';
+  // Reload from disk every time the modal opens so newly saved files appear immediately
+  _templates = [];
+  if (_templatesHandle) await _loadTemplatesFromFolder(_templatesHandle);
+  else _renderTemplateList();
 };
 
 window.acqCloseTemplate = function() {
@@ -792,15 +1011,37 @@ function _renderTemplateList() {
         const s = t.settings || t.run || t;
         const meta = _tplMeta(s);
         return `
-          <div class="tpl-item${_selectedTpl === i ? ' selected' : ''}" onclick="acqSelectTpl(${i})">
-            <div class="tpl-name">${t.name || 'Unnamed'}</div>
-            ${meta ? `<div class="tpl-desc">${meta}</div>` : ''}
+          <div class="tpl-item${_selectedTpl === i ? ' selected' : ''}" style="display:flex;align-items:center;gap:6px" onclick="acqSelectTpl(${i})">
+            <div style="flex:1;min-width:0">
+              <div class="tpl-name">${t.name || 'Unnamed'}</div>
+              ${meta ? `<div class="tpl-desc">${meta}</div>` : ''}
+            </div>
+            <button class="tpl-del-btn" title="Delete template" onclick="acqDeleteTpl(${i},event)">🗑</button>
           </div>`;
       }).join('')
     : '<div style="font-size:11px;color:var(--muted);padding:4px 0">No saved templates — set a Data Folder to load from <code>ObieAppSettings/Templates/</code>, or use Browse.</div>';
 
   container.innerHTML = currentItem + list;
 }
+
+window.acqDeleteTpl = async function(i, event) {
+  event.stopPropagation();  // don't select the row
+  const t = _templates[i];
+  if (!t) return;
+  if (!confirm(`Delete template "${t.name}"?`)) return;
+  if (_templatesHandle && t._file) {
+    try {
+      await _templatesHandle.removeEntry(t._file);
+    } catch (e) {
+      alert('Could not delete file: ' + e.message);
+      return;
+    }
+  }
+  _templates.splice(i, 1);
+  if (_selectedTpl === i)       _selectedTpl = null;
+  else if (_selectedTpl > i)    _selectedTpl--;
+  _renderTemplateList();
+};
 
 window.acqSelectTpl = function(i) {
   _selectedTpl = i;
@@ -812,18 +1053,18 @@ window.acqSelectTpl = function(i) {
   if (i === -1) {
     // Current Settings
     const p = { ..._loadPrefs() };
-    delete p.soundcard; delete p.deviceId;
+    delete p.deviceLabel; delete p.deviceId;
     pre.textContent = JSON.stringify(p, null, 2);
-    if (lbl) lbl.textContent = 'Current Settings (soundcard excluded):';
+    if (lbl) lbl.textContent = 'Current Settings (device excluded):';
   } else if (_templates[i]) {
     const t = _templates[i];
     const s = { ...(t.settings || t.run || t) };
-    delete s.soundcard;
+    delete s.deviceLabel; delete s.deviceId;
     const display = { name: t.name || 'Unnamed' };
     if (t.description) display.description = t.description;
     display.settings = s;
     pre.textContent = JSON.stringify(display, null, 2);
-    if (lbl) lbl.textContent = `${t.name || 'Template'} — settings (soundcard excluded):`;
+    if (lbl) lbl.textContent = `${t.name || 'Template'} — settings (device excluded):`;
   } else {
     pre.textContent = '';
     if (lbl) lbl.textContent = 'Select a template above to preview its settings';
@@ -877,7 +1118,14 @@ window.acqApplyTemplate = function() {
   if (s.prefix      != null) set('inp-prefix',     s.prefix);
   if (s.mic_cal     != null) set('inp-mic-cal',    s.mic_cal);
   if (s.ham_cal     != null) set('inp-ham-cal',    s.ham_cal);
-  // soundcard intentionally skipped — keep the current soundcard on import
+  if (s.frf_x_min   != null) set('inp-frf-x-min',  s.frf_x_min);
+  if (s.frf_x_max   != null) set('inp-frf-x-max',  s.frf_x_max);
+  if (s.line_width  != null) set('inp-line-width',  s.line_width);
+  if (s.ham_x_min   != null) set('inp-ham-x-min',   s.ham_x_min);
+  if (s.ham_x_max   != null) set('inp-ham-x-max',   s.ham_x_max);
+  if (s.mic_x_min   != null) set('inp-mic-x-min',   s.mic_x_min);
+  if (s.mic_x_max   != null) set('inp-mic-x-max',   s.mic_x_max);
+  // device selection intentionally skipped — keep the current device on import
   _currentTemplateName = t.name || '';
   const tplInd = document.getElementById('tpl-ind');
   if (tplInd) tplInd.textContent = _currentTemplateName;
@@ -918,6 +1166,7 @@ window.acqSaveAsTemplate = async function() {
 const HAS_FS = typeof window.showDirectoryPicker === 'function';
 let _rawHandle       = null;
 let _trfHandle       = null;
+let _testHandle      = null;   // current test folder (root of raw/ and TRF/)
 let _runName         = '';
 let _settingsHandle  = null;   // ObieAppSettings/ dir inside the data folder
 let _templatesHandle = null;   // ObieAppSettings/Templates/ dir
@@ -994,9 +1243,10 @@ async function _refreshInstrumentFolder(instrumentName) {
 
     // Create the test subfolder right now so Start never has to.
     const testHandle = await instrHandle.getDirectoryHandle(_pendingTestName, { create: true });
-    _rawHandle = await testHandle.getDirectoryHandle('raw', { create: true });
-    _trfHandle = await testHandle.getDirectoryHandle('TRF', { create: true });
-    _runName   = _pendingTestName;
+    _testHandle = testHandle;
+    _rawHandle  = await testHandle.getDirectoryHandle('raw', { create: true });
+    _trfHandle  = await testHandle.getDirectoryHandle('TRF', { create: true });
+    _runName    = _pendingTestName;
 
     // Reset Python acquisition state so hit/position counters start from zero
     if (window.pyResetAll) window.pyResetAll();
@@ -1123,11 +1373,11 @@ async function _loadTemplatesFromFolder(dir) {
         if (lower.endsWith('.txt')) {
           const fields   = _parseLVTxt(text);
           const tplName  = name.replace(/_template\.txt$/i, '').replace(/_/g, ' ').trim();
-          _templates.push({ name: tplName, settings: _lvFieldsToSettings(fields) });
+          _templates.push({ name: tplName, settings: _lvFieldsToSettings(fields), _file: name });
         } else if (lower.endsWith('.json')) {
           const data = JSON.parse(text);
           const arr  = Array.isArray(data) ? data : [data];
-          _templates.push(...arr);
+          _templates.push(...arr.map(t => ({ ...t, _file: name })));
         }
       } catch (_) {}
     }
@@ -1137,11 +1387,465 @@ async function _loadTemplatesFromFolder(dir) {
 
 
 // ════════════════════════════════════════════════════════════════════════════
-// LiveView
+// LiveView dialog — embedded, toggled by the LiveView toolbar button
 // ════════════════════════════════════════════════════════════════════════════
 
+const LV_WORKLET_SRC = `
+class LVCaptureProcessor extends AudioWorkletProcessor {
+  process(inputs) {
+    const inp = inputs[0];
+    if (inp && inp[0] && inp[0].length > 0) {
+      const L = inp[0];
+      const R = inp.length > 1 && inp[1] && inp[1].length > 0 ? inp[1] : inp[0];
+      this.port.postMessage({ l: L.slice(), r: R.slice() });
+    }
+    return true;
+  }
+}
+registerProcessor('lv-capture', LVCaptureProcessor);
+`;
+
+let _lvAudioCtx    = null;
+let _lvWorkletNode = null;
+let _lvSource      = null;
+let _lvStream      = null;
+let _lvRunning     = false;
+let _lvRafId       = null;
+let _lvSr          = 44100;
+
+const LV_RING_SECS = 4;
+let _lvRingH  = new Float32Array(LV_RING_SECS * 44100);
+let _lvRingM  = new Float32Array(LV_RING_SECS * 44100);
+let _lvRingSz = LV_RING_SECS * 44100;
+let _lvRingWr = 0;
+
+function _lvReallocRing(sr) {
+  _lvSr    = sr;
+  _lvRingSz = LV_RING_SECS * sr;
+  _lvRingH  = new Float32Array(_lvRingSz);
+  _lvRingM  = new Float32Array(_lvRingSz);
+  _lvRingWr = 0;
+}
+function _lvPushRing(L, R) {
+  for (let i = 0; i < L.length; i++) {
+    _lvRingH[_lvRingWr] = R[i];
+    _lvRingM[_lvRingWr] = L[i];
+    _lvRingWr = (_lvRingWr + 1) % _lvRingSz;
+  }
+}
+function _lvRingTail(n) {
+  n = Math.min(n, _lvRingSz);
+  const H = new Float32Array(n), M = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const idx = (_lvRingWr - n + i + _lvRingSz) % _lvRingSz;
+    H[i] = _lvRingH[idx]; M[i] = _lvRingM[idx];
+  }
+  return { H, M };
+}
+function _lvRingWindowAt(center, pre, post) {
+  const n = pre + post;
+  const H = new Float32Array(n), M = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const idx = (center - pre + i + _lvRingSz) % _lvRingSz;
+    H[i] = _lvRingH[idx]; M[i] = _lvRingM[idx];
+  }
+  return { H, M };
+}
+
+let _lvMode = 'live';
+
+window.lvSetMode = function(m) {
+  _lvMode = m;
+  document.getElementById('lv-mode-live')?.classList.toggle('active',    m === 'live');
+  document.getElementById('lv-mode-trigger')?.classList.toggle('active', m === 'trigger');
+  const t = document.getElementById('lv-frf-title');
+  if (t) t.textContent = m === 'live' ? 'FRF (live estimate)' : 'FRF (H1 from triggered hits)';
+  const cb = document.getElementById('lv-clear-btn');
+  if (cb) cb.style.display = m === 'trigger' ? '' : 'none';
+  const h = document.getElementById('lv-hits');
+  if (h) h.textContent = '';
+  if (m === 'trigger') _lvTrigState = 'armed';
+  _lvFrfGxx = null; _lvFrfGxy_re = null; _lvFrfGxy_im = null; _lvFrfCount = 0;
+  _lvCapturedH = null; _lvCapturedM = null; _lvCapturedFRF = null;
+};
+
+let _lvTrigState    = 'armed';
+let _lvTrigRingPos  = 0;
+let _lvPostLeft     = 0;
+let _lvCapturedH    = null;
+let _lvCapturedM    = null;
+let _lvCapturedFRF  = null;
+let _lvCapturedPreN = 0;
+let _lvFrfGxx    = null;
+let _lvFrfGxy_re = null;
+let _lvFrfGxy_im = null;
+let _lvFrfFreqs  = null;
+let _lvFrfCount  = 0;
+
+window.lvClearFRF = function() {
+  _lvFrfGxx = null; _lvFrfGxy_re = null; _lvFrfGxy_im = null; _lvFrfCount = 0;
+  _lvCapturedH = null; _lvCapturedM = null; _lvCapturedFRF = null;
+  const h = document.getElementById('lv-hits'); if (h) h.textContent = '';
+};
+
+function _lvNextPow2(n) { let p = 1; while (p < n) p <<= 1; return p; }
+function _lvFftInPlace(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) {
+      let t = re[i]; re[i] = re[j]; re[j] = t;
+          t = im[i]; im[i] = im[j]; im[j] = t;
+    }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const theta = -2 * Math.PI / len;
+    const wr = Math.cos(theta), wi = Math.sin(theta);
+    for (let i = 0; i < n; i += len) {
+      let ur = 1, ui = 0;
+      for (let k = 0; k < (len >> 1); k++) {
+        const ar = re[i+k], ai = im[i+k];
+        const br = re[i+k+(len>>1)]*ur - im[i+k+(len>>1)]*ui;
+        const bi = re[i+k+(len>>1)]*ui + im[i+k+(len>>1)]*ur;
+        re[i+k]          = ar + br; im[i+k]          = ai + bi;
+        re[i+k+(len>>1)] = ar - br; im[i+k+(len>>1)] = ai - bi;
+        const ur2 = ur*wr - ui*wi; ui = ur*wi + ui*wr; ur = ur2;
+      }
+    }
+  }
+}
+function _lvSpectrum(samples, N) {
+  const re = new Float64Array(N), im = new Float64Array(N);
+  const len = Math.min(samples.length, N);
+  for (let i = 0; i < len; i++) {
+    const w = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (len - 1));
+    re[i] = samples[i] * w;
+  }
+  _lvFftInPlace(re, im);
+  return { re, im };
+}
+function _lvComputeH1(hamWin, micWin) {
+  const N = _lvNextPow2(Math.max(hamWin.length, micWin.length));
+  const H = _lvSpectrum(hamWin, N);
+  const M = _lvSpectrum(micWin, N);
+  const bins = N >> 1;
+  const freqs = new Float32Array(bins), Gxx = new Float64Array(bins);
+  const Gxy_re = new Float64Array(bins), Gxy_im = new Float64Array(bins);
+  for (let i = 0; i < bins; i++) {
+    freqs[i]  = i * _lvSr / N;
+    Gxx[i]    = H.re[i]*H.re[i] + H.im[i]*H.im[i];
+    Gxy_re[i] = M.re[i]*H.re[i] + M.im[i]*H.im[i];
+    Gxy_im[i] = M.im[i]*H.re[i] - M.re[i]*H.im[i];
+  }
+  return { freqs, Gxx, Gxy_re, Gxy_im };
+}
+function _lvH1ToDb(Gxx, Gxy_re, Gxy_im) {
+  const mags = new Float32Array(Gxx.length);
+  for (let i = 0; i < Gxx.length; i++) {
+    const den = Gxx[i] + 1e-30;
+    const hr = Gxy_re[i] / den, hi = Gxy_im[i] / den;
+    mags[i] = 20 * Math.log10(Math.sqrt(hr*hr + hi*hi) + 1e-10);
+  }
+  return mags;
+}
+
+function _lvResizeCanvases() {
+  ['lv-hammer-canvas', 'lv-mic-canvas', 'lv-frf-canvas'].forEach(id => {
+    const c = document.getElementById(id);
+    if (!c) return;
+    c.width  = c.offsetWidth  * devicePixelRatio;
+    c.height = c.offsetHeight * devicePixelRatio;
+  });
+}
+
+function _lvDrawTime(id, samples, color, thr, showThr) {
+  const c = document.getElementById(id); if (!c) return;
+  const ctx = c.getContext('2d'), w = c.width, h = c.height;
+  ctx.clearRect(0, 0, w, h);
+  if (!samples || !samples.length) return;
+  const n = samples.length;
+  let pk = 0;
+  for (let i = 0; i < n; i++) if (Math.abs(samples[i]) > pk) pk = Math.abs(samples[i]);
+  pk = Math.max(pk * 1.2, thr * 1.5, 0.02);
+  const yOf = v => h * (0.5 - v / (2 * pk));
+  ctx.strokeStyle = '#e0e0e0'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, h/2); ctx.lineTo(w, h/2); ctx.stroke();
+  if (showThr && thr > 0) {
+    ctx.setLineDash([4*devicePixelRatio, 4*devicePixelRatio]);
+    ctx.strokeStyle = '#7c2bc8'; ctx.lineWidth = 1.5*devicePixelRatio;
+    ctx.beginPath(); ctx.moveTo(0, yOf(thr));  ctx.lineTo(w, yOf(thr));  ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, yOf(-thr)); ctx.lineTo(w, yOf(-thr)); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.strokeStyle = color; ctx.lineWidth = 1.5*devicePixelRatio;
+  ctx.beginPath();
+  const step = Math.max(1, Math.floor(n / w));
+  for (let i = 0; i < n; i += step) {
+    const x = w*i/n, y = yOf(samples[i]);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.fillStyle = '#aaa'; ctx.font = `${9*devicePixelRatio}px sans-serif`; ctx.textBaseline = 'top';
+  ctx.fillText(`pk ${(pk/1.2).toFixed(3)} V`, 4*devicePixelRatio, 3*devicePixelRatio);
+}
+
+function _lvDrawFRF(freqs, mags) {
+  const c = document.getElementById('lv-frf-canvas'); if (!c) return;
+  const ctx = c.getContext('2d'), w = c.width, h = c.height;
+  ctx.clearRect(0, 0, w, h);
+  if (!freqs || !freqs.length) {
+    ctx.fillStyle = '#ccc'; ctx.font = `${11*devicePixelRatio}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(_lvMode === 'trigger' ? 'Waiting for trigger…' : 'No data', w/2, h/2);
+    ctx.textAlign = 'left'; return;
+  }
+  const fMin = 100, fMax = 12000;
+  const fMinL = Math.log10(fMin), fMaxL = Math.log10(fMax);
+  let yMax = -Infinity, yMin = Infinity;
+  for (let i = 0; i < freqs.length; i++) {
+    if (freqs[i] < fMin || freqs[i] > fMax || !isFinite(mags[i]) || mags[i] < -200) continue;
+    if (mags[i] > yMax) yMax = mags[i];
+    if (mags[i] < yMin) yMin = mags[i];
+  }
+  if (!isFinite(yMax)) { yMax = 20; yMin = -60; }
+  yMax += 5; yMin = yMax - 60;
+  const xOf = f => w * (Math.log10(Math.max(f, 0.1)) - fMinL) / (fMaxL - fMinL);
+  const yOf = v => h * (1 - (v - yMin) / (yMax - yMin));
+  ctx.strokeStyle = '#ececec'; ctx.lineWidth = 1;
+  [100, 200, 500, 1000, 2000, 5000, 10000].forEach(f => {
+    const x = xOf(f); ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+  });
+  ctx.strokeStyle = '#6a1b9a'; ctx.lineWidth = 1.8*devicePixelRatio;
+  ctx.beginPath(); let started = false;
+  for (let i = 1; i < freqs.length; i++) {
+    if (freqs[i] < fMin || freqs[i] > fMax || !isFinite(mags[i]) || mags[i] < -200) { started = false; continue; }
+    const x = xOf(freqs[i]), y = yOf(mags[i]);
+    if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  ctx.fillStyle = '#aaa'; ctx.font = `${9*devicePixelRatio}px sans-serif`;
+  ctx.textBaseline = 'bottom';
+  [100, 200, 500, 1000, 2000, 5000, 10000].forEach(f => {
+    ctx.fillText(f >= 1000 ? (f/1000)+'k' : f, xOf(f)+devicePixelRatio, h-devicePixelRatio);
+  });
+  ctx.textBaseline = 'top';
+  ctx.fillText(`${yMax.toFixed(0)} dB`, 2*devicePixelRatio, 2*devicePixelRatio);
+  ctx.fillText(`${yMin.toFixed(0)} dB`, 2*devicePixelRatio, h-12*devicePixelRatio);
+}
+
+function _lvSetSt(msg) { const el = document.getElementById('lv-status'); if (el) el.textContent = msg; }
+
+async function _lvEnumerateMics() {
+  try {
+    const tmp = await navigator.mediaDevices.getUserMedia({ audio: true });
+    tmp.getTracks().forEach(t => t.stop());
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const sel = document.getElementById('lv-mic-sel'); if (!sel) return;
+    const savedId = _loadPrefs().deviceId || '';
+    sel.innerHTML = '';
+    devices.filter(d => d.kind === 'audioinput').forEach(d => {
+      const o = document.createElement('option');
+      o.value = d.deviceId;
+      o.textContent = d.label || `Mic (${d.deviceId.slice(0,8)}…)`;
+      if (d.deviceId === savedId) o.selected = true;
+      sel.appendChild(o);
+    });
+  } catch(e) { _lvSetSt('Mic access denied: ' + e.message); }
+}
+
+function _lvApplyPrefsToForm() {
+  const p = _loadPrefs();
+  const set = (id, val) => { const el = document.getElementById(id); if (el && val != null) el.value = val; };
+  set('lv-inp-thr',  p.threshold   ?? 0.05);
+  set('lv-inp-pre',  p.pre_trig_s  ?? 0.01);
+  set('lv-inp-post', p.post_trig_s ?? 0.30);
+}
+
+window.lvToggleCapture = async function() {
+  if (_lvRunning) { _lvStopCapture(); return; }
+  const sel = document.getElementById('lv-mic-sel');
+  const deviceId = sel?.value || '';
+  try {
+    _lvSetSt('Requesting microphone…');
+    _lvStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        deviceId:         deviceId ? { exact: deviceId } : undefined,
+        channelCount:     { ideal: 2 },
+        sampleRate:       { ideal: 44100 },
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl:  false,
+      }
+    });
+    _lvAudioCtx = new AudioContext();
+    _lvReallocRing(_lvAudioCtx.sampleRate);
+    const blob = new Blob([LV_WORKLET_SRC], { type: 'application/javascript' });
+    const blobURL = URL.createObjectURL(blob);
+    await _lvAudioCtx.audioWorklet.addModule(blobURL);
+    URL.revokeObjectURL(blobURL);
+    _lvSource = _lvAudioCtx.createMediaStreamSource(_lvStream);
+    _lvWorkletNode = new AudioWorkletNode(_lvAudioCtx, 'lv-capture', {
+      numberOfInputs: 1, numberOfOutputs: 0,
+      channelCount: 2, channelCountMode: 'explicit',
+    });
+    _lvWorkletNode.port.onmessage = ({ data }) => {
+      _lvPushRing(data.l, data.r);
+      if (_lvMode === 'trigger') _lvCheckTrigger(data.r);
+    };
+    _lvSource.connect(_lvWorkletNode);
+    _lvRunning = true; _lvTrigState = 'armed';
+    const btn = document.getElementById('lv-start-btn');
+    if (btn) { btn.textContent = '■ Stop'; btn.classList.remove('accent'); btn.classList.add('stop'); }
+    _lvSetSt(_lvMode === 'live' ? 'Running — live mode' : 'Armed — waiting for trigger…');
+    _lvLoop();
+  } catch(e) { _lvSetSt('Error: ' + e.message); }
+};
+
+function _lvStopCapture() {
+  _lvRunning = false;
+  if (_lvRafId) { cancelAnimationFrame(_lvRafId); _lvRafId = null; }
+  if (_lvWorkletNode) { _lvWorkletNode.disconnect(); _lvWorkletNode = null; }
+  if (_lvSource)      { _lvSource.disconnect();      _lvSource = null; }
+  if (_lvStream)      { _lvStream.getTracks().forEach(t => t.stop()); _lvStream = null; }
+  if (_lvAudioCtx)    { _lvAudioCtx.close(); _lvAudioCtx = null; }
+  const btn = document.getElementById('lv-start-btn');
+  if (btn) { btn.textContent = '▶ Start'; btn.classList.remove('stop'); btn.classList.add('accent'); }
+  _lvSetSt('Stopped');
+}
+
+// Called when the user picks a different device while running — restart on the new device.
+window.lvRestartWithDevice = async function() {
+  const wasRunning = _lvRunning;
+  if (wasRunning) {
+    _lvStopCapture();
+    await new Promise(r => setTimeout(r, 120));  // let the old context fully close
+    lvToggleCapture();
+  }
+};
+
+function _lvCheckTrigger(hammerBatch) {
+  const thr = parseFloat(document.getElementById('lv-inp-thr')?.value) || 0.05;
+  if (_lvTrigState === 'armed') {
+    for (let i = 0; i < hammerBatch.length; i++) {
+      if (Math.abs(hammerBatch[i]) > thr) {
+        _lvTrigRingPos = (_lvRingWr - hammerBatch.length + i + _lvRingSz) % _lvRingSz;
+        const postS = parseFloat(document.getElementById('lv-inp-post')?.value) || 0.30;
+        _lvPostLeft = Math.ceil(postS * _lvSr) - (hammerBatch.length - i - 1);
+        _lvTrigState = _lvPostLeft <= 0 ? 'capture_now' : 'triggered';
+        if (_lvTrigState === 'capture_now') _lvDoCapture();
+        break;
+      }
+    }
+  } else if (_lvTrigState === 'triggered') {
+    _lvPostLeft -= hammerBatch.length;
+    if (_lvPostLeft <= 0) _lvDoCapture();
+  }
+}
+
+function _lvDoCapture() {
+  _lvTrigState = 'holding';
+  const preS  = parseFloat(document.getElementById('lv-inp-pre')?.value)  || 0.01;
+  const postS = parseFloat(document.getElementById('lv-inp-post')?.value) || 0.30;
+  const preN  = Math.ceil(preS * _lvSr), postN = Math.ceil(postS * _lvSr);
+  const { H, M } = _lvRingWindowAt(_lvTrigRingPos, preN, postN);
+  _lvCapturedH = H; _lvCapturedM = M; _lvCapturedPreN = preN;
+  const result = _lvComputeH1(H, M);
+  if (!_lvFrfGxx) {
+    _lvFrfGxx    = new Float64Array(result.Gxx);
+    _lvFrfGxy_re = new Float64Array(result.Gxy_re);
+    _lvFrfGxy_im = new Float64Array(result.Gxy_im);
+    _lvFrfFreqs  = result.freqs;
+  } else {
+    const bins = Math.min(_lvFrfGxx.length, result.Gxx.length);
+    for (let i = 0; i < bins; i++) {
+      _lvFrfGxx[i]    += result.Gxx[i];
+      _lvFrfGxy_re[i] += result.Gxy_re[i];
+      _lvFrfGxy_im[i] += result.Gxy_im[i];
+    }
+  }
+  _lvFrfCount++;
+  _lvCapturedFRF = { freqs: _lvFrfFreqs, mags: _lvH1ToDb(_lvFrfGxx, _lvFrfGxy_re, _lvFrfGxy_im) };
+  const h = document.getElementById('lv-hits');
+  if (h) h.textContent = `${_lvFrfCount} hit${_lvFrfCount > 1 ? 's' : ''} averaged`;
+  _lvSetSt(`Hit ${_lvFrfCount} captured — re-arming…`);
+  setTimeout(() => { if (_lvRunning) { _lvTrigState = 'armed'; _lvSetSt('Armed — waiting for trigger…'); } }, 200);
+}
+
+let _lvLiveFrameCount = 0;
+let _lvLiveFRF = null;
+
+function _lvUpdateLiveFRF() {
+  const postS = parseFloat(document.getElementById('lv-inp-post')?.value) || 0.30;
+  const nAvg  = parseInt(document.getElementById('lv-num-avg')?.value) || 4;
+  const { H, M } = _lvRingTail(Math.ceil(postS * _lvSr));
+  const result    = _lvComputeH1(H, M);
+  const mags      = _lvH1ToDb(result.Gxx, result.Gxy_re, result.Gxy_im);
+  if (!_lvLiveFRF || _lvLiveFRF.freqs.length !== result.freqs.length) {
+    _lvLiveFRF = { freqs: result.freqs, mags: new Float32Array(mags) };
+  } else {
+    const a = 1 / nAvg;
+    for (let i = 0; i < mags.length; i++)
+      _lvLiveFRF.mags[i] = _lvLiveFRF.mags[i] * (1 - a) + mags[i] * a;
+  }
+}
+
+function _lvLoop() {
+  if (!_lvRunning) return;
+  _lvRafId = requestAnimationFrame(_lvLoop);
+  _lvLiveFrameCount++;
+  const thr = parseFloat(document.getElementById('lv-inp-thr')?.value) || 0.05;
+  if (_lvMode === 'live') {
+    const dispN = Math.ceil((parseFloat(document.getElementById('lv-inp-post')?.value) || 0.3) * _lvSr);
+    const { H, M } = _lvRingTail(dispN);
+    const pkH = H.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+    const pkM = M.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+    const lhEl = document.getElementById('lv-level-h');
+    const lmEl = document.getElementById('lv-level-m');
+    if (lhEl) lhEl.textContent = pkH > 1e-6 ? (20*Math.log10(pkH)).toFixed(1)+' dB' : '–';
+    if (lmEl) lmEl.textContent = pkM > 1e-6 ? (20*Math.log10(pkM)).toFixed(1)+' dB' : '–';
+    _lvDrawTime('lv-hammer-canvas', H, '#c62828', thr, true);
+    _lvDrawTime('lv-mic-canvas',    M, '#1565c0', thr, false);
+    if (_lvLiveFrameCount % 6 === 0) _lvUpdateLiveFRF();
+    if (_lvLiveFRF) _lvDrawFRF(_lvLiveFRF.freqs, _lvLiveFRF.mags);
+  } else {
+    if (_lvCapturedH) {
+      const pkH = _lvCapturedH.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+      const pkM = _lvCapturedM.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+      const lhEl = document.getElementById('lv-level-h');
+      const lmEl = document.getElementById('lv-level-m');
+      if (lhEl) lhEl.textContent = pkH > 1e-6 ? (20*Math.log10(pkH)).toFixed(1)+' dB' : '–';
+      if (lmEl) lmEl.textContent = pkM > 1e-6 ? (20*Math.log10(pkM)).toFixed(1)+' dB' : '–';
+      _lvDrawTime('lv-hammer-canvas', _lvCapturedH, '#c62828', thr, true);
+      _lvDrawTime('lv-mic-canvas',    _lvCapturedM, '#1565c0', thr, false);
+      if (_lvCapturedFRF) _lvDrawFRF(_lvCapturedFRF.freqs, _lvCapturedFRF.mags);
+    } else {
+      const { H, M } = _lvRingTail(Math.ceil(0.1 * _lvSr));
+      _lvDrawTime('lv-hammer-canvas', H, '#c62828', thr, true);
+      _lvDrawTime('lv-mic-canvas',    M, '#1565c0', thr, false);
+      _lvDrawFRF(null, null);
+    }
+  }
+}
+
 window.acqLiveView = function() {
-  window.open('liveview.html', '_blank');
+  const dlg = document.getElementById('lv-dialog');
+  if (!dlg) return;
+  const isOpen = dlg.classList.contains('open');
+  if (isOpen) {
+    _lvStopCapture();
+    dlg.classList.remove('open');
+    document.getElementById('lv-btn')?.classList.remove('active');
+  } else {
+    dlg.classList.add('open');
+    document.getElementById('lv-btn')?.classList.add('active');
+    setTimeout(() => {
+      _lvResizeCanvases();
+      _lvApplyPrefsToForm();
+      _lvEnumerateMics().then(() => setTimeout(lvToggleCapture, 300));
+    }, 60);
+  }
 };
 
 
@@ -1221,9 +1925,9 @@ async function _startAudio() {
     window.pyArm();
   } catch (err) {
     if (err.name === 'NotAllowedError') return;
-    const sc = _loadPrefs().soundcard || '';
+    const label = _loadPrefs().deviceLabel || '';
     if (err.name === 'NotFoundError' || err.name === 'OverconstrainedError') {
-      alert(`Cannot find soundcard${sc ? ' "' + sc + '"' : ''} — turn it on or reset in Preferences.`);
+      alert(`Cannot find audio device${label ? ' "' + label + '"' : ''} — check your selection in Preferences.`);
     } else {
       alert('Audio error: ' + err.message);
     }
@@ -1303,27 +2007,69 @@ function _initPlots() {
 
   Plotly.newPlot('plot-hammer',
     [{ ...empty, line: { color: hamColor, width: 1 } }],
-    miniLayout('Hammer', 'Time (s)', 'V'),
+    miniLayout('Hammer', 'Time (s)', 'V', { range: _hamXRange }),
     PCFG);
 
   Plotly.newPlot('plot-mic',
     [{ ...empty, line: { color: micColor, width: 1 } }],
-    miniLayout('Microphone', 'Time (s)', 'V'),
+    miniLayout('Microphone', 'Time (s)', 'V', { range: _micXRange }),
     PCFG);
 
-  // Persist user zoom/pan so new hits don't reset the scale.
-  // Programmatic Plotly.react calls also fire relayout, but only with
-  // 'yaxis.range[0]' when the user explicitly drags — we capture those only.
+  // Persist user zoom/pan — capture both x and y changes on mini plots.
   document.getElementById('plot-hammer').on('plotly_relayout', e => {
     if (e['yaxis.range[0]'] != null) _hamYRange = [e['yaxis.range[0]'], e['yaxis.range[1]']];
     else if (e['yaxis.autorange'])   _hamYRange = null;
+    if (e['xaxis.range[0]'] != null) {
+      _hamXRange = [e['xaxis.range[0]'], e['xaxis.range[1]']];
+      const mn = document.getElementById('inp-ham-x-min');
+      const mx = document.getElementById('inp-ham-x-max');
+      if (mn) mn.value = _hamXRange[0].toFixed(3);
+      if (mx) mx.value = _hamXRange[1].toFixed(3);
+      _patchPrefs({ ham_x_min: _hamXRange[0], ham_x_max: _hamXRange[1] });
+    }
   });
   document.getElementById('plot-mic').on('plotly_relayout', e => {
     if (e['yaxis.range[0]'] != null) _micYRange = [e['yaxis.range[0]'], e['yaxis.range[1]']];
     else if (e['yaxis.autorange'])   _micYRange = null;
+    if (e['xaxis.range[0]'] != null) {
+      _micXRange = [e['xaxis.range[0]'], e['xaxis.range[1]']];
+      const mn = document.getElementById('inp-mic-x-min');
+      const mx = document.getElementById('inp-mic-x-max');
+      if (mn) mn.value = _micXRange[0].toFixed(3);
+      if (mx) mx.value = _micXRange[1].toFixed(3);
+      _patchPrefs({ mic_x_min: _micXRange[0], mic_x_max: _micXRange[1] });
+    }
   });
 
   renderFRF();
+
+  // Track main FRF plot zoom/pan — must attach after first renderFRF() initialises the plot.
+  document.getElementById('acq-plot').on('plotly_relayout', e => {
+    if (e['xaxis.range[0]'] != null) {
+      // Plotly reports log10 values when axis type is 'log'
+      _S.xMin = _S.xLog ? Math.pow(10, e['xaxis.range[0]']) : e['xaxis.range[0]'];
+      _S.xMax = _S.xLog ? Math.pow(10, e['xaxis.range[1]']) : e['xaxis.range[1]'];
+      const mn = document.getElementById('inp-frf-x-min');
+      const mx = document.getElementById('inp-frf-x-max');
+      if (mn) mn.value = Math.round(_S.xMin);
+      if (mx) mx.value = Math.round(_S.xMax);
+      _patchPrefs({ frf_x_min: Math.round(_S.xMin), frf_x_max: Math.round(_S.xMax) });
+    } else if (e['xaxis.autorange']) {
+      _S.xMin = 100; _S.xMax = 12000;
+      const mn = document.getElementById('inp-frf-x-min');
+      const mx = document.getElementById('inp-frf-x-max');
+      if (mn) mn.value = 100;
+      if (mx) mx.value = 12000;
+      _patchPrefs({ frf_x_min: 100, frf_x_max: 12000 });
+    }
+    if (e['yaxis.range[0]'] != null) {
+      _S.yMin = e['yaxis.range[0]']; _S.yMax = e['yaxis.range[1]'];
+      _yTrueAutorange = false;
+    } else if (e['yaxis.autorange']) {
+      _S.yMin = null; _S.yMax = null;
+      _yTrueAutorange = true;
+    }
+  });
 }
 
 // Called once from Python after proxies are registered
@@ -1331,8 +2077,16 @@ window.onPyReady = function() {
   const prefs = _loadPrefs();
   _pushSettingsFromPrefs(prefs);
   window.pyInitPositions(prefs.positions || 12);
-  // Auto-start acquisition; silently skipped if browser blocks without user gesture
-  setTimeout(() => acqToggleAcquire(), 100);
+  // Auto-start: probe with getUserMedia first (establishes permission + real device IDs),
+  // release the test stream, then start acquisition with the saved specific device.
+  // If no audio device is available the probe throws and we leave the button at Start.
+  setTimeout(async () => {
+    try {
+      const tmp = await navigator.mediaDevices.getUserMedia({ audio: true });
+      tmp.getTracks().forEach(t => t.stop());
+      acqToggleAcquire();
+    } catch (_) {}
+  }, 100);
 };
 
 window.addEventListener('load', () => {
@@ -1342,6 +2096,8 @@ window.addEventListener('load', () => {
   _lineWidth      = prefs.line_width        ?? 0.5;
   _S.xMin         = prefs.frf_x_min        ?? 100;
   _S.xMax         = prefs.frf_x_max        ?? 12000;
+  _hamXRange      = [prefs.ham_x_min ?? 0,  prefs.ham_x_max ?? 0.1];
+  _micXRange      = [prefs.mic_x_min ?? 0,  prefs.mic_x_max ?? 0.3];
   const instrEl = document.getElementById('inp-instrument-banner');
   if (instrEl && instrEl.textContent.trim() === '—') instrEl.textContent = prefs.instrument || 'scratch';
   _initPlots();
@@ -1349,6 +2105,7 @@ window.addEventListener('load', () => {
   _updateStopBtn();
   _updateEditBtns({ hit_n: 0 });
   _updateSoundcardDisplay();
+  _updateInfoPanel();
 
   // Try to auto-restore a previously selected data folder (no user gesture needed
   // if the browser already granted permission in this origin).

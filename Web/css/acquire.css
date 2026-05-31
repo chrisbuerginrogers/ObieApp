@@ -313,5 +313,79 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 .tpl-item.selected { border-color: var(--accent); background: #fdf6ed; }
 .tpl-name { font-size: 12px; font-weight: 600; }
 .tpl-desc { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.tpl-del-btn {
+  flex-shrink: 0; background: none; border: none; cursor: pointer;
+  font-size: 13px; padding: 2px 4px; border-radius: 3px;
+  opacity: 0.35; transition: opacity 0.12s, background 0.12s;
+}
+.tpl-del-btn:hover { opacity: 1; background: #fde8e8; }
 
 .card { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
+
+/* ── LiveView dialog ─────────────────────────────────────────────────── */
+.lv-dialog-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,0.22);
+  display: flex; flex-direction: column;
+  width: min(960px, 94vw); height: min(600px, 90vh);
+}
+.lv-body { display: flex; flex: 1; overflow: hidden; }
+.lv-left {
+  width: 190px; flex-shrink: 0;
+  background: var(--surface); border-right: 1px solid var(--border);
+  overflow-y: auto; padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.lv-sect {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.6px; color: var(--muted); margin-bottom: 4px;
+}
+.lv-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+.lv-row label { font-size: 11px; color: var(--muted); min-width: 68px; }
+.lv-row input  { flex: 1; font-size: 11px; padding: 2px 5px; }
+.lv-unit { font-size: 10px; color: var(--muted); flex-shrink: 0; }
+.mode-row { display: flex; gap: 3px; }
+.mode-btn {
+  flex: 1; padding: 4px 0; font-size: 11px; font-family: inherit;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--bg); cursor: pointer; text-align: center;
+  transition: background .12s;
+}
+.mode-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.lv-stat { font-size: 13px; font-weight: 700; color: var(--accent); text-align: center; margin-top: 2px; }
+.lv-status { font-size: 10px; color: var(--muted); text-align: center; font-style: italic; line-height: 1.4; min-height: 28px; }
+.lv-right { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: 6px; gap: 4px; }
+.lv-chart-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.lv-chart-title {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.4px; color: var(--muted); padding: 1px 4px; flex-shrink: 0;
+}
+canvas.lv-canvas {
+  flex: 1; width: 100%; min-height: 0;
+  background: #fff; border: 1px solid var(--border); border-radius: 4px;
+}
+
+/* ── Run settings info panel ─────────────────────────────────────────── */
+.acq-info-panel {
+  width: 155px; flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  background: var(--bg); overflow-y: auto;
+  display: flex; flex-direction: column;
+}
+.info-hdr {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--muted);
+  padding: 5px 8px 4px; border-bottom: 1px solid var(--border);
+  flex-shrink: 0; background: var(--bg-deep);
+}
+.info-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 3px 8px; border-bottom: 1px solid #f0f2f5;
+}
+.info-row:last-child { border-bottom: none; }
+.info-lbl { font-size: 9px; color: var(--muted); flex-shrink: 0; }
+.info-val {
+  font-size: 9px; font-weight: 600; color: var(--text);
+  text-align: right; max-width: 85px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}

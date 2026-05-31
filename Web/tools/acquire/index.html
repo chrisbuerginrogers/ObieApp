@@ -55,7 +55,7 @@
       <div class="tb-flex"></div>
 
       <button class="tb-btn" onclick="acqTemplate()">Template…</button>
-      <button class="tb-btn" onclick="acqLiveView()">LiveView</button>
+      <button id="lv-btn" class="tb-btn" onclick="acqLiveView()">LiveView</button>
       <button class="tb-btn" onclick="acqHelp()">Help</button>
       <button id="acq-start-btn" class="tb-btn start" onclick="acqToggleAcquire()">▶ Start</button>
     </div>
@@ -160,6 +160,7 @@
                 title="Y dB range" onchange="acqSetYDbRange(this.value)">
         <span class="tb-lbl">dB</span>
         <button id="x-log-btn" class="tb-btn active" onclick="acqToggleXLog()" title="Toggle X axis log/linear">X=log</button>
+        <button id="taps-btn" class="tb-btn" onclick="acqToggleTaps()" title="Show/hide individual tap FRFs — ↑↓ to adjust opacity">Taps</button>
         <div class="tb-flex"></div>
         <button id="delete-btn"    class="tb-btn" onclick="acqDeleteLastHit()" disabled title="Delete last hit">↩ Undo Hit</button>
         <button id="clear-btn"     class="tb-btn" onclick="acqClearPosition()"  disabled title="Clear current position">🗑 Clear</button>
@@ -167,6 +168,12 @@
       </div>
 
       <div id="acq-plot"></div>
+    </div>
+
+    <!-- Right info panel: current run settings -->
+    <div id="acq-info-panel" class="acq-info-panel">
+      <div class="info-hdr">Run Settings</div>
+      <div id="info-items"></div>
     </div>
 
   </div><!-- acq-body -->
@@ -187,23 +194,33 @@
 
       <div class="pref-section">Load from File</div>
       <div class="pref-row">
-        <label>Settings.txt</label>
+        <label>Settings file</label>
         <label class="file-btn" style="flex:1;max-width:220px">
           Load Settings…
           <input type="file" accept=".txt" onchange="acqLoadSettingsTxt(this)" style="display:none">
         </label>
         <span id="prefs-load-msg" class="save-msg" style="margin-left:8px"></span>
       </div>
-      <p class="pref-hint">Load a LabVIEW Settings.txt to populate all fields below.</p>
+      <p class="pref-hint">Select a Settings.txt from any existing run folder on your hard drive to populate all fields below.</p>
 
       <div class="pref-section">Audio Device</div>
       <div class="pref-row">
         <label for="prefs-device">Input device</label>
         <select id="prefs-device" style="flex:1;max-width:220px"></select>
       </div>
+
+      <div class="pref-section">Run Settings</div>
       <div class="pref-row">
-        <label for="inp-soundcard">Soundcard type</label>
-        <input id="inp-soundcard" type="text" placeholder="e.g. Scarlett 2i2" style="flex:1;max-width:220px">
+        <label for="inp-taps">Hits per position</label>
+        <input id="inp-taps" type="number" value="5" min="1" max="20" style="max-width:80px">
+      </div>
+      <div class="pref-row">
+        <label for="inp-positions">Number of positions</label>
+        <input id="inp-positions" type="number" value="12" min="1" max="40" style="max-width:80px">
+      </div>
+      <div class="pref-row">
+        <label for="inp-prefix">Position prefix</label>
+        <input id="inp-prefix" type="text" value="H" maxlength="3" style="max-width:60px">
       </div>
 
       <div class="pref-section">Hit Detection</div>
@@ -234,23 +251,6 @@
       </div>
       <p class="pref-hint">Signal is zeroed after this time post-trigger.</p>
 
-      <div class="pref-section">FRF Plot Range</div>
-      <div class="pref-row">
-        <label for="inp-frf-x-min">Frequency min</label>
-        <input id="inp-frf-x-min" type="number" value="100" step="50" min="1" max="22000" style="max-width:80px">
-        <span class="pref-unit">Hz</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-frf-x-max">Frequency max</label>
-        <input id="inp-frf-x-max" type="number" value="12000" step="500" min="100" max="22000" style="max-width:80px">
-        <span class="pref-unit">Hz</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-line-width">FRF line width</label>
-        <input id="inp-line-width" type="number" value="0.5" step="0.1" min="0.1" max="10" style="max-width:80px">
-        <span class="pref-unit">px</span>
-      </div>
-
       <div class="pref-section">Calibration</div>
       <div class="pref-row">
         <label for="inp-ham-cal">Hammer calibration factor</label>
@@ -267,19 +267,43 @@
         <input id="inp-swap-channels" type="checkbox">
       </div>
 
-      <div class="pref-section">Run Settings</div>
+      <div class="pref-section">Plot Settings</div>
       <div class="pref-row">
-        <label for="inp-taps">Hits per position</label>
-        <input id="inp-taps" type="number" value="5" min="1" max="20" style="max-width:80px">
+        <label for="inp-frf-x-min">FRF frequency min</label>
+        <input id="inp-frf-x-min" type="number" value="100" step="50" min="1" max="22000" style="max-width:80px">
+        <span class="pref-unit">Hz</span>
       </div>
       <div class="pref-row">
-        <label for="inp-positions">Number of positions</label>
-        <input id="inp-positions" type="number" value="12" min="1" max="40" style="max-width:80px">
+        <label for="inp-frf-x-max">FRF frequency max</label>
+        <input id="inp-frf-x-max" type="number" value="12000" step="500" min="100" max="22000" style="max-width:80px">
+        <span class="pref-unit">Hz</span>
       </div>
       <div class="pref-row">
-        <label for="inp-prefix">Position prefix</label>
-        <input id="inp-prefix" type="text" value="H" maxlength="3" style="max-width:60px">
+        <label for="inp-line-width">FRF line width</label>
+        <input id="inp-line-width" type="number" value="0.5" step="0.1" min="0.1" max="10" style="max-width:80px">
+        <span class="pref-unit">px</span>
       </div>
+      <div class="pref-row">
+        <label for="inp-ham-x-min">Hammer plot x min</label>
+        <input id="inp-ham-x-min" type="number" value="0" step="0.01" min="-5" max="5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-ham-x-max">Hammer plot x max</label>
+        <input id="inp-ham-x-max" type="number" value="0.1" step="0.01" min="0.01" max="5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-mic-x-min">Mic plot x min</label>
+        <input id="inp-mic-x-min" type="number" value="0" step="0.01" min="-5" max="5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-mic-x-max">Mic plot x max</label>
+        <input id="inp-mic-x-max" type="number" value="0.3" step="0.01" min="0.01" max="5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+
       <div class="save-row">
         <button class="act-btn accent" onclick="acqSavePrefs()">Apply &amp; Save</button>
         <button class="act-btn" onclick="acqResetPrefs()">Reset defaults</button>
@@ -379,6 +403,89 @@
   </div>
 </div>
 
+
+<!-- ── LiveView Dialog ──────────────────────────────────────────────────── -->
+<div id="lv-dialog" class="modal-overlay">
+  <div class="lv-dialog-box">
+    <div class="modal-header">
+      <span class="modal-title">LiveView</span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button id="lv-start-btn" class="act-btn accent" onclick="lvToggleCapture()">▶ Start</button>
+        <button class="modal-close" onclick="acqLiveView()">✕</button>
+      </div>
+    </div>
+    <div class="lv-body">
+
+      <!-- Left settings panel -->
+      <div class="lv-left">
+        <div>
+          <div class="lv-sect">Input Device</div>
+          <select id="lv-mic-sel" style="width:100%;font-size:11px;margin-bottom:6px"
+                  onchange="lvRestartWithDevice()"></select>
+        </div>
+        <div>
+          <div class="lv-sect">Mode</div>
+          <div class="mode-row">
+            <button class="mode-btn active" id="lv-mode-live"    onclick="lvSetMode('live')">Live</button>
+            <button class="mode-btn"        id="lv-mode-trigger" onclick="lvSetMode('trigger')">Trigger</button>
+          </div>
+        </div>
+        <div>
+          <div class="lv-sect">Trigger / Window</div>
+          <div class="lv-row">
+            <label>Threshold</label>
+            <input id="lv-inp-thr"  type="number" value="0.05" step="0.005" min="0.001" max="1">
+            <span class="lv-unit">V</span>
+          </div>
+          <div class="lv-row">
+            <label>Pre-trig</label>
+            <input id="lv-inp-pre"  type="number" value="0.01" step="0.005" min="0.001" max="0.5">
+            <span class="lv-unit">s</span>
+          </div>
+          <div class="lv-row">
+            <label>Post-trig</label>
+            <input id="lv-inp-post" type="number" value="0.30" step="0.05"  min="0.05"  max="5">
+            <span class="lv-unit">s</span>
+          </div>
+        </div>
+        <div>
+          <div class="lv-sect">Display</div>
+          <div class="lv-row">
+            <label>Averages</label>
+            <input id="lv-num-avg" type="number" value="4" min="1" max="50">
+          </div>
+        </div>
+        <div>
+          <div id="lv-status" class="lv-status">Press Start to begin</div>
+          <div id="lv-level-h" class="lv-stat">–</div>
+          <div style="font-size:9px;color:var(--muted);text-align:center">Hammer peak</div>
+          <div id="lv-level-m" class="lv-stat" style="color:#1565c0">–</div>
+          <div style="font-size:9px;color:var(--muted);text-align:center">Mic peak</div>
+          <div id="lv-hits" style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px"></div>
+          <button id="lv-clear-btn" class="act-btn" style="width:100%;margin-top:6px;display:none"
+                  onclick="lvClearFRF()">Clear FRF</button>
+        </div>
+      </div>
+
+      <!-- Right: three live canvases -->
+      <div class="lv-right">
+        <div class="lv-chart-wrap">
+          <div class="lv-chart-title" style="color:#c62828">Hammer — Channel R</div>
+          <canvas id="lv-hammer-canvas" class="lv-canvas"></canvas>
+        </div>
+        <div class="lv-chart-wrap">
+          <div class="lv-chart-title" style="color:#1565c0">Microphone — Channel L</div>
+          <canvas id="lv-mic-canvas" class="lv-canvas"></canvas>
+        </div>
+        <div class="lv-chart-wrap">
+          <div class="lv-chart-title" id="lv-frf-title" style="color:#6a1b9a">FRF (Mic / Hammer)</div>
+          <canvas id="lv-frf-canvas" class="lv-canvas"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
 
 <script type="py" src="./main.py" config="./pyscript.toml" async></script>
 

@@ -9,6 +9,7 @@ import js
 from pyscript.ffi import to_js
 from frf import FRFAccumulator, add_hit, compute_frf
 from trf_fileio import build_trf
+from avc_fileio import build_avc, build_avr
 
 # ── Settings ──────────────────────────────────────────────────────────────────
 _sr             = 0
@@ -361,7 +362,38 @@ def _add_to_frf(pos, hammer, mic):
     st["n_fft"] = len(hammer)
     st["sr"]    = _sr
     _recompute_frf(pos)
+    _save_trf(pos)
+    _emit_tap_frf(pos, len(st["hits_ham"]) - 1)
     _send_hammer_fft(hammer)
+
+
+def _emit_tap_frf(pos, hit_idx):
+    """Compute and emit a single-hit FRF for the given tap index."""
+    st = _frf.get(pos, {})
+    hits_ham = st.get("hits_ham", [])
+    hits_mic = st.get("hits_mic", [])
+    if not hits_ham or hit_idx >= len(hits_ham):
+        return
+    pre_n   = int(_pre_trig_s * _sr)
+    ham_cut = int(_ham_time_cutoff_s * _sr)
+    mic_cut = int(_mic_time_cutoff_s * _sr)
+    acc = FRFAccumulator(sample_rate=st["sr"])
+    ham = hits_ham[hit_idx].copy()
+    mic = hits_mic[hit_idx].copy()
+    if pre_n + ham_cut < len(ham):
+        ham[pre_n + ham_cut:] = 0.0
+    if pre_n + mic_cut < len(mic):
+        mic[pre_n + mic_cut:] = 0.0
+    add_hit(acc, np.column_stack([ham, mic]))
+    freq, _, _, H_dB, _ = compute_frf(acc)
+    js.window.onTapFRF(to_js(freq.tolist()), to_js(H_dB.tolist()), pos, hit_idx)
+
+
+def _save_trf(pos):
+    """Emit TRF binary — overwrites on disk after every hit."""
+    trf_b64 = _build_trf_b64(_frf.get(pos, {}))
+    if trf_b64:
+        js.window.onSaveTRF(trf_b64, pos)
 
 
 def _recompute_frf(pos):
@@ -381,18 +413,38 @@ def _complete_position():
     if H1 is not None:
         label = f"{_prefix}{_cur_pos+1:02d} ({_n_taps} hits)"
         js.window.onHistoryAdd(to_js(freq.tolist()), to_js(H_dB.tolist()), label)
-        trf_b64 = _build_trf_b64(st)
-        if trf_b64:
-            js.window.onSaveTRF(trf_b64, _cur_pos)
+        # TRF already overwritten by _save_trf on the last hit
     _cur_pos += 1
     if _cur_pos >= _n_positions:
         _state = "complete"
+        _emit_averages()
         _emit_banner()
         _emit_state()
         return
     _state = "armed"
     _emit_banner()
     _emit_state()
+
+
+def _emit_averages():
+    """Compute AvC (complex mean) and AvR (magnitude mean) across all positions."""
+    all_H = []
+    freq_ref = None
+    for i in range(_n_positions):
+        H1, _, _, freq = _h1_from_st(_frf.get(i, {}))
+        if H1 is not None:
+            if freq_ref is None:
+                freq_ref = freq
+            all_H.append(H1)
+    if not all_H or freq_ref is None:
+        return
+    H_stack = np.array(all_H)                    # (n_pos, n_freqs) complex
+    # AvC — complex mean
+    avc_bytes = build_avc(freq_ref, H_stack.mean(axis=0), n_averages=len(all_H))
+    js.window.onSaveAvC(base64.b64encode(avc_bytes).decode("ascii"))
+    # AvR — mean of magnitudes
+    avr_bytes = build_avr(freq_ref, np.abs(H_stack).mean(axis=0), n_averages=len(all_H))
+    js.window.onSaveAvR(base64.b64encode(avr_bytes).decode("ascii"))
 
 
 def _emit_live():
