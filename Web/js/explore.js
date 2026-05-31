@@ -661,10 +661,7 @@
 
 
   // ── Toolbar: misc buttons ─────────────────────────────────────────────
-  window.expFun            = () => alert('You pressed: Fun');
-  window.expShortcuts      = () => alert('You pressed: Shortcuts');
-  window.expHelp           = () => window.open('../../Docs/index.html', '_blank');
-  window.expGettingStarted = () => alert('You pressed: Getting Started');
+  window.expHelp = () => window.open('../../Docs/index.html', '_blank');
 
   // ── Data Folder helpers ───────────────────────────────────────────────
   const _SCAN_EXTS = new Set(['.trf','.trv','.avc','.avr','.csv']);

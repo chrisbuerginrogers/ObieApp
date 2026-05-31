@@ -2,7 +2,7 @@
 acquire_logic.py — All DSP/state-machine intelligence for the Acquire tool.
 """
 
-import json, struct, base64
+import json, struct
 import numpy as np
 from numpy.fft import rfft, rfftfreq
 import js
@@ -205,17 +205,16 @@ def export_wav():
         pL.append(m); pR.append(h)
         if i < len(_wav_L) - 1:
             pL.append(silence); pR.append(silence)
-    b64 = _encode_wav_b64(np.concatenate(pL), np.concatenate(pR), _sr)
-    js.window.onDownload(b64, "acquire_capture.wav")
+    js.window.onDownload(_encode_wav_bytes(np.concatenate(pL), np.concatenate(pR), _sr), "acquire_capture.wav")
 
 
 def export_trf():
-    b64 = _build_trf_b64(_frf.get(_cur_pos, {}))
-    if not b64:
+    trf_bytes = _build_trf_bytes(_frf.get(_cur_pos, {}))
+    if trf_bytes is None:
         js.window.onDownload(None, None)
         return
     label = f"{_prefix}{_cur_pos + 1:02d}"
-    js.window.onDownload(b64, f"acq_{label}.trf")
+    js.window.onDownload(trf_bytes, f"acq_{label}.trf")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -329,8 +328,7 @@ def _do_capture():
     _wav_R.append(ham_win.copy())
     _pos_hits[_cur_pos] += 1
 
-    b64 = _encode_wav_b64(mic_win, ham_win, _sr)
-    js.window.onSaveHit(b64, _cur_pos, _pos_hits[_cur_pos])
+    js.window.onSaveHit(_encode_wav_bytes(mic_win, ham_win, _sr), _cur_pos, _pos_hits[_cur_pos])
 
     _add_to_frf(_cur_pos, ham_win, mic_win)
     _emit_banner()
@@ -391,9 +389,9 @@ def _emit_tap_frf(pos, hit_idx):
 
 def _save_trf(pos):
     """Emit TRF binary — overwrites on disk after every hit."""
-    trf_b64 = _build_trf_b64(_frf.get(pos, {}))
-    if trf_b64:
-        js.window.onSaveTRF(trf_b64, pos)
+    trf_bytes = _build_trf_bytes(_frf.get(pos, {}))
+    if trf_bytes is not None:
+        js.window.onSaveTRF(trf_bytes, pos)
 
 
 def _recompute_frf(pos):
@@ -467,10 +465,10 @@ def _emit_averages():
     H_stack = np.array(all_H)                    # (n_pos, n_freqs) complex
     # AvC — complex mean
     avc_bytes = build_avc(freq_ref, H_stack.mean(axis=0), n_averages=len(all_H))
-    js.window.onSaveAvC(base64.b64encode(avc_bytes).decode("ascii"))
+    js.window.onSaveAvC(to_js(bytearray(avc_bytes)))
     # AvR — mean of magnitudes
     avr_bytes = build_avr(freq_ref, np.abs(H_stack).mean(axis=0), n_averages=len(all_H))
-    js.window.onSaveAvR(base64.b64encode(avr_bytes).decode("ascii"))
+    js.window.onSaveAvR(to_js(bytearray(avr_bytes)))
 
 
 def _emit_live():
@@ -500,15 +498,14 @@ def _emit_banner():
     ]))
 
 
-def _build_trf_b64(st):
+def _build_trf_bytes(st):
     _r = _h1_from_st(st); H1, freq = _r[0], _r[3]
     if H1 is None:
         return None
-    raw = build_trf(freq.tolist(), H1.tolist())
-    return base64.b64encode(raw).decode("ascii")
+    return to_js(bytearray(build_trf(freq.tolist(), H1.tolist())))
 
 
-def _encode_wav_b64(L, R, sr):
+def _encode_wav_bytes(L, R, sr):
     L = np.clip(L, -1.0, 1.0)
     R = np.clip(R, -1.0, 1.0)
     n = len(L); nch = 2; bps = 2; db = n * nch * bps
@@ -523,4 +520,4 @@ def _encode_wav_b64(L, R, sr):
     iv[0::2] = (L * 0x7FFF).astype(np.int16)
     iv[1::2] = (R * 0x7FFF).astype(np.int16)
     buf[44:] = iv.tobytes()
-    return base64.b64encode(bytes(buf)).decode("ascii")
+    return to_js(bytearray(buf))

@@ -3,7 +3,7 @@ main.py — Acquire tool entry point.
 Registers Python functions as JS-callable proxies.
 """
 
-import js
+import js, json
 from pyscript.ffi import create_proxy
 from config import configure, load, save
 from labview_txt import parse as _lv_parse
@@ -165,6 +165,7 @@ js.window.pyStopAudio        = create_proxy(stop_audio)
 js.window.pyArm              = create_proxy(arm)
 js.window.pyRepeatPosition   = create_proxy(repeat_position)
 js.window.pyAdvancePosition  = create_proxy(advance_position)
+js.window.pyParseLabviewTxt  = create_proxy(lambda t: json.dumps(_lv_parse(str(t))))
 
 if getattr(js.window, 'onPyReady', None):
     js.window.onPyReady()

@@ -346,11 +346,8 @@ window.onSaveAvR = async function(b64) {
 };
 
 /** Manual download fallback */
-window.onDownload = function(b64, filename) {
-  if (!b64) { alert('No data to export.'); return; }
-  const raw   = atob(b64);
-  const bytes = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+window.onDownload = function(bytes, filename) {
+  if (!bytes) { alert('No data to export.'); return; }
   const blob = new Blob([bytes]);
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
@@ -673,7 +670,7 @@ window.acqLoadSettingsTxt = async function(input) {
     if (msg) { msg.textContent = `Loaded: ${file.name}`; setTimeout(() => msg.textContent = '', 3000); }
   }
   // Copy Default Notes into the run notes if present in the file
-  const fields = _parseLVTxt(text);
+  const fields = JSON.parse(window.pyParseLabviewTxt(text));
   const notes  = (fields['Default Notes'] || '').trim();
   if (notes) {
     localStorage.setItem(_notesKey(), notes);
@@ -996,34 +993,6 @@ function _tplMeta(s) {
 }
 
 // JS port of Python/fileio/labview_txt.py — parse LabVIEW Key=<value/> format
-function _parseLVTxt(text) {
-  const result = {};
-  const lines = text.split('\n');
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    const eq = line.indexOf('=<');
-    if (eq === -1) { i++; continue; }
-    const key  = line.slice(0, eq).trim();
-    const rest = line.slice(eq + 2);
-    if (rest.trimEnd().endsWith('/>')) {
-      result[key] = rest.trimEnd().slice(0, -2);
-      i++;
-    } else {
-      const parts = [rest];
-      i++;
-      while (i < lines.length) {
-        const cur = lines[i];
-        if (cur.trimEnd() === '/>') { i++; break; }
-        if (cur.trimEnd().endsWith('/>')) { parts.push(cur.trimEnd().slice(0, -2)); i++; break; }
-        parts.push(cur);
-        i++;
-      }
-      result[key] = parts.join('\n');
-    }
-  }
-  return result;
-}
 
 function _lvFieldsToSettings(fields) {
   return {
@@ -1129,7 +1098,7 @@ window.acqBrowseTemplate = async function() {
       const text = await file.text();
       let tpl;
       if (file.name.toLowerCase().endsWith('.txt')) {
-        const fields   = _parseLVTxt(text);
+        const fields   = JSON.parse(window.pyParseLabviewTxt(text));
         const tplName  = file.name.replace(/_template\.txt$/i, '').replace(/_/g, ' ').trim();
         const tplNotes = (fields['Default Notes'] || '').trim();
         tpl = { name: tplName, settings: _lvFieldsToSettings(fields),
@@ -1533,11 +1502,8 @@ function _isFolderGoneError(e) {
       || e.name === 'NoModificationAllowedError';
 }
 
-async function _writeFile(folderHandle, filename, b64) {
+async function _writeFile(folderHandle, filename, bytes) {
   try {
-    const raw   = atob(b64);
-    const bytes = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
     const fh = await folderHandle.getFileHandle(filename, { create: true });
     const w  = await fh.createWritable();
     await w.write(bytes);
@@ -1572,7 +1538,7 @@ async function _loadTemplatesFromFolder(dir) {
       try {
         const text = await (await h.getFile()).text();
         if (lower.endsWith('.txt')) {
-          const fields   = _parseLVTxt(text);
+          const fields   = JSON.parse(window.pyParseLabviewTxt(text));
           const tplName  = name.replace(/_template\.txt$/i, '').replace(/_/g, ' ').trim();
           const tplNotes = (fields['Default Notes'] || '').trim();
           _templates.push({ name: tplName, settings: _lvFieldsToSettings(fields), _file: name,

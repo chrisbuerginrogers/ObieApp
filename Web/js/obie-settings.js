@@ -66,7 +66,7 @@ async function loadDataFolderHandle() {
 
 // ── Seed content ──────────────────────────────────────────────────────────────
 
-const _GH_BASE = 'https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/ObieApp%20Settings/';
+const _GH_BASE = 'https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/DefaultSettings/ObieAppSettings/';
 
 const _TEMPLATE_SEEDS = [
   ['HV 24 Obie Rig.json', {
@@ -107,6 +107,8 @@ const _TEMPLATE_SEEDS = [
   }],
 ];
 
+const _GH_SAMPLES = 'https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/DefaultSettings/Test_Samples/';
+
 const _BAND_SEEDS = [
   ['1 flat (200-7000).json',
     _GH_BASE + 'bands/1%20flat%20(200-7000).json'],
@@ -121,17 +123,17 @@ const _BAND_SEEDS = [
 ];
 
 const _COLOR_SEEDS = [
-  ['JC 5_colors.json',    _GH_BASE + 'colors/JC%205_colors.json'],
+  ['JC 5_colors.json',     _GH_BASE + 'colors/JC%205_colors.json'],
   ['Kelly 24_colors.json', _GH_BASE + 'colors/Kelly%2024_colors.json'],
 ];
 
-const _SETTINGS_SEEDS = [
-  ['DefaultFormat.txt', _GH_BASE + 'DefaultFormat.txt'],
+const _LIST_SEEDS = [
+  ['Two Strads.json', _GH_BASE + 'lists/Two%20Strads.json'],
 ];
 
 const _TEST_SAMPLE_SEEDS = [
-  ['JacksonStrad H.AvC', _GH_BASE + 'Test_Samples/JacksonStrad%20H.AvC'],
-  ['Titian Strad H.AvC', _GH_BASE + 'Test_Samples/Titian%20Strad%20H.AvC'],
+  ['JacksonStrad H.AvC', _GH_SAMPLES + 'JacksonStrad%20H.AvC'],
+  ['Titian Strad H.AvC', _GH_SAMPLES + 'Titian%20Strad%20H.AvC'],
 ];
 
 async function _seedFiles(dirHandle, seeds) {
@@ -178,25 +180,12 @@ async function openObieAppSettings(dirHandle) {
   const listsHandle     = await settingsHandle.getDirectoryHandle('lists',     { create: true });
 
   if (isNew) {
-    await _seedFiles(settingsHandle,  _SETTINGS_SEEDS);
     await _seedFiles(templatesHandle, _TEMPLATE_SEEDS);
     await _seedFiles(bandsHandle,     _BAND_SEEDS);
     await _seedFiles(colorsHandle,    _COLOR_SEEDS);
+    await _seedFiles(listsHandle,     _LIST_SEEDS);
     const samplesHandle = await dirHandle.getDirectoryHandle('Test_Samples', { create: true });
     await _seedFiles(samplesHandle, _TEST_SAMPLE_SEEDS);
-
-    // Seed default list pointing at Test_Samples
-    try {
-      const defaultList = {
-        name: 'Two Strads',
-        description: 'Jackson and Titian Stradivarius samples (Test_Samples)',
-        files: ['Test_Samples/JacksonStrad H.AvC', 'Test_Samples/Titian Strad H.AvC'],
-      };
-      const fh = await listsHandle.getFileHandle('Two Strads.json', { create: true });
-      const w  = await fh.createWritable();
-      await w.write(JSON.stringify(defaultList, null, 2));
-      await w.close();
-    } catch(_) {}
   }
 
   return { settingsHandle, templatesHandle, bandsHandle, colorsHandle, listsHandle, isNew };
