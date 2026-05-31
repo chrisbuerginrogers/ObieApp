@@ -86,10 +86,14 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 .tb-inp.num-sm { width: 36px; text-align: right; }
 .tb-inp.num-md { width: 50px; text-align: right; }
 
-/* Hide spinner arrows on the dB range input */
-#y-db-range { -moz-appearance: textfield; }
+/* Hide spinner arrows on numeric inputs */
+#y-db-range, #norm-f-lo, #norm-f-hi { -moz-appearance: textfield; }
 #y-db-range::-webkit-inner-spin-button,
-#y-db-range::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+#y-db-range::-webkit-outer-spin-button,
+#norm-f-lo::-webkit-inner-spin-button,
+#norm-f-lo::-webkit-outer-spin-button,
+#norm-f-hi::-webkit-inner-spin-button,
+#norm-f-hi::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .tb-lbl { font-size: 11px; color: var(--muted); padding: 0 1px; }
 
 /* Toolbar selects */

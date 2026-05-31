@@ -322,6 +322,26 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 
 .card { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
 
+/* ── Position Complete dialog ────────────────────────────────────────── */
+.pos-complete-box {
+  width: min(92vw, 380px);
+  text-align: center; padding: 32px 28px;
+}
+.pos-complete-label {
+  font-size: 22px; font-weight: 700; color: var(--green);
+  letter-spacing: -0.3px; margin-bottom: 6px;
+}
+.pos-complete-hint {
+  font-size: 10px; color: var(--muted); font-style: italic; margin-bottom: 24px;
+}
+.pos-complete-btns { display: flex; gap: 12px; justify-content: center; }
+.pos-complete-repeat {
+  padding: 10px 18px; font-size: 12px; min-width: 140px;
+}
+.pos-complete-next {
+  padding: 10px 18px; font-size: 12px; font-weight: 700; min-width: 140px;
+}
+
 /* ── LiveView dialog ─────────────────────────────────────────────────── */
 .lv-dialog-box {
   background: var(--surface); border: 1px solid var(--border);

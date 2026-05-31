@@ -1,0 +1,22 @@
+{
+  "name": "Scratchpad Obie 26",
+  "description": "Obie 26 Thor hammer · Behringer ECM 8000 at 20 cm",
+  "notes": "Instrument info:\n\n\nMic:  Behringer ECM 8000 mic at 20 cm.\nMic distance: 20 cm.\nHammer: Obie 26 Thor",
+  "settings": {
+    "threshold": 0.011,
+    "pre_trig_s": 0.001,
+    "post_trig_s": 0.3,
+    "time_cutoff_s": 0.019,
+    "mic_time_cutoff_s": 0.3,
+    "taps": 10,
+    "positions": 1,
+    "prefix": "H",
+    "ham_cal": 1,
+    "mic_cal": 1,
+    "swap_channels": false,
+    "db_spread": 35,
+    "db_offset": 0,
+    "bit_depth": 24,
+    "sample_rate": 48000
+  }
+}

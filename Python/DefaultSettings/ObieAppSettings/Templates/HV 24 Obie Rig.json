@@ -1,0 +1,22 @@
+{
+  "name": "HV 24 Obie Rig",
+  "description": "Mackie Onyx Producer 2.2 · Behringer ECM 8000 at 20 cm",
+  "notes": "Instrument info:\n\n\nTemplate: HV 24  Obie 26\n\nMeasured at: \n\nMic: Behringer ECM 8000 at 20 cm\nSoundcard:  Mackie Onyx Producer 2.2",
+  "settings": {
+    "threshold": 0.011,
+    "pre_trig_s": 0.001,
+    "post_trig_s": 0.3,
+    "time_cutoff_s": 0.025,
+    "mic_time_cutoff_s": 0.25,
+    "taps": 5,
+    "positions": 12,
+    "prefix": "H",
+    "ham_cal": 1,
+    "mic_cal": 1,
+    "swap_channels": false,
+    "db_spread": 40,
+    "db_offset": 0,
+    "bit_depth": 24,
+    "sample_rate": 48000
+  }
+}

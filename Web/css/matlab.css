@@ -1,0 +1,212 @@
+/* ── matlab.css — Export to MATLAB tool ──────────────────────────────── */
+:root {
+  --bg:        #ffffff;
+  --bg-deep:   #eff1f4;
+  --surface:   #ffffff;
+  --border:    #c0c4cc;
+  --text:      #1a1a1a;
+  --muted:     #5a5f6a;
+  --accent:    #b35c00;
+  --accent-2:  #d07000;
+}
+
+html, body { overflow: hidden; height: 100%; }
+.matlab-page {
+  display: flex; flex-direction: column;
+  height: 100vh; background: var(--bg);
+}
+
+/* ── Header ──────────────────────────────────────────────────────────── */
+header.obie-header { padding: 4px 12px; min-height: 0; }
+header.obie-header h1 { font-size: 1rem; }
+header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
+
+/* ── Loading overlay ─────────────────────────────────────────────────── */
+.loading-overlay {
+  position: fixed; inset: 0;
+  background: rgba(255,255,255,0.92);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 999; gap: 10px;
+}
+.loading-overlay.gone { display: none; }
+.spin {
+  width: 34px; height: 34px;
+  border: 3px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.load-title { font-size: 12px; font-weight: 500; }
+.load-sub   { font-size: 10px; color: var(--muted); }
+
+/* ── Toolbar ─────────────────────────────────────────────────────────── */
+.matlab-toolbar {
+  background: var(--bg-deep); border-bottom: 1px solid var(--border);
+  padding: 2px 6px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 4px; min-height: 30px;
+}
+.tb-flex { flex: 1; }
+
+.tb-btn {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 3px;
+  padding: 2px 8px; font-size: 11px; font-family: inherit;
+  color: var(--text); cursor: pointer; white-space: nowrap; line-height: 18px;
+}
+.tb-btn:hover:not(:disabled) { background: #e4e8ee; border-color: #9aa0aa; }
+.tb-btn:disabled { opacity: 0.4; cursor: default; }
+.tb-btn.start { background: #2e7d32; border-color: #1b5e20; color: #fff; font-weight: 700; }
+.tb-btn.start:hover:not(:disabled) { background: #1b5e20; }
+
+.act-btn {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 3px;
+  padding: 1px 7px; font-size: 11px; font-family: inherit;
+  color: var(--text); cursor: pointer; white-space: nowrap; line-height: 18px;
+}
+.act-btn:hover { background: #e4e8ee; }
+
+.folder-name-disp {
+  font-size: 11px; font-style: italic; color: #aaa;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 280px; flex-shrink: 1;
+}
+
+/* ── Status row ──────────────────────────────────────────────────────── */
+.matlab-status-row {
+  display: flex; align-items: center;
+  padding: 1px 8px; height: 22px; flex-shrink: 0;
+  background: var(--bg-deep); border-bottom: 1px solid var(--border);
+}
+.mat-status-txt { font-size: 11px; color: var(--muted); font-style: italic; }
+.mat-status-txt.ok  { color: #2e7d32; font-style: normal; font-weight: 600; }
+.mat-status-txt.err { color: #c62828; font-style: normal; font-weight: 600; }
+
+/* ── Body ────────────────────────────────────────────────────────────── */
+.matlab-body { display: flex; flex: 1; overflow: hidden; }
+
+/* ── Left file panel ─────────────────────────────────────────────────── */
+.matlab-files-panel {
+  width: 300px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  border-right: 1px solid var(--border);
+}
+.mat-files-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 4px 8px; background: var(--bg-deep);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+  min-height: 26px;
+}
+.mat-files-title {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--muted);
+}
+
+/* Instrument dropdown */
+.mat-instr-sel {
+  flex-shrink: 0; width: 100%;
+  padding: 4px 6px; font-size: 11px; font-family: inherit;
+  border: none; border-bottom: 1px solid var(--border);
+  background: var(--bg-deep); color: var(--text); cursor: pointer;
+  outline: none;
+}
+.mat-instr-sel:focus { background: #e4e8ee; }
+.mat-instr-sel:disabled { opacity: 0.5; cursor: default; }
+
+.mat-file-list { flex: 1; overflow-y: auto; }
+.mat-placeholder { font-size: 11px; color: var(--muted); font-style: italic; padding: 12px 10px; }
+
+/* File rows */
+.mat-file-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 8px; border-bottom: 1px solid #f3f4f6;
+  cursor: pointer; transition: background 0.1s;
+}
+.mat-file-row:hover  { background: #f5f7fa; }
+.mat-file-row.checked { background: #fdf6ed; }
+.mat-file-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mat-file-name {
+  font-size: 10px; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.mat-file-sub {
+  font-size: 8px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* Mini plot */
+.mat-mini-wrap {
+  flex-shrink: 0; height: 120px;
+  border-top: 1px solid var(--border);
+  background: #f8f9fa;
+}
+#mat-mini-plot { display: block; width: 100%; height: 100%; }
+.mat-file-ext {
+  font-size: 8px; font-weight: 700; padding: 1px 4px;
+  border-radius: 2px; flex-shrink: 0;
+}
+.mat-ext-trf { background: #e8f0fe; color: #1565c0; }
+.mat-ext-trv { background: #e8f0fe; color: #1565c0; }
+.mat-ext-avc { background: #fce8e6; color: #c62828; }
+.mat-ext-avr { background: #e6f4ea; color: #2e7d32; }
+
+/* ── Resize handle ───────────────────────────────────────────────────── */
+.mat-resizer {
+  width: 5px; flex-shrink: 0; cursor: col-resize;
+  background: var(--border); transition: background 0.1s;
+}
+.mat-resizer:hover, .mat-resizer.dragging { background: var(--accent); }
+
+/* ── Right main panel ────────────────────────────────────────────────── */
+.matlab-main { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+
+.mat-overlay {
+  position: absolute; inset: 0; z-index: 30;
+  background: rgba(255,255,255,0.93);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px;
+}
+.mat-overlay.hidden { display: none; }
+.mat-overlay-msg { font-size: 15px; font-weight: 600; color: var(--muted); }
+
+.mat-main-inner { flex: 1; overflow-y: auto; padding: 16px 20px; }
+
+.mat-section-hdr {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--muted);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 4px; margin-bottom: 10px;
+}
+.mat-count-txt { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+
+/* Preview table */
+.mat-preview-wrap { overflow-x: auto; margin-bottom: 8px; }
+.mat-preview-table { border-collapse: collapse; font-size: 10px; width: 100%; }
+.mat-preview-table th {
+  text-align: left; font-weight: 700; padding: 4px 8px;
+  background: var(--bg-deep); border-bottom: 1px solid var(--border);
+  color: var(--muted); text-transform: uppercase; font-size: 9px; letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+.mat-preview-table td { padding: 4px 8px; border-bottom: 1px solid #f0f2f5; }
+.mat-preview-table tr:last-child td { border-bottom: none; }
+.mat-preview-table tr:hover td { background: #f9f9fb; }
+.mat-preview-empty { color: var(--muted); font-style: italic; }
+
+/* Export settings */
+.mat-export-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.mat-export-row label { font-size: 11px; color: var(--muted); min-width: 130px; flex-shrink: 0; }
+.mat-export-row input {
+  flex: 1; max-width: 260px;
+  padding: 3px 6px; font-size: 11px; font-family: inherit;
+  border: 1px solid var(--border); border-radius: 3px; background: #fff;
+}
+.mat-export-row input:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+
+.mat-hint { font-size: 10px; color: var(--muted); font-style: italic; line-height: 1.5; margin-bottom: 14px; }
+.mat-hint code { font-style: normal; background: var(--bg-deep); padding: 1px 4px; border-radius: 2px; font-size: 9px; }
+
+/* Progress / status messages in main panel */
+.mat-progress { font-size: 11px; color: var(--muted); line-height: 1.6; }
+.mat-progress .ok  { color: #2e7d32; }
+.mat-progress .err { color: #c62828; }

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../coi-serviceworker.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Export to MATLAB — ObieWebApp</title>
+
+  <link rel="stylesheet" href="../../css/theme.css">
+  <link rel="stylesheet" href="../../css/matlab.css">
+
+  <!-- PyScript 2026.3.1 -->
+  <link  rel="stylesheet" href="https://pyscript.net/releases/2026.3.1/core.css">
+  <script type="module"   src="https://pyscript.net/releases/2026.3.1/core.js"></script>
+
+  <script src="../../js/obie-settings.js"></script>
+  <script src="../../js/browser-check.js"></script>
+  <script src="../../js/matlab.js" defer></script>
+</head>
+<body>
+
+<div id="loading" class="loading-overlay">
+  <div class="spin"></div>
+  <div class="load-title">Loading PyScript + NumPy…</div>
+  <div class="load-sub">First load may take 15–30 s</div>
+</div>
+
+<div class="matlab-page">
+
+  <!-- Header -->
+  <header class="obie-header">
+    <a class="brand" href="../../index.html">
+      <div class="logo-icon">🎻</div>
+      <h1>ObieWebApp</h1>
+    </a>
+    <span class="crumb">· Export to MATLAB</span>
+    <div class="gap"></div>
+    <a class="btn" href="../../index.html" style="font-size:0.75rem;padding:3px 9px">← All tools</a>
+  </header>
+
+  <!-- Toolbar -->
+  <div class="matlab-toolbar">
+    <button id="mat-folder-btn" class="tb-btn" onclick="matlabSetDataFolder()">📁 Data Folder</button>
+    <span id="mat-folder-name" class="folder-name-disp"></span>
+    <div class="tb-flex"></div>
+    <button class="tb-btn" onclick="matlabHelp()">Help</button>
+    <button id="mat-export-btn" class="tb-btn start" onclick="matlabExport()" disabled>⬇ Export .mat</button>
+  </div>
+
+  <!-- Status row -->
+  <div class="matlab-status-row">
+    <span id="mat-status" class="mat-status-txt">Select a Data Folder to begin</span>
+  </div>
+
+  <!-- Body -->
+  <div class="matlab-body">
+
+    <!-- Left: file browser -->
+    <div class="matlab-files-panel" id="matlab-files-panel">
+      <div class="mat-files-hdr">
+        <span class="mat-files-title">FRF Files</span>
+        <div style="display:flex;gap:4px">
+          <button class="act-btn" onclick="matlabSelectAll()">All</button>
+          <button class="act-btn" onclick="matlabClearAll()">None</button>
+        </div>
+      </div>
+      <select id="mat-instr-sel" class="mat-instr-sel"
+              onchange="matlabInstrumentChange()" disabled>
+        <option value="">— select a folder —</option>
+      </select>
+      <div id="mat-file-list" class="mat-file-list">
+        <div class="mat-placeholder">No folder selected</div>
+      </div>
+      <div class="mat-mini-wrap">
+        <canvas id="mat-mini-plot"></canvas>
+      </div>
+    </div>
+
+    <!-- Resize handle -->
+    <div id="mat-resizer" class="mat-resizer"></div>
+
+    <!-- Right: settings + export -->
+    <div class="matlab-main">
+
+      <!-- No-folder overlay -->
+      <div id="mat-overlay" class="mat-overlay">
+        <div class="mat-overlay-msg">📁 Select a Data Folder above</div>
+        <button class="tb-btn start" onclick="matlabSetDataFolder()"
+                style="padding:6px 18px;font-size:12px">Select Data Folder…</button>
+      </div>
+
+      <div class="mat-main-inner">
+
+        <div class="mat-section-hdr">Selected Files</div>
+        <div id="mat-selected-count" class="mat-count-txt">0 files selected</div>
+        <div class="mat-preview-wrap">
+          <table class="mat-preview-table">
+            <thead>
+              <tr>
+                <th>File</th>
+                <th>Type</th>
+                <th>Freq range</th>
+                <th>Points</th>
+              </tr>
+            </thead>
+            <tbody id="mat-preview-body">
+              <tr><td colspan="4" class="mat-preview-empty">No files selected</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mat-section-hdr" style="margin-top:20px">Export Settings</div>
+        <div class="mat-export-row">
+          <label for="mat-output-name">Output filename</label>
+          <input id="mat-output-name" type="text" value="data.mat" placeholder="data.mat">
+        </div>
+        <p class="mat-hint">
+          Each FRF is exported as MATLAB column vectors
+          <code>name_freq</code> and <code>name_mag_db</code>.
+          AvC files also include <code>name_H</code> (complex FRF).
+          A <code>labels</code> cell array lists all dataset names.
+        </p>
+
+        <div id="mat-progress" class="mat-progress"></div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script type="py" src="./main.py" config="./pyscript.toml" async></script>
+</body>
+</html>

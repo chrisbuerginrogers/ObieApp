@@ -1,0 +1,22 @@
+{
+  "name": "ScratchPad",
+  "description": "Quick scratch session (JC Studios, Octocapture)",
+  "notes": "Instrument info:\n\nMeasured in JC Studios anechoic\n\nHV 24\nJosephson omni mic at 20 cm\nOctocapture, 5 dB mic 20.5 dB hammer",
+  "settings": {
+    "threshold": 0.197,
+    "pre_trig_s": 0.001,
+    "post_trig_s": 0.3,
+    "time_cutoff_s": 0.006,
+    "mic_time_cutoff_s": 0.25,
+    "taps": 5,
+    "positions": 7,
+    "prefix": "H",
+    "ham_cal": 50,
+    "mic_cal": 10,
+    "swap_channels": false,
+    "db_spread": 30,
+    "db_offset": 0,
+    "bit_depth": 32,
+    "sample_rate": 51200
+  }
+}

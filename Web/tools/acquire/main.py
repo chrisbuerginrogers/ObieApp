@@ -19,6 +19,8 @@ from acquire_logic import (
     export_trf,
     stop_audio,
     arm,
+    repeat_position,
+    advance_position,
 )
 
 configure('obieWebApp_acquire', {
@@ -161,6 +163,8 @@ js.window.pyExportWAV        = create_proxy(export_wav)
 js.window.pyExportTRF        = create_proxy(export_trf)
 js.window.pyStopAudio        = create_proxy(stop_audio)
 js.window.pyArm              = create_proxy(arm)
+js.window.pyRepeatPosition   = create_proxy(repeat_position)
+js.window.pyAdvancePosition  = create_proxy(advance_position)
 
 if getattr(js.window, 'onPyReady', None):
     js.window.onPyReady()

@@ -53,7 +53,8 @@ let _lineWidth    = 0.5;    // FRF trace width in px
 let _S = {
   xLog: true, xMin: 100, xMax: 12000,
   yMin: null, yMax: null,
-  yDbRange: 30,
+  yDbRange: 38,
+  dbOffset: 0,
 };
 
 // Per-mini-plot y-range locks (null = auto)
@@ -232,6 +233,7 @@ window.onStateChange = function(jsonStr) {
   if      (s.state === 'idle')      { txt = 'Idle — press Start to begin acquisition'; }
   else if (s.state === 'armed')     { txt = `● Armed  ·  ${s.label}  ·  Hit ${s.hit_n}/${s.n_taps}`; cls = 'armed'; }
   else if (s.state === 'triggered') { txt = `⚡ Triggered  ·  ${s.label}  —  capturing…`; cls = 'triggered'; }
+  else if (s.state === 'position_complete') { txt = `✓ ${s.label} complete — choose Repeat or Next`; cls = 'complete'; }
   else if (s.state === 'complete')  { txt = `✓ Run complete — ${s.n_positions} positions measured`; cls = 'complete'; _resetForNextRun(); }
   if (bar) { bar.textContent = txt; bar.className = `acq-status-txt ${cls}`; }
 
@@ -265,6 +267,28 @@ window.onBannerUpdate = function(jsonStr) {
 /** Completed position — used for history overlay */
 window.onHistoryAdd = function(freq_js, H1db_js, label) {
   // frfCache already has this; onHistoryAdd is just informational here
+};
+
+/** Python finished the last hit — show Repeat / Next dialog */
+window.onPositionComplete = function(label, isLast) {
+  const dlg = document.getElementById('pos-complete-modal');
+  if (!dlg) return;
+  const msg = document.getElementById('pos-complete-label');
+  if (msg) msg.textContent = label + ' Complete';
+  const nextBtn = document.getElementById('pos-complete-next-btn');
+  if (nextBtn) nextBtn.textContent = isLast ? 'Finish Run' : 'Next Position →';
+  dlg.classList.add('open');
+  nextBtn?.focus();
+};
+
+window.acqRepeatPosition = function() {
+  document.getElementById('pos-complete-modal')?.classList.remove('open');
+  window.pyRepeatPosition?.();
+};
+
+window.acqNextPosition = function() {
+  document.getElementById('pos-complete-modal')?.classList.remove('open');
+  window.pyAdvancePosition?.();
 };
 
 function _setSaveStatus(saving, detail) {
@@ -349,7 +373,8 @@ function renderFRF() {
   positions.forEach((pos) => {
     const d = frfCache[pos];
     if (!d || !d.freq.length) return;
-    const mags  = d.H1db;
+    const offset = _S.dbOffset || 0;
+    const mags  = offset ? d.H1db.map(v => v + offset) : d.H1db;
     const valid = mags.filter(v => isFinite(v) && v > -200);
     if (!valid.length) return;
     const color = PALETTE[pos % PALETTE.length];
@@ -459,6 +484,13 @@ window.acqToggleTaps = function() {
 
 // ↑/↓ arrows adjust individual tap opacity when taps are visible
 document.addEventListener('keydown', e => {
+  // Space advances through the position-complete dialog from anywhere
+  if ((e.key === ' ' || e.code === 'Space') &&
+      document.getElementById('pos-complete-modal')?.classList.contains('open')) {
+    e.preventDefault();
+    window.acqNextPosition();
+    return;
+  }
   if (!_showTaps) return;
   if (document.activeElement?.tagName === 'INPUT' ||
       document.activeElement?.tagName === 'SELECT' ||
@@ -481,7 +513,8 @@ window.acqRescaleY = function() {
 };
 
 window.acqSetYDbRange = function(val) {
-  _S.yDbRange = parseFloat(val) || 30;
+  _S.yDbRange = parseFloat(val) || 38;
+  _patchPrefs({ db_spread: _S.yDbRange });
   if (_S.yMin == null) renderFRF();
 };
 
@@ -639,6 +672,14 @@ window.acqLoadSettingsTxt = async function(input) {
     const msg = document.getElementById('prefs-load-msg');
     if (msg) { msg.textContent = `Loaded: ${file.name}`; setTimeout(() => msg.textContent = '', 3000); }
   }
+  // Copy Default Notes into the run notes if present in the file
+  const fields = _parseLVTxt(text);
+  const notes  = (fields['Default Notes'] || '').trim();
+  if (notes) {
+    localStorage.setItem(_notesKey(), notes);
+    const ta = document.getElementById('notes-textarea');
+    if (ta) ta.value = notes;
+  }
   input.value = '';
 };
 
@@ -689,6 +730,10 @@ function _populatePrefsForm(overridePrefs) {
   set('inp-ham-x-max',   _hamXRange[1]);
   set('inp-mic-x-min',   _micXRange[0]);
   set('inp-mic-x-max',   _micXRange[1]);
+  set('inp-db-spread',   prefs.db_spread  ?? 38);
+  set('inp-db-offset',   prefs.db_offset  ?? 0);
+  set('inp-bit-depth',   prefs.bit_depth  ?? 24);
+  set('inp-sample-rate', prefs.sample_rate ?? 48000);
   // populate device selector
   _enumeratePrefsDevices();
 }
@@ -717,24 +762,20 @@ function _callPyApplySettings() {
 }
 
 function _loadPrefs() {
+  const defaults = {
+    threshold: 0.05, pre_trig_s: 0.01, post_trig_s: 0.30,
+    time_cutoff_s: 0.30, mic_time_cutoff_s: 0.30,
+    taps: 5, positions: 12, prefix: 'H',
+    mic_cal: 1.0, ham_cal: 1.0, swap_channels: false,
+    frf_x_min: 100, frf_x_max: 12000,
+    deviceLabel: '', instrument: 'scratch', deviceId: '', line_width: 0.5,
+    ham_x_min: 0, ham_x_max: 0.1, mic_x_min: 0, mic_x_max: 0.3,
+    db_spread: 38, db_offset: 0, bit_depth: 24, sample_rate: 48000,
+  };
   try {
-    return {
-      threshold: 0.05, pre_trig_s: 0.01, post_trig_s: 0.30,
-      time_cutoff_s: 0.30, mic_time_cutoff_s: 0.30,
-      taps: 5, positions: 12, prefix: 'H',
-      mic_cal: 1.0, ham_cal: 1.0, swap_channels: false,
-      frf_x_min: 100, frf_x_max: 12000,
-      deviceLabel: '', instrument: 'scratch', deviceId: '', line_width: 0.5,
-      ham_x_min: 0, ham_x_max: 0.1, mic_x_min: 0, mic_x_max: 0.3,
-      ...JSON.parse(localStorage.getItem('obieAcquire_prefs') || '{}'),
-    };
+    return { ...defaults, ...JSON.parse(localStorage.getItem('obieAcquire_prefs') || '{}') };
   } catch (_) {
-    return { threshold: 0.05, pre_trig_s: 0.01, post_trig_s: 0.30,
-             time_cutoff_s: 0.30, mic_time_cutoff_s: 0.30,
-             taps: 5, positions: 12, prefix: 'H', mic_cal: 1.0, ham_cal: 1.0,
-             swap_channels: false, frf_x_min: 100, frf_x_max: 12000,
-             deviceLabel: '', instrument: 'scratch', deviceId: '', line_width: 0.5,
-             ham_x_min: 0, ham_x_max: 0.1, mic_x_min: 0, mic_x_max: 0.3 };
+    return defaults;
   }
 }
 
@@ -790,6 +831,10 @@ window.acqSavePrefs = function() {
     ham_x_max:     _hamXRange[1],
     mic_x_min:     _micXRange[0],
     mic_x_max:     _micXRange[1],
+    db_spread:     parseFloat(g('inp-db-spread'))   || 38,
+    db_offset:     parseFloat(g('inp-db-offset'))   || 0,
+    bit_depth:     parseInt(g('inp-bit-depth'))     || 24,
+    sample_rate:   parseInt(g('inp-sample-rate'))   || 48000,
   };
   localStorage.setItem('obieAcquire_prefs', JSON.stringify(prefs));
   _saveAcqSettings();
@@ -825,6 +870,10 @@ function _pushSettingsFromPrefs(prefs) {
   _S.xMax          = prefs.frf_x_max        ?? 12000;
   _hamXRange       = [prefs.ham_x_min ?? 0,   prefs.ham_x_max ?? 0.1];
   _micXRange       = [prefs.mic_x_min ?? 0,   prefs.mic_x_max ?? 0.3];
+  _S.yDbRange      = prefs.db_spread         ?? 38;
+  _S.dbOffset      = prefs.db_offset         ?? 0;
+  const yDbEl = document.getElementById('y-db-range');
+  if (yDbEl) yDbEl.value = _S.yDbRange;
   renderFRF();
   if (!window.pyApplySettings) return;
   const sr = audioCtx?.sampleRate || 44100;
@@ -1080,9 +1129,11 @@ window.acqBrowseTemplate = async function() {
       const text = await file.text();
       let tpl;
       if (file.name.toLowerCase().endsWith('.txt')) {
-        const fields  = _parseLVTxt(text);
-        const tplName = file.name.replace(/_template\.txt$/i, '').replace(/_/g, ' ').trim();
-        tpl = { name: tplName, settings: _lvFieldsToSettings(fields) };
+        const fields   = _parseLVTxt(text);
+        const tplName  = file.name.replace(/_template\.txt$/i, '').replace(/_/g, ' ').trim();
+        const tplNotes = (fields['Default Notes'] || '').trim();
+        tpl = { name: tplName, settings: _lvFieldsToSettings(fields),
+                ...(tplNotes ? { notes: tplNotes } : {}) };
       } else {
         const data = JSON.parse(text);
         tpl = Array.isArray(data) ? data[0] : data;
@@ -1125,11 +1176,21 @@ window.acqApplyTemplate = function() {
   if (s.ham_x_max   != null) set('inp-ham-x-max',   s.ham_x_max);
   if (s.mic_x_min   != null) set('inp-mic-x-min',   s.mic_x_min);
   if (s.mic_x_max   != null) set('inp-mic-x-max',   s.mic_x_max);
+  if (s.db_spread   != null) set('inp-db-spread',   s.db_spread);
+  if (s.db_offset   != null) set('inp-db-offset',   s.db_offset);
+  if (s.bit_depth   != null) set('inp-bit-depth',   s.bit_depth);
+  if (s.sample_rate != null) set('inp-sample-rate', s.sample_rate);
   // device selection intentionally skipped — keep the current device on import
   _currentTemplateName = t.name || '';
   const tplInd = document.getElementById('tpl-ind');
   if (tplInd) tplInd.textContent = _currentTemplateName;
   window.acqSavePrefs();
+  // Copy template's default notes into the run notes, if present
+  if (t.notes) {
+    localStorage.setItem(_notesKey(), t.notes);
+    const ta = document.getElementById('notes-textarea');
+    if (ta) ta.value = t.notes;
+  }
   window.acqCloseTemplate();
   document.getElementById('prefs-modal')?.classList.add('open');
 };
@@ -1142,10 +1203,13 @@ window.acqSaveAsTemplate = async function() {
   const name = prompt('Template name:');
   if (!name?.trim()) return;
   const prefs = _loadPrefs();
+  const currentNotes = (document.getElementById('notes-textarea')?.value ||
+                        localStorage.getItem(_notesKey()) || '').trim();
   const tpl = {
     name:        name.trim(),
     description: `${prefs.instrument || ''}  ${new Date().toISOString().slice(0, 10)}`.trim(),
     settings:    prefs,
+    ...(currentNotes ? { notes: currentNotes } : {}),
   };
   const safeName = name.trim().replace(/[\\/:*?"<>|]/g, '_') + '.json';
   try {
@@ -1158,6 +1222,67 @@ window.acqSaveAsTemplate = async function() {
   } catch (e) { alert('Failed to save template: ' + e.message); }
 };
 
+// Build a LabVIEW Key=<value/> string from current settings
+function _buildLVTxt() {
+  const p = _loadPrefs();
+  const notes = (document.getElementById('notes-textarea')?.value ||
+                 localStorage.getItem(_notesKey()) || '').trim();
+  const instrName = (document.getElementById('inp-instrument-banner')?.textContent || '').trim();
+  const runName   = _runName || _pendingTestName || '';
+  const testName  = instrName ? `${instrName}--${runName}` : runName;
+  const fields = {
+    'Name of test':     testName,
+    'Date':             new Date().toISOString().slice(0, 10),
+    'Template':         _currentTemplateName || '',
+    'Soundcard':        p.deviceLabel || '',
+    'resolution':       p.bit_depth    ?? 24,
+    'Sampling rate':    p.sample_rate  ?? 48000,
+    'Sample time (s)':  p.post_trig_s  ?? 0.30,
+    'Pre-trigger (s)':  p.pre_trig_s   ?? 0.01,
+    'Hammer Threshold': p.threshold    ?? 0.05,
+    'Positions':        p.positions    ?? 12,
+    'Taps/Position':    p.taps         ?? 5,
+    'Set Names':        p.prefix       ?? 'H',
+    'Hammer cutoff':    p.time_cutoff_s     ?? 0.30,
+    'Mic cutoff':       p.mic_time_cutoff_s ?? 0.30,
+    'Hammer Cal':       p.ham_cal      ?? 1.0,
+    'Mic Cal':          p.mic_cal      ?? 1.0,
+    'dB Offset':        p.db_offset    ?? 0,
+    'dB Spread':        p.db_spread    ?? 38,
+    'flip?':            p.swap_channels ? 'true' : 'false',
+    'Default Notes':    notes,
+  };
+  return Object.entries(fields).map(([k, v]) => {
+    const s = String(v);
+    return s.includes('\n') ? `${k}=<${s}\n/>` : `${k}=<${s}/>`;
+  }).join('\n') + '\n';
+}
+
+window.acqExportLVTemplate = async function() {
+  const txt  = _buildLVTxt();
+  const instr = (document.getElementById('inp-instrument-banner')?.textContent || '').trim() || 'template';
+  const defaultName = (instr + '_template.txt').replace(/[\\/:*?"<>|]/g, '_');
+  try {
+    if (window.showSaveFilePicker) {
+      const fh = await window.showSaveFilePicker({
+        suggestedName: defaultName,
+        types: [{ description: 'LabVIEW Template (.txt)', accept: { 'text/plain': ['.txt'] } }],
+      });
+      const w = await fh.createWritable();
+      await w.write(txt);
+      await w.close();
+    } else {
+      // Fallback for browsers without save picker
+      const blob = new Blob([txt], { type: 'text/plain' });
+      const url  = URL.createObjectURL(blob);
+      const a    = Object.assign(document.createElement('a'), { href: url, download: defaultName });
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') alert('Could not export: ' + e.message);
+  }
+};
 
 // ════════════════════════════════════════════════════════════════════════════
 // Data folder management (File System Access API)
@@ -1172,6 +1297,7 @@ let _settingsHandle  = null;   // ObieAppSettings/ dir inside the data folder
 let _templatesHandle = null;   // ObieAppSettings/Templates/ dir
 let _testsHandle     = null;   // <instrument>/test/ dir (set when data folder chosen)
 let _rootDirHandle   = null;   // root data folder handle
+let _folderGoneShown = false;  // debounce — only show the gone-folder UI once per event
 let _pendingTestName = '';  // proposed test folder name, editable before first Start
 let _currentTemplateName = '';  // template last applied
 
@@ -1229,19 +1355,37 @@ async function _refreshInstrumentFolder(instrumentName) {
     _testsHandle = instrHandle;
 
     // Find the highest existing run number to auto-name the next one.
-    let maxNum = 0;
+    let maxNum = 0, maxNumName = null;
     try {
       for await (const [name, h] of instrHandle.entries()) {
         if (h.kind === 'directory') {
           const m = name.match(/_(\d+)$/);
-          if (m) { const n = parseInt(m[1]); if (n > maxNum) maxNum = n; }
+          if (m) { const n = parseInt(m[1]); if (n > maxNum) { maxNum = n; maxNumName = name; } }
         }
       }
     } catch (_) {}
 
-    _pendingTestName = `${instrumentName}_${String(maxNum + 1).padStart(2, '0')}`;
+    // Check whether the highest-numbered folder contains any real measurement data
+    // (files inside raw/ or TRF/). If it's empty we reuse it; otherwise increment.
+    let lastFolderHasData = false;
+    if (maxNum > 0 && maxNumName) {
+      try {
+        const lastH = await instrHandle.getDirectoryHandle(maxNumName);
+        for (const subdir of ['raw', 'TRF']) {
+          try {
+            const sdH = await lastH.getDirectoryHandle(subdir);
+            for await (const _ of sdH.entries()) { lastFolderHasData = true; break; }
+          } catch (_) {}
+          if (lastFolderHasData) break;
+        }
+      } catch (_) {}
+    }
 
-    // Create the test subfolder right now so Start never has to.
+    _pendingTestName = (maxNum > 0 && maxNumName && !lastFolderHasData)
+      ? maxNumName
+      : `${instrumentName}_${String(maxNum + 1).padStart(2, '0')}`;
+
+    // Create (or reopen) the test subfolder so Start never has to.
     const testHandle = await instrHandle.getDirectoryHandle(_pendingTestName, { create: true });
     _testHandle = testHandle;
     _rawHandle  = await testHandle.getDirectoryHandle('raw', { create: true });
@@ -1255,7 +1399,13 @@ async function _refreshInstrumentFolder(instrumentName) {
     try {
       const fh = await testHandle.getFileHandle('settings.json', { create: true });
       const w  = await fh.createWritable();
-      await w.write(JSON.stringify(_loadPrefs(), null, 2));
+      const snapshot = {
+        date:        new Date().toISOString().slice(0, 10),
+        ...((_currentTemplateName) ? { template: _currentTemplateName } : {}),
+        ..._loadPrefs(),
+        sample_rate: audioCtx?.sampleRate || _loadPrefs().sample_rate || 48000,
+      };
+      await w.write(JSON.stringify(snapshot, null, 2));
       await w.close();
     } catch (_) {}
 
@@ -1343,13 +1493,61 @@ window.acqSetDataFolder = async function() {
   }
 };
 
+// Called whenever a file-system write fails with a "not found" error (e.g. user deleted
+// the data folder in Finder while acquisition was running). Stops audio, clears all
+// handles, and shows the folder overlay so the user can reselect.
+function _handleFolderGone() {
+  if (_folderGoneShown) return;   // don't fire multiple times for one batch of writes
+  _folderGoneShown = true;
+  setTimeout(() => { _folderGoneShown = false; }, 4000);
+
+  // Null root first so _resetForNextRun (called inside _stopAudio) won't try to refresh
+  _rootDirHandle   = null;
+  _rawHandle       = null;
+  _trfHandle       = null;
+  _testHandle      = null;
+  _settingsHandle  = null;
+  _templatesHandle = null;
+
+  // Stop audio capture — fire-and-forget, errors are irrelevant here
+  _stopAudio().catch(() => {});
+
+  // Show the folder overlay with a helpful message
+  document.getElementById('folder-overlay')?.classList.remove('hidden');
+  const sub = document.getElementById('folder-overlay-sub');
+  if (sub) sub.textContent = 'Data folder was removed — click to reselect';
+
+  // Update the status bar
+  const bar = document.getElementById('status-bar');
+  if (bar) {
+    bar.textContent = '⚠️ Data folder was removed — please reselect';
+    bar.className   = 'acq-status-txt triggered';
+  }
+}
+
+// Detect whether a caught DOMException means the directory/file no longer exists.
+function _isFolderGoneError(e) {
+  if (!(e instanceof DOMException)) return false;
+  return e.name === 'NotFoundError'
+      || e.name === 'InvalidStateError'
+      || e.name === 'NoModificationAllowedError';
+}
+
 async function _writeFile(folderHandle, filename, b64) {
-  const raw   = atob(b64);
-  const bytes = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-  const fh = await folderHandle.getFileHandle(filename, { create: true });
-  const w  = await fh.createWritable();
-  await w.write(bytes); await w.close();
+  try {
+    const raw   = atob(b64);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    const fh = await folderHandle.getFileHandle(filename, { create: true });
+    const w  = await fh.createWritable();
+    await w.write(bytes);
+    await w.close();
+  } catch (e) {
+    if (_isFolderGoneError(e)) _handleFolderGone();
+    else console.warn('_writeFile failed:', filename, e.name, e.message);
+    // Never re-throw — prevents "PyodideFuture exception was never retrieved"
+    // when Python calls onSaveHit / onSaveTRF / onSaveAvC and the write fails.
+  }
 }
 
 async function _saveAcqSettings() {
@@ -1360,7 +1558,10 @@ async function _saveAcqSettings() {
     const w    = await fh.createWritable();
     await w.write(json);
     await w.close();
-  } catch (e) { console.warn('_saveAcqSettings:', e); }
+  } catch (e) {
+    if (_isFolderGoneError(e)) _handleFolderGone();
+    else console.warn('_saveAcqSettings:', e);
+  }
 }
 
 async function _loadTemplatesFromFolder(dir) {
@@ -1373,7 +1574,9 @@ async function _loadTemplatesFromFolder(dir) {
         if (lower.endsWith('.txt')) {
           const fields   = _parseLVTxt(text);
           const tplName  = name.replace(/_template\.txt$/i, '').replace(/_/g, ' ').trim();
-          _templates.push({ name: tplName, settings: _lvFieldsToSettings(fields), _file: name });
+          const tplNotes = (fields['Default Notes'] || '').trim();
+          _templates.push({ name: tplName, settings: _lvFieldsToSettings(fields), _file: name,
+                            ...(tplNotes ? { notes: tplNotes } : {}) });
         } else if (lower.endsWith('.json')) {
           const data = JSON.parse(text);
           const arr  = Array.isArray(data) ? data : [data];
@@ -1829,6 +2032,28 @@ function _lvLoop() {
   }
 }
 
+let _lvSyncPending = null;
+
+window.acqLvSyncYes = function() {
+  document.getElementById('lv-sync-modal')?.classList.remove('open');
+  if (!_lvSyncPending) return;
+  _patchPrefs(_lvSyncPending);
+  _callPyApplySettings();
+  // Reflect in the mini-plot display inputs
+  const inpThr = document.getElementById('inp-thr-disp');
+  if (inpThr) inpThr.value = _lvSyncPending.threshold;
+  const inpHam = document.getElementById('inp-ham-cut-disp');
+  if (inpHam) inpHam.value = _lvSyncPending.post_trig_s;
+  const inpMic = document.getElementById('inp-mic-cut-disp');
+  if (inpMic) inpMic.value = _lvSyncPending.post_trig_s;
+  _lvSyncPending = null;
+};
+
+window.acqLvSyncNo = function() {
+  document.getElementById('lv-sync-modal')?.classList.remove('open');
+  _lvSyncPending = null;
+};
+
 window.acqLiveView = function() {
   const dlg = document.getElementById('lv-dialog');
   if (!dlg) return;
@@ -1837,6 +2062,22 @@ window.acqLiveView = function() {
     _lvStopCapture();
     dlg.classList.remove('open');
     document.getElementById('lv-btn')?.classList.remove('active');
+
+    // Check whether the user changed threshold / pre / post inside LiveView
+    const lvThr  = parseFloat(document.getElementById('lv-inp-thr')?.value);
+    const lvPre  = parseFloat(document.getElementById('lv-inp-pre')?.value);
+    const lvPost = parseFloat(document.getElementById('lv-inp-post')?.value);
+    const p = _loadPrefs();
+    if (!isNaN(lvThr) && !isNaN(lvPre) && !isNaN(lvPost) &&
+        (Math.abs(lvThr - (p.threshold   ?? 0.05)) > 0.0001 ||
+         Math.abs(lvPre - (p.pre_trig_s  ?? 0.01)) > 0.0001 ||
+         Math.abs(lvPost - (p.post_trig_s ?? 0.30)) > 0.0001)) {
+      const syncMsg = document.getElementById('lv-sync-detail');
+      if (syncMsg) syncMsg.textContent =
+        `Threshold ${lvThr} V · Pre ${lvPre} s · Post ${lvPost} s`;
+      _lvSyncPending = { threshold: lvThr, pre_trig_s: lvPre, post_trig_s: lvPost };
+      document.getElementById('lv-sync-modal')?.classList.add('open');
+    }
   } else {
     dlg.classList.add('open');
     document.getElementById('lv-btn')?.classList.add('active');
@@ -1894,6 +2135,7 @@ async function _startAudio() {
     });
     audioCtx = new AudioContext();
     const sr = audioCtx.sampleRate;
+    _patchPrefs({ sample_rate: sr });   // record actual hardware rate
     _pushSettingsFromPrefs({ ...prefs });
     const blob    = new Blob([WORKLET_SRC], { type: 'application/javascript' });
     const blobURL = URL.createObjectURL(blob);

@@ -407,23 +407,49 @@ def _recompute_frf(pos):
 
 
 def _complete_position():
-    global _cur_pos, _state
+    """Called when the last hit for a position is accepted.
+    Emits the FRF history trace, then pauses in 'position_complete'
+    state and lets JS show the Repeat / Next dialog."""
+    global _state
     st = _frf.get(_cur_pos, {})
     H1, H_dB, _, freq = _h1_from_st(st)
     if H1 is not None:
         label = f"{_prefix}{_cur_pos+1:02d} ({_n_taps} hits)"
         js.window.onHistoryAdd(to_js(freq.tolist()), to_js(H_dB.tolist()), label)
-        # TRF already overwritten by _save_trf on the last hit
+    is_last = (_cur_pos + 1 >= _n_positions)
+    pos_label = f"{_prefix}{_cur_pos+1:02d}"
+    _state = "position_complete"
+    _emit_banner()
+    _emit_state()
+    js.window.onPositionComplete(pos_label, is_last)
+
+
+def repeat_position():
+    """Clear all hits for the current position and re-arm."""
+    global _state
+    _pos_hits[_cur_pos] = 0
+    st = _frf[_cur_pos]
+    st["hits_ham"] = []
+    st["hits_mic"] = []
+    _recompute_frf(_cur_pos)
+    _state = "armed"
+    _emit_banner()
+    _emit_state()
+
+
+def advance_position():
+    """Advance to the next position (or finish the run)."""
+    global _cur_pos, _state
     _cur_pos += 1
     if _cur_pos >= _n_positions:
         _state = "complete"
         _emit_averages()
         _emit_banner()
         _emit_state()
-        return
-    _state = "armed"
-    _emit_banner()
-    _emit_state()
+    else:
+        _state = "armed"
+        _emit_banner()
+        _emit_state()
 
 
 def _emit_averages():

@@ -1,0 +1,12 @@
+{
+  "id": "jc_5",
+  "name": "JC 5",
+  "description": "5-color set for small comparison groups",
+  "colors": [
+    { "name": "Black",       "hex": "#000000" },
+    { "name": "Deep Red",    "hex": "#c80600" },
+    { "name": "Azure",       "hex": "#0086ff" },
+    { "name": "Grass Green", "hex": "#6fb400" },
+    { "name": "Violet",      "hex": "#7942ff" }
+  ]
+}

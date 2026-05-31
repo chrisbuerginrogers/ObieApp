@@ -155,7 +155,7 @@
       <!-- Plot controls toolbar -->
       <div class="plot-toolbar">
         <button class="tb-btn" onclick="acqRescaleY()" title="Rescale Y to data range">↕Y</button>
-        <input  id="y-db-range" class="tb-inp" type="number" value="30" min="5" max="120"
+        <input  id="y-db-range" class="tb-inp" type="number" value="38" min="5" max="120"
                 style="width:3.2ch;font-size:9px;padding:0 2px;text-align:right"
                 title="Y dB range" onchange="acqSetYDbRange(this.value)">
         <span class="tb-lbl">dB</span>
@@ -267,7 +267,29 @@
         <input id="inp-swap-channels" type="checkbox">
       </div>
 
+      <div class="pref-section">Audio Capture</div>
+      <div class="pref-row">
+        <label for="inp-sample-rate">Sample rate</label>
+        <input id="inp-sample-rate" type="number" value="48000" step="1000" min="8000" max="192000" style="max-width:80px">
+        <span class="pref-unit">Hz</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-bit-depth">Bit depth</label>
+        <input id="inp-bit-depth" type="number" value="24" step="1" min="8" max="32" style="max-width:80px">
+        <span class="pref-unit">bit</span>
+      </div>
+
       <div class="pref-section">Plot Settings</div>
+      <div class="pref-row">
+        <label for="inp-db-spread">FRF dB range</label>
+        <input id="inp-db-spread" type="number" value="38" step="1" min="5" max="120" style="max-width:80px">
+        <span class="pref-unit">dB</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-db-offset">dB offset</label>
+        <input id="inp-db-offset" type="number" value="0" step="1" min="-120" max="120" style="max-width:80px">
+        <span class="pref-unit">dB</span>
+      </div>
       <div class="pref-row">
         <label for="inp-frf-x-min">FRF frequency min</label>
         <input id="inp-frf-x-min" type="number" value="100" step="50" min="1" max="22000" style="max-width:80px">
@@ -397,6 +419,7 @@
         <button class="act-btn" onclick="acqBrowseTemplate()">Browse…</button>
         <button class="act-btn accent" onclick="acqApplyTemplate()">Apply</button>
         <button class="act-btn" onclick="acqSaveAsTemplate()">Save as Template</button>
+        <button class="act-btn" onclick="acqExportLVTemplate()">Export LabVIEW…</button>
         <button class="act-btn" onclick="acqCloseTemplate()">Cancel</button>
       </div>
     </div>
@@ -483,6 +506,40 @@
         </div>
       </div>
 
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Position Complete dialog
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="pos-complete-modal" class="modal-overlay">
+  <div class="modal-box pos-complete-box">
+    <div class="pos-complete-label" id="pos-complete-label">Position Complete</div>
+    <p class="pos-complete-hint">Space bar → Next Position</p>
+    <div class="pos-complete-btns">
+      <button class="act-btn pos-complete-repeat" onclick="acqRepeatPosition()">↺ Repeat Position</button>
+      <button id="pos-complete-next-btn" class="act-btn accent pos-complete-next" onclick="acqNextPosition()">Next Position →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     LiveView settings sync dialog
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="lv-sync-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(92vw,400px)">
+    <div class="modal-header">
+      <span class="modal-title">Apply LiveView Settings?</span>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:12px;margin-bottom:6px">LiveView settings differ from the current run settings:</p>
+      <p id="lv-sync-detail" style="font-size:11px;font-weight:600;color:var(--accent);margin-bottom:14px"></p>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:16px">Apply these to the main run?</p>
+      <div class="save-row">
+        <button class="act-btn accent" onclick="acqLvSyncYes()">Yes, apply</button>
+        <button class="act-btn" onclick="acqLvSyncNo()">No, keep current</button>
+      </div>
     </div>
   </div>
 </div>

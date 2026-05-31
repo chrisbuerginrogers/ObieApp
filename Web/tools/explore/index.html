@@ -138,9 +138,9 @@
           <option value="avg_range">Normalize by avg</option>
         </select>
         <span id="norm-range-wrap" style="display:none;align-items:center;gap:2px">
-          <input id="norm-f-lo" class="tb-inp" type="number" value="200"  min="1"   max="22000" style="width:4ch;font-size:9px;padding:0 2px;text-align:right" title="Norm range low Hz"  onchange="expSetNormRange()">
+          <input id="norm-f-lo" class="tb-inp" type="number" value="200"  min="1"   max="22000" style="width:4ch;font-size:9px;padding:0 2px;text-align:right;-moz-appearance:textfield" title="Norm range low Hz"  onchange="expSetNormRange()">
           <span class="tb-lbl">–</span>
-          <input id="norm-f-hi" class="tb-inp" type="number" value="7000" min="1"   max="22000" style="width:4.5ch;font-size:9px;padding:0 2px;text-align:right" title="Norm range high Hz" onchange="expSetNormRange()">
+          <input id="norm-f-hi" class="tb-inp" type="number" value="7000" min="1"   max="22000" style="width:4.5ch;font-size:9px;padding:0 2px;text-align:right;-moz-appearance:textfield" title="Norm range high Hz" onchange="expSetNormRange()">
           <span class="tb-lbl">Hz</span>
         </span>
         <div class="tb-vsep"></div>
@@ -227,27 +227,25 @@
             <p style="font-size:10px;color:var(--muted);margin-top:3px">Talks:</p>
             <a href="https://www.youtube.com/channel/UCb8nC_6JQtlqal0-bVQZMeg" target="_blank" rel="noopener">YouTube Channel</a>
             <p style="font-size:10px;color:var(--muted);margin-top:5px">Books &amp; Sites:</p>
-            <a href="https://www.violinacoustics.com" target="_blank" rel="noopener">violinacoustics.com</a>
             <a href="https://euphonics.org/homepage/" target="_blank" rel="noopener">euphonics.org</a>
           </div>
           <div>
-            <h3>Typical Ranges</h3>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+              <h3 style="margin:0">Typical Ranges</h3>
+              <select id="interpret-dict-sel" style="font-size:10px;padding:1px 4px;border:1px solid var(--border);border-radius:3px;background:var(--bg-deep)"
+                      onchange="expInterpretSetDict(this.value)">
+                <option value="radiation">Radiation (Mic)</option>
+                <option value="accelerance">Accelerance</option>
+                <option value="vibrometer">Mobility (Vibrometer)</option>
+              </select>
+            </div>
             <table class="typical-ranges">
               <thead><tr><th>Mode</th><th>Range</th><th>Avg</th></tr></thead>
-              <tbody>
-                <tr><td>A0</td><td>264–290 Hz</td><td>276 Hz</td></tr>
-                <tr><td>CBR</td><td>380–420 Hz</td><td>400 Hz</td></tr>
-                <tr><td>B1-</td><td>393–470 Hz</td><td>444 Hz</td></tr>
-                <tr><td>B1+</td><td>473–593 Hz</td><td>541 Hz</td></tr>
-                <tr><td>Trans Hill</td><td>800–1300 Hz</td><td></td></tr>
-                <tr><td>Bridge Hill</td><td>1750–3000 Hz</td><td></td></tr>
-                <tr><td>Upper Hill</td><td>3000–7000 Hz</td><td></td></tr>
-              </tbody>
+              <tbody id="interpret-ranges-body"></tbody>
             </table>
           </div>
           <div style="font-size:10px;color:var(--muted);font-style:italic;line-height:1.5">
-            <p><strong>Signature Modes</strong><br>isotropic monopole radiation</p>
-            <p style="margin-top:5px"><strong>Multiple Overlapping Modes</strong><br>increasingly directional multipole radiation</p>
+            <span id="interpret-dict-note"></span>
           </div>
         </div>
         <div class="interpret-plot-wrap">

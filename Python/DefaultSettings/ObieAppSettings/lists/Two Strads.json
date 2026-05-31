@@ -1,0 +1,8 @@
+{
+  "name": "Two Strads",
+  "description": "Jackson and Titian Stradivarius samples (Test_Samples)",
+  "files": [
+    "Test_Samples/JacksonStrad H.AvC",
+    "Test_Samples/Titian Strad H.AvC"
+  ]
+}

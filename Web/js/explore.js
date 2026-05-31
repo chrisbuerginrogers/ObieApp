@@ -22,24 +22,78 @@
   // Empty until a folder is selected; the dropdown shows only "No bands" + "Custom…".
   let _dynamicBandPresets = {};  // key → { label, bands: [{label,f_lo,f_hi}] }
 
-  const INTERPRET_REGIONS = [
-    {label:'A0',               f_lo:264,  f_hi:290,  color:'#e74c3c'},
-    {label:'CBR',              f_lo:380,  f_hi:420,  color:'#e67e22'},
-    {label:'B1-',              f_lo:393,  f_hi:470,  color:'#f1c40f'},
-    {label:'B1+',              f_lo:473,  f_hi:593,  color:'#2ecc71'},
-    {label:'Transition Hill',  f_lo:800,  f_hi:1300, color:'#3498db'},
-    {label:'Bridge Hill',      f_lo:1750, f_hi:3000, color:'#9b59b6'},
-    {label:'Upper Hill',       f_lo:3000, f_hi:7000, color:'#e91e63'},
-  ];
-  const TYPICAL_RANGES = [
-    {mode:'A0',               range:'264–290 Hz',   avg:'276 Hz'},
-    {mode:'CBR',              range:'380–420 Hz',   avg:'400 Hz'},
-    {mode:'B1-',              range:'393–470 Hz',   avg:'444 Hz'},
-    {mode:'B1+',              range:'473–593 Hz',   avg:'541 Hz'},
-    {mode:'Transition Hill',  range:'800–1300 Hz',  avg:''},
-    {mode:'Bridge Hill',      range:'1750–3000 Hz', avg:''},
-    {mode:'Upper Hill',       range:'3000–7000 Hz', avg:''},
-  ];
+  const INTERPRET_DICTS = {
+    radiation: {
+      label: 'Radiation (Mic)',
+      note:  'Isotropic monopole → increasingly directional multipole radiation',
+      regions: [
+        {label:'A0',              f_lo:264,  f_hi:290,  color:'#e74c3c'},
+        {label:'CBR',             f_lo:380,  f_hi:420,  color:'#e67e22'},
+        {label:'B1-',             f_lo:393,  f_hi:470,  color:'#f1c40f'},
+        {label:'B1+',             f_lo:473,  f_hi:593,  color:'#2ecc71'},
+        {label:'Transition Hill', f_lo:800,  f_hi:1300, color:'#3498db'},
+        {label:'Bridge Hill',     f_lo:1750, f_hi:3000, color:'#9b59b6'},
+        {label:'Upper Hill',      f_lo:3000, f_hi:7000, color:'#e91e63'},
+      ],
+      table: [
+        {mode:'A0',               range:'264–290 Hz',   avg:'276 Hz'},
+        {mode:'CBR',              range:'380–420 Hz',   avg:'400 Hz'},
+        {mode:'B1-',              range:'393–470 Hz',   avg:'444 Hz'},
+        {mode:'B1+',              range:'473–593 Hz',   avg:'541 Hz'},
+        {mode:'Transition Hill',  range:'800–1300 Hz',  avg:''},
+        {mode:'Bridge Hill',      range:'1750–3000 Hz', avg:''},
+        {mode:'Upper Hill',       range:'3000–7000 Hz', avg:''},
+      ],
+      rangebars: [{lo:264,hi:290},{lo:380,hi:420},{lo:393,hi:470},{lo:473,hi:593}],
+    },
+    accelerance: {
+      label: 'Accelerance',
+      note:  'Body vibration measured via accelerometer (bridge or plate)',
+      regions: [
+        {label:'A0',              f_lo:264,  f_hi:290,  color:'#e74c3c'},
+        {label:'CBR',             f_lo:380,  f_hi:420,  color:'#e67e22'},
+        {label:'B1-',             f_lo:393,  f_hi:470,  color:'#f1c40f'},
+        {label:'B1+',             f_lo:473,  f_hi:593,  color:'#2ecc71'},
+        {label:'Transition Hill', f_lo:800,  f_hi:1300, color:'#3498db'},
+        {label:'Bridge Hill',     f_lo:1750, f_hi:3000, color:'#9b59b6'},
+        {label:'Upper Hill',      f_lo:3000, f_hi:7000, color:'#e91e63'},
+      ],
+      table: [
+        {mode:'A0',               range:'264–290 Hz',   avg:'276 Hz'},
+        {mode:'CBR',              range:'380–420 Hz',   avg:'400 Hz'},
+        {mode:'B1-',              range:'393–470 Hz',   avg:'444 Hz'},
+        {mode:'B1+',              range:'473–593 Hz',   avg:'541 Hz'},
+        {mode:'Transition Hill',  range:'800–1300 Hz',  avg:''},
+        {mode:'Bridge Hill',      range:'1750–3000 Hz', avg:''},
+        {mode:'Upper Hill',       range:'3000–7000 Hz', avg:''},
+      ],
+      rangebars: [{lo:264,hi:290},{lo:380,hi:420},{lo:393,hi:470},{lo:473,hi:593}],
+    },
+    vibrometer: {
+      label: 'Mobility (Vibrometer)',
+      note:  'Plate or bridge velocity measured by laser vibrometer',
+      regions: [
+        {label:'A0',              f_lo:264,  f_hi:290,  color:'#e74c3c'},
+        {label:'CBR',             f_lo:380,  f_hi:420,  color:'#e67e22'},
+        {label:'B1-',             f_lo:393,  f_hi:470,  color:'#f1c40f'},
+        {label:'B1+',             f_lo:473,  f_hi:593,  color:'#2ecc71'},
+        {label:'Transition Hill', f_lo:800,  f_hi:1300, color:'#3498db'},
+        {label:'Bridge Hill',     f_lo:1750, f_hi:3000, color:'#9b59b6'},
+        {label:'Upper Hill',      f_lo:3000, f_hi:7000, color:'#e91e63'},
+      ],
+      table: [
+        {mode:'A0',               range:'264–290 Hz',   avg:'276 Hz'},
+        {mode:'CBR',              range:'380–420 Hz',   avg:'400 Hz'},
+        {mode:'B1-',              range:'393–470 Hz',   avg:'444 Hz'},
+        {mode:'B1+',              range:'473–593 Hz',   avg:'541 Hz'},
+        {mode:'Transition Hill',  range:'800–1300 Hz',  avg:''},
+        {mode:'Bridge Hill',      range:'1750–3000 Hz', avg:''},
+        {mode:'Upper Hill',       range:'3000–7000 Hz', avg:''},
+      ],
+      rangebars: [{lo:264,hi:290},{lo:380,hi:420},{lo:393,hi:470},{lo:473,hi:593}],
+    },
+  };
+  let _interpretDictKey = 'radiation';
   const STRING_MODES = [
     {label:'G0', freq:196}, {label:'D0', freq:294},
     {label:'A0', freq:440}, {label:'E0', freq:659},
@@ -366,6 +420,7 @@
           bandShapes.push({type:'rect', xref:'x', yref:'paper', x0:b.f_lo, x1:b.f_hi, y0:0, y1:1, fillcolor:c, opacity:0.1, line:{width:0}});
         const yVal = _S.yLog ? Math.pow(10, b.avg_db / 20) : b.avg_db;
         bandTraces.push({x:[b.f_lo,b.f_hi], y:[yVal,yVal], type:'scatter', mode:'lines', line:{color:c,width:2.5}, showlegend:false, hovertemplate:`<b>${_esc(b.label)}</b><br>Avg: ${b.avg_db.toFixed(1)} dB<extra></extra>`});
+        bandTraces.push({x:[b.centroid], y:[yVal], type:'scatter', mode:'markers', marker:{color:c, size:7, line:{color:'#fff',width:1.5}}, showlegend:false, hovertemplate:`<b>${_esc(b.label)}</b><br>Centroid: ${b.centroid.toFixed(0)} Hz<extra></extra>`});
       });
       _renderBandTable(bd);
     } else {
@@ -604,7 +659,6 @@
     input.click();
   };
 
-  window.expLiveView = function() { window.open('liveview.html', '_blank'); };
 
   // ── Toolbar: misc buttons ─────────────────────────────────────────────
   window.expFun            = () => alert('You pressed: Fun');
@@ -1199,9 +1253,28 @@
   };
 
   // ── Interpret modal ───────────────────────────────────────────────────
+  function _renderInterpretDict() {
+    const dict = INTERPRET_DICTS[_interpretDictKey];
+    if (!dict) return;
+    const tbody = $('interpret-ranges-body');
+    if (tbody) tbody.innerHTML = dict.table.map(r =>
+      `<tr><td>${r.mode}</td><td>${r.range}</td><td>${r.avg}</td></tr>`
+    ).join('');
+    const noteEl = $('interpret-dict-note');
+    if (noteEl) noteEl.textContent = dict.note;
+  }
+
+  window.expInterpretSetDict = function(key) {
+    _interpretDictKey = key;
+    _renderInterpretDict();
+    window.expInterpret();   // re-draw plot with new regions
+  };
+
   window.expInterpret = function() {
     const modal = $('interpret-modal'); if (!modal) return;
     modal.classList.add('open');
+    _renderInterpretDict();
+    const dict = INTERPRET_DICTS[_interpretDictKey];
     const vis = _datasets.filter(d => d.visible);
     const traces = vis.map(d => {
       let mags = _smooth(d.freqs, d.mags, _S.smoothing);
@@ -1217,16 +1290,15 @@
     }));
     if (!traces.length) traces.push({x:[],y:[],type:'scatter',mode:'lines',showlegend:false});
 
-    const shapes = INTERPRET_REGIONS.map(r => ({
+    const shapes = dict.regions.map(r => ({
       type:'rect', xref:'x', yref:'paper', x0:r.f_lo, x1:r.f_hi, y0:0, y1:1,
       fillcolor:r.color, opacity:0.1, line:{width:0},
     }));
-    const annotations = INTERPRET_REGIONS.map(r => ({
+    const annotations = dict.regions.map(r => ({
       x: Math.sqrt(r.f_lo * r.f_hi), xref:'x', y:1.05, yref:'paper',
       text: r.label, showarrow:false, font:{color:r.color, size:11}, xanchor:'center',
     }));
-    // Typical range bars near top
-    [{lo:264,hi:290},{lo:380,hi:420},{lo:393,hi:470},{lo:473,hi:593}].forEach((r,i) => {
+    dict.rangebars.forEach((r, i) => {
       shapes.push({type:'line', xref:'x', yref:'paper', x0:r.lo, x1:r.hi, y0:0.97-i*0.015, y1:0.97-i*0.015, line:{color:'#888',width:3}});
     });
 
@@ -1443,7 +1515,6 @@
     render();
   });
 
-  fetch('./lists.json').then(r=>r.json()).then(d=>{ _lists = d.lists||[]; }).catch(()=>{});
 
   // ── Boot ──────────────────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', () => {

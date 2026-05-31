@@ -69,9 +69,42 @@ async function loadDataFolderHandle() {
 const _GH_BASE = 'https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/ObieApp%20Settings/';
 
 const _TEMPLATE_SEEDS = [
-  ['HV 24 Obie Rig_template.txt',    _GH_BASE + 'template/HV%2024%20Obie%20Rig_template.txt'],
-  ['ScratchPad_template.txt',         _GH_BASE + 'template/ScratchPad_template.txt'],
-  ['Scratchpad Obie 26_template.txt', _GH_BASE + 'template/Scratchpad%20Obie%2026_template.txt'],
+  ['HV 24 Obie Rig.json', {
+    name: 'HV 24 Obie Rig',
+    description: 'Mackie Onyx Producer 2.2 · Behringer ECM 8000 at 20 cm',
+    notes: 'Instrument info:\n\n\nTemplate: HV 24  Obie 26\n\nMeasured at: \n\nMic: Behringer ECM 8000 at 20 cm\nSoundcard:  Mackie Onyx Producer 2.2',
+    settings: {
+      threshold: 0.011, pre_trig_s: 0.001, post_trig_s: 0.30,
+      time_cutoff_s: 0.025, mic_time_cutoff_s: 0.25,
+      taps: 5, positions: 12, prefix: 'H',
+      ham_cal: 1.0, mic_cal: 1.0, swap_channels: false,
+      db_spread: 40, db_offset: 0, bit_depth: 24, sample_rate: 48000,
+    },
+  }],
+  ['ScratchPad.json', {
+    name: 'ScratchPad',
+    description: 'Quick scratch session (JC Studios, Octocapture)',
+    notes: 'Instrument info:\n\nMeasured in JC Studios anechoic\n\nHV 24\nJosephson omni mic at 20 cm\nOctocapture, 5 dB mic 20.5 dB hammer',
+    settings: {
+      threshold: 0.197, pre_trig_s: 0.001, post_trig_s: 0.30,
+      time_cutoff_s: 0.006, mic_time_cutoff_s: 0.25,
+      taps: 5, positions: 7, prefix: 'H',
+      ham_cal: 50.0, mic_cal: 10.0, swap_channels: false,
+      db_spread: 30, db_offset: 0, bit_depth: 32, sample_rate: 51200,
+    },
+  }],
+  ['Scratchpad Obie 26.json', {
+    name: 'Scratchpad Obie 26',
+    description: 'Obie 26 Thor hammer · Behringer ECM 8000 at 20 cm',
+    notes: 'Instrument info:\n\n\nMic:  Behringer ECM 8000 mic at 20 cm.\nMic distance: 20 cm.\nHammer: Obie 26 Thor',
+    settings: {
+      threshold: 0.011, pre_trig_s: 0.001, post_trig_s: 0.30,
+      time_cutoff_s: 0.019, mic_time_cutoff_s: 0.30,
+      taps: 10, positions: 1, prefix: 'H',
+      ham_cal: 1.0, mic_cal: 1.0, swap_channels: false,
+      db_spread: 35, db_offset: 0, bit_depth: 24, sample_rate: 48000,
+    },
+  }],
 ];
 
 const _BAND_SEEDS = [
@@ -102,13 +135,19 @@ const _TEST_SAMPLE_SEEDS = [
 ];
 
 async function _seedFiles(dirHandle, seeds) {
-  for (const [name, url] of seeds) {
+  for (const [name, urlOrObj] of seeds) {
     try {
-      const r = await fetch(url);
-      if (!r.ok) continue;
+      let content;
+      if (typeof urlOrObj === 'string') {
+        const r = await fetch(urlOrObj);
+        if (!r.ok) continue;
+        content = await r.arrayBuffer();
+      } else {
+        content = JSON.stringify(urlOrObj, null, 2);
+      }
       const fh = await dirHandle.getFileHandle(name, { create: true });
       const w  = await fh.createWritable();
-      await w.write(await r.arrayBuffer());
+      await w.write(content);
       await w.close();
     } catch (e) { console.warn('ObieAppSettings seed failed for', name, e); }
   }

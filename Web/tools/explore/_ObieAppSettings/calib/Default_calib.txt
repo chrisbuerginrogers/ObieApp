@@ -1,7 +1,0 @@
-Voltage=<1,000000E+0/>
-Microphone=<1,000000E+1/>
-Accelerometer=<1,000000E+1/>
-Vibrometer=<4,000000E+1/>
-Hammer=<5,000000E+1/>
-Piezo=<1,000000E+0/>
-Flip=<0,000000E+0/>
