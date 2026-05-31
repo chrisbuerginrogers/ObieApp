@@ -68,6 +68,16 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 .tb-btn.start   { background: #2e7d32; border-color: #1b5e20; color: #fff; font-weight: 700; }
 .tb-btn.start:hover { background: #1b5e20; }
 
+.act-btn {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 3px;
+  padding: 1px 7px; font-size: 11px; font-family: inherit;
+  color: var(--text); cursor: pointer; white-space: nowrap; line-height: 18px;
+}
+.act-btn:hover:not(:disabled) { background: #e4e8ee; }
+.act-btn:disabled { opacity: 0.4; cursor: default; }
+.act-btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.act-btn.accent:hover { background: var(--accent-2); border-color: var(--accent-2); }
+
 .tb-inp {
   height: 22px; line-height: 22px;
   border: 1px solid var(--border); border-radius: 3px;
@@ -86,21 +96,6 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
   color: var(--text); background: #fff; cursor: pointer;
 }
 
-/* ── Dropdowns ───────────────────────────────────────────────────────── */
-.dropdown-wrap { position: relative; display: inline-flex; }
-.dropdown-menu {
-  display: none; position: absolute; top: 100%; left: 0; z-index: 300;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 5px; box-shadow: 0 3px 10px rgba(0,0,0,0.15);
-  min-width: 150px; padding: 3px 0;
-}
-.dropdown-menu.open { display: block; }
-.menu-item {
-  display: block; width: 100%; background: none; border: none;
-  padding: 6px 13px; font-size: 12px; font-family: inherit;
-  color: var(--text); text-align: left; cursor: pointer;
-}
-.menu-item:hover { background: var(--bg-deep); }
 
 /* ── Folder name display ─────────────────────────────────────────────── */
 .folder-name-disp {
@@ -289,10 +284,10 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
   letter-spacing: 0.5px; color: var(--muted); margin: 14px 0 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
 .pref-section:first-child { margin-top: 0; }
 .pref-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-.pref-row label { font-size: 11px; color: var(--muted); min-width: 170px; }
+.pref-row label { font-size: 11px; color: var(--muted); min-width: 150px; }
 .pref-row input, .pref-row select { flex: 1; max-width: 160px; }
 .pref-unit { font-size: 10px; color: var(--muted); }
-.pref-hint { font-size: 10px; color: var(--muted); font-style: italic; margin: -4px 0 8px 180px; }
+.pref-hint { font-size: 10px; color: var(--muted); font-style: italic; margin: -4px 0 8px 160px; }
 
 .save-row { display: flex; gap: 8px; margin-top: 16px; align-items: center; }
 .save-msg  { font-size: 11px; color: var(--green); font-style: italic; }

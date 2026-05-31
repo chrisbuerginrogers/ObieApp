@@ -99,21 +99,6 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
   color: var(--text); background: #fff; cursor: pointer;
 }
 
-/* ── Dropdown menus ──────────────────────────────────────────────────── */
-.dropdown-wrap { position: relative; display: inline-flex; }
-.dropdown-menu {
-  display: none; position: absolute; top: 100%; left: 0; z-index: 300;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 5px; box-shadow: 0 3px 10px rgba(0,0,0,0.15);
-  min-width: 150px; padding: 3px 0;
-}
-.dropdown-menu.open { display: block; }
-.menu-item {
-  display: block; width: 100%; background: none; border: none;
-  padding: 6px 13px; font-size: 12px; font-family: inherit;
-  color: var(--text); text-align: left; cursor: pointer;
-}
-.menu-item:hover { background: var(--bg-deep); }
 
 /* ── Info row (below toolbar, above main body) ───────────────────────── */
 .ex-info-row {
@@ -130,6 +115,8 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 }
 .act-btn:hover:not(:disabled) { background: #e4e8ee; }
 .act-btn:disabled { opacity: 0.4; cursor: default; }
+.act-btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.act-btn.accent:hover { background: var(--accent-2); border-color: var(--accent-2); }
 .hover-readout {
   flex: 1; text-align: center;
   font-size: 14px; font-weight: 700; color: var(--red);

@@ -131,6 +131,42 @@ Every new web tool under `Web/tools/<tool-name>/` must follow the exact same str
 - **PyScript version**: always `2026.3.1` — do not upgrade without asking the human.
 - **Plotly version**: always `plotly-2.32.0.min.js` — do not upgrade without asking.
 
+### Modal button conventions
+
+Inside modals, use **`.act-btn`** (not `.tb-btn`, not `.btn`). The primary/save action gets class `act-btn accent`:
+
+```html
+<!-- Primary action (save, apply, confirm) -->
+<button class="act-btn accent" onclick="toolSave()">Save</button>
+
+<!-- Secondary actions (cancel, reset, close) -->
+<button class="act-btn" onclick="toolClose()">Cancel</button>
+```
+
+Do **not** use inline `style=` overrides on buttons to achieve the accent color — always use `act-btn accent`.
+
+### Settings button convention
+
+The "Settings" toolbar button always opens the preferences modal **directly** — no dropdown menu. Call `toolPreferences()` directly from `onclick`, not a wrapper that toggles a menu.
+
+### Status message timing
+
+Save/success confirmation messages shown via `.save-msg` spans must time out after **2500 ms** consistently across all tools and all modals within a tool.
+
+### Preferences form layout
+
+`.pref-row label` must have `min-width: 150px` in every tool's CSS. `.pref-hint` indent must be `160px` (matching the label width + gap). Do not increase these to accommodate longer labels — shorten the label text instead.
+
+### Help button
+
+Every tool must include a **Help** button in the toolbar (right side, before the primary action). It opens `../../Docs/index.html` in a new tab:
+```html
+<button class="tb-btn" onclick="toolHelp()">Help</button>
+```
+```js
+window.toolHelp = function() { window.open('../../Docs/index.html', '_blank'); };
+```
+
 ---
 
 ## Rule 3 — Chrome Check (Automatic)

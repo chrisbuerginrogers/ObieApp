@@ -100,6 +100,11 @@ main.landing {
 }
 .tag.app    { border-color: #b35c0055; color: var(--accent); }
 .tag.future { border-color: #c9b48f; color: var(--muted); font-style: italic; }
+.tag.experimental-tag { border-color: #7b1fa255; color: #7b1fa2; font-style: italic; }
+
+.tool-card.experimental { opacity: 0.75; }
+.tool-card.experimental:hover { background: #f5eeff; border-color: #9c27b0; opacity: 1; }
+.tool-card.experimental .name { color: #7b1fa2; }
 
 /* ── Data-folder bar ─────────────────────────────────────────────────── */
 .folder-bar {

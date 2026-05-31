@@ -56,6 +56,7 @@
 
       <button class="tb-btn" onclick="acqTemplate()">Template…</button>
       <button class="tb-btn" onclick="acqLiveView()">LiveView</button>
+      <button class="tb-btn" onclick="acqHelp()">Help</button>
       <button id="acq-start-btn" class="tb-btn start" onclick="acqToggleAcquire()">▶ Start</button>
     </div>
   </div>
@@ -280,8 +281,8 @@
         <input id="inp-prefix" type="text" value="H" maxlength="3" style="max-width:60px">
       </div>
       <div class="save-row">
-        <button class="btn primary" onclick="acqSavePrefs()">Apply &amp; Save</button>
-        <button class="btn" onclick="acqResetPrefs()">Reset defaults</button>
+        <button class="act-btn accent" onclick="acqSavePrefs()">Apply &amp; Save</button>
+        <button class="act-btn" onclick="acqResetPrefs()">Reset defaults</button>
         <span id="prefs-save-msg" class="save-msg"></span>
       </div>
     </div>
@@ -307,8 +308,8 @@
       </div>
       <p class="pref-hint">Creates the folder if it doesn't exist, then queues the next test number.</p>
       <div class="save-row">
-        <button class="btn primary" onclick="acqConfirmInstrument()">Set</button>
-        <button class="btn" onclick="acqCloseInstrument()">Cancel</button>
+        <button class="act-btn accent" onclick="acqConfirmInstrument()">Set</button>
+        <button class="act-btn" onclick="acqCloseInstrument()">Cancel</button>
         <span id="instrument-modal-msg" class="save-msg"></span>
       </div>
     </div>
@@ -331,8 +332,8 @@
       </p>
       <textarea id="notes-textarea" rows="12" placeholder="Enter notes about this measurement session…"></textarea>
       <div class="save-row" style="margin-top:10px">
-        <button class="btn primary" onclick="acqSaveNotes()">Save Notes</button>
-        <button class="btn" onclick="acqCloseNotes()">Close</button>
+        <button class="act-btn accent" onclick="acqSaveNotes()">Save Notes</button>
+        <button class="act-btn" onclick="acqCloseNotes()">Close</button>
         <span id="notes-save-msg" class="save-msg"></span>
       </div>
     </div>
@@ -369,10 +370,10 @@
       </div>
 
       <div class="save-row">
-        <button class="btn" onclick="acqBrowseTemplate()">Browse…</button>
-        <button class="btn primary" onclick="acqApplyTemplate()">Apply</button>
-        <button class="btn" onclick="acqSaveAsTemplate()">Save as Template</button>
-        <button class="btn" onclick="acqCloseTemplate()">Cancel</button>
+        <button class="act-btn" onclick="acqBrowseTemplate()">Browse…</button>
+        <button class="act-btn accent" onclick="acqApplyTemplate()">Apply</button>
+        <button class="act-btn" onclick="acqSaveAsTemplate()">Save as Template</button>
+        <button class="act-btn" onclick="acqCloseTemplate()">Cancel</button>
       </div>
     </div>
   </div>

@@ -505,23 +505,12 @@ function _updateEditBtns(s) {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
-// Settings dropdown
-// ════════════════════════════════════════════════════════════════════════════
-
-window.acqSettings = function(e) {
-  e.stopPropagation();
-  const m = document.getElementById('settings-menu');
-  if (!m) return;
-  m.classList.toggle('open');
-  document.body.addEventListener('click', () => m.classList.remove('open'), { once: true });
-};
-
 window.acqPreferences = function() {
-  document.getElementById('settings-menu')?.classList.remove('open');
   document.getElementById('prefs-modal')?.classList.add('open');
   _populatePrefsForm();
 };
+
+window.acqHelp = function() { window.open('../../Docs/index.html', '_blank'); };
 
 window.acqClosePrefs = function() {
   document.getElementById('prefs-modal')?.classList.remove('open');
@@ -702,7 +691,7 @@ window.acqSaveNotes = function() {
   const val = document.getElementById('notes-textarea')?.value || '';
   localStorage.setItem(_notesKey(), val);
   const st = document.getElementById('notes-save-msg');
-  if (st) { st.textContent = '✓ Saved'; setTimeout(() => st.textContent = '', 2000); }
+  if (st) { st.textContent = '✓ Saved'; setTimeout(() => st.textContent = '', 2500); }
 };
 
 

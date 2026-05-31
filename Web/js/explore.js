@@ -498,46 +498,6 @@
     _datasets = _undoStack.pop(); _syncUndoBtn(); _renderList(); render();
   };
 
-  // ── Toolbar: New Test ─────────────────────────────────────────────────
-  window.expNewTest = function(e) {
-    e.stopPropagation();
-    const m = $('new-test-menu'); if (!m) return;
-    m.classList.toggle('open');
-    document.body.addEventListener('click', () => m.classList.remove('open'), {once:true});
-  };
-  window.expPickTemplate = function(idx) {
-    const t = _templates[idx]; if (!t) return;
-    alert(`You picked template: ${t.name}\n\n${t.description}`);
-    if (t.settings) {
-      const s = t.settings;
-      if (s.x_min  != null) _S.xMin     = s.x_min;
-      if (s.x_max  != null) _S.xMax     = s.x_max;
-      if (s.x_log  != null) _S.xLog     = s.x_log;
-      if (s.y_log  != null) _S.yLog     = s.y_log;
-      if (s.y_db_range != null) _S.yDbRange = s.y_db_range;
-      if (s.smoothing   != null) _S.smoothing   = s.smoothing;
-      if (s.normalize   != null) _S.normalize   = s.normalize;
-      if (s.normMode    != null) _S.normMode    = s.normMode;
-      if (s.normFLo     != null) _S.normFLo     = s.normFLo;
-      if (s.normFHi     != null) _S.normFHi     = s.normFHi;
-      if (s.bandShading != null) _S.bandShading = s.bandShading;
-      _syncControls();
-      render();
-    }
-    $('new-test-menu').classList.remove('open');
-  };
-
-  window.expScratch = function() {
-    alert('You pressed: Scratch\n\nThis starts a blank scratch session.');
-  };
-
-  // ── Toolbar: Settings ─────────────────────────────────────────────────
-  window.expSettings = function(e) {
-    e.stopPropagation();
-    const m = $('settings-menu'); if (!m) return;
-    m.classList.toggle('open');
-    document.body.addEventListener('click', () => m.classList.remove('open'), {once:true});
-  };
   // ── Preferences modal ─────────────────────────────────────────────────
   const _PREF_DEFAULTS = {
     defaultWavUrl: '../../sample-data/1-Tchaikovsky-short.wav',
@@ -1482,15 +1442,6 @@
     _syncControls();
     render();
   });
-
-  // ── Load templates + lists ────────────────────────────────────────────
-  fetch('./templates.json').then(r=>r.json()).then(d=>{
-    _templates = d.templates||[];
-    const menu = $('new-test-menu'); if (!menu) return;
-    menu.innerHTML = _templates.map((t,i)=>
-      `<button class="menu-item" onclick="expPickTemplate(${i})">${_esc(t.name)}</button>`
-    ).join('');
-  }).catch(()=>{});
 
   fetch('./lists.json').then(r=>r.json()).then(d=>{ _lists = d.lists||[]; }).catch(()=>{});
 
