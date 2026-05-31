@@ -88,8 +88,6 @@ const _BAND_SEEDS = [
 ];
 
 const _COLOR_SEEDS = [
-  ['24_colors.txt',       _GH_BASE + 'colors/24_colors.txt'],
-  ['JC 5 colors.txt',     _GH_BASE + 'colors/JC%205%20colors.txt'],
   ['JC 5_colors.json',    _GH_BASE + 'colors/JC%205_colors.json'],
   ['Kelly 24_colors.json', _GH_BASE + 'colors/Kelly%2024_colors.json'],
 ];

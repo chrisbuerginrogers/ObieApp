@@ -336,6 +336,7 @@
     _datasets.filter(d => d.visible).forEach(d => {
       let mags = _smooth(d.freqs, d.mags, _S.smoothing);
       mags = _applyNorm(d.freqs, mags);
+      if (_S.yLog) mags = mags.map(m => isFinite(m) ? Math.pow(10, m / 20) : 0);
       plotTraces.push({
         x: d.freqs, y: mags, type:'scatter', mode:'lines',
         name: d.name, line:{color:d.color, width:_S.lineWidth}, showlegend:false,
@@ -344,22 +345,27 @@
     if (!plotTraces.length)
       plotTraces.push({x:[], y:[], type:'scatter', mode:'lines', showlegend:false});
 
-    // Bands
+    // Bands — always computed in dB space; line position converted if in linear mode
     const activeBands = _S.bandPreset === 'custom' && _customBands
       ? _customBands
       : (_S.bandPreset && _dynamicBandPresets[_S.bandPreset])
         ? _dynamicBandPresets[_S.bandPreset].bands
         : null;
 
-    if (activeBands && plotTraces[0].x.length > 0) {
-      const ref = plotTraces[0];
-      const bd  = _computeBands(ref.x, ref.y, activeBands);
+    const visDs = _datasets.filter(d => d.visible);
+    if (activeBands && visDs.length > 0) {
+      // Use first visible dataset's dB mags (before any linear conversion)
+      const refDs = visDs[0];
+      let refMags = _smooth(refDs.freqs, refDs.mags, _S.smoothing);
+      refMags = _applyNorm(refDs.freqs, refMags);
+      const bd = _computeBands(refDs.freqs, refMags, activeBands);
       window._exploreLastBandData = bd;
       bd.forEach((b, i) => {
         const c = BAND_COLORS[i % BAND_COLORS.length];
         if (_S.bandShading)
           bandShapes.push({type:'rect', xref:'x', yref:'paper', x0:b.f_lo, x1:b.f_hi, y0:0, y1:1, fillcolor:c, opacity:0.1, line:{width:0}});
-        bandTraces.push({x:[b.f_lo,b.f_hi], y:[b.avg_db,b.avg_db], type:'scatter', mode:'lines', line:{color:c,width:2.5}, showlegend:false, hovertemplate:`<b>${_esc(b.label)}</b><br>Avg: ${b.avg_db.toFixed(1)} dB<extra></extra>`});
+        const yVal = _S.yLog ? Math.pow(10, b.avg_db / 20) : b.avg_db;
+        bandTraces.push({x:[b.f_lo,b.f_hi], y:[yVal,yVal], type:'scatter', mode:'lines', line:{color:c,width:2.5}, showlegend:false, hovertemplate:`<b>${_esc(b.label)}</b><br>Avg: ${b.avg_db.toFixed(1)} dB<extra></extra>`});
       });
       _renderBandTable(bd);
     } else {
@@ -367,15 +373,18 @@
       _renderBandTable(null);
     }
 
-    // Y range — avoid Math.max(...largeArray) which overflows the call stack
+    // Y range — autoscale in linear mode; dB window in dB mode
     let yRange;
-    if (_S.yMin != null && _S.yMax != null) {
-      yRange = [_S.yMin, _S.yMax];
-    } else {
-      let maxY = -Infinity;
-      for (const t of plotTraces) { for (const v of t.y) { if (isFinite(v) && v > maxY) maxY = v; } }
-      if (isFinite(maxY)) yRange = [maxY - _S.yDbRange, maxY + 2];
+    if (!_S.yLog) {
+      if (_S.yMin != null && _S.yMax != null) {
+        yRange = [_S.yMin, _S.yMax];
+      } else {
+        let maxY = -Infinity;
+        for (const t of plotTraces) { for (const v of t.y) { if (isFinite(v) && v > maxY) maxY = v; } }
+        if (isFinite(maxY)) yRange = [maxY - _S.yDbRange, maxY + 2];
+      }
     }
+    // _S.yLog (linear magnitude mode) → yRange undefined → Plotly autoscales
 
     const border = cssVar('--border'), text = cssVar('--text');
     const xRange = (_S.xMin != null && _S.xMax != null)
@@ -388,7 +397,7 @@
       margin:{l:65, r:16, t:12, b:50},
       showlegend:false, autosize:true,
       xaxis:{title:'Frequency (Hz)', type:_S.xLog?'log':'linear', range:xRange, gridcolor:border, zerolinecolor:border, linecolor:border},
-      yaxis:{title:'Magnitude (dB)', type:_S.yLog?'log':'linear', range:yRange, gridcolor:border, zerolinecolor:border, linecolor:border},
+      yaxis:{title:_S.yLog?'Magnitude (linear)':'Magnitude (dB)', type:'linear', range:yRange, gridcolor:border, zerolinecolor:border, linecolor:border},
       shapes: bandShapes,
     };
 
@@ -640,7 +649,7 @@
   // ── Toolbar: misc buttons ─────────────────────────────────────────────
   window.expFun            = () => alert('You pressed: Fun');
   window.expShortcuts      = () => alert('You pressed: Shortcuts');
-  window.expHelp           = () => alert('You pressed: Help');
+  window.expHelp           = () => window.open('../../Docs/index.html', '_blank');
   window.expGettingStarted = () => alert('You pressed: Getting Started');
 
   // ── Data Folder helpers ───────────────────────────────────────────────
@@ -919,6 +928,7 @@
     const notFound = [];
     for (const filePath of (list.files || [])) {
       const fname = filePath.split('/').pop().split('\\').pop();
+      if (_datasets.some(d => d.name === fname)) continue;
       const f = _dirFiles.find(x => x.path === filePath) || _dirFiles.find(x => x.name === fname);
       if (f) {
         try {
@@ -1010,12 +1020,30 @@
     _customPalettesList = [];
     try {
       for await (const [name, h] of dir.entries()) {
-        if (h.kind !== 'file' || !name.toLowerCase().endsWith('.json')) continue;
+        if (h.kind !== 'file') continue;
+        const lname = name.toLowerCase();
         try {
-          const data = JSON.parse(await (await h.getFile()).text());
-          const colors = (data.colors || []).map(_normalizeColor).filter(Boolean);
-          if (data.name && colors.length)
-            _customPalettesList.push({ name: data.name, colors, _filename: name });
+          if (lname.endsWith('.json')) {
+            const data = JSON.parse(await (await h.getFile()).text());
+            const colors = (data.colors || []).map(_normalizeColor).filter(Boolean);
+            if (data.name && colors.length)
+              _customPalettesList.push({ name: data.name, colors, _filename: name });
+          } else if (lname.endsWith('.txt')) {
+            // Legacy LabVIEW binary color format: 4 bytes per color, 0x00RRGGBB big-endian
+            const ab = await (await h.getFile()).arrayBuffer();
+            if (ab.byteLength < 4 || ab.byteLength % 4 !== 0) continue;
+            const view = new DataView(ab);
+            const colors = [];
+            for (let i = 0; i < ab.byteLength; i += 4)
+              colors.push('#' + (view.getUint32(i, false) & 0xFFFFFF).toString(16).padStart(6, '0'));
+            if (colors.length < 2) continue;
+            const paletteName = name
+              .replace(/_colors\.txt$/i, '')
+              .replace(/\s+colors\.txt$/i, '')
+              .replace(/\.txt$/i, '')
+              .replace(/\s+/g, ' ').trim();
+            _customPalettesList.push({ name: paletteName, colors, _filename: name });
+          }
         } catch(_) {}
       }
       _customPalettesList.sort((a, b) => a.name.localeCompare(b.name));
@@ -1272,7 +1300,7 @@
   }
   function _syncAxisBtns() {
     const yl = $('y-log-btn');
-    if (yl) { yl.textContent = _S.yLog ? 'Y=log' : 'Y=lin'; yl.classList.toggle('active', _S.yLog); }
+    if (yl) { yl.textContent = _S.yLog ? 'Y=lin' : 'Y=dB'; yl.classList.toggle('active', _S.yLog); }
     const xl = $('x-log-btn');
     if (xl) { xl.textContent = _S.xLog ? 'X=log' : 'X=lin'; xl.classList.toggle('active', _S.xLog); }
   }
