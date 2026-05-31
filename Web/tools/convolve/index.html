@@ -18,6 +18,7 @@
   <!-- Shared JS — order matters -->
   <script src="../../js/plotly-theme.js"></script>
   <script src="../../js/audio.js"></script>
+  <script src="../../version.js"></script>
   <script src="../../js/obie-settings.js"></script>
   <script src="../../js/convolve.js" defer></script>
 </head>
@@ -90,12 +91,6 @@
       <!-- Settings -->
       <div class="ci-sect">⚙️ Settings</div>
       <div class="ci-content">
-        <div class="ci-gain-hdr">
-          <label>Output gain</label>
-          <span class="ci-gain-val" id="gain-disp">+0 dB</span>
-        </div>
-        <input type="range" id="gain-sl" class="ci-gain-slider"
-               min="-24" max="24" value="0" step="1">
         <div class="ci-row" style="margin-top:8px">
           <label>Output device</label>
           <select id="out-device-sel">

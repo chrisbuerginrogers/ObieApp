@@ -435,6 +435,14 @@ def repeat_position():
     _emit_state()
 
 
+def pause_after_position():
+    """Keep current position data intact but go idle — user can resume later."""
+    global _state
+    _state = "idle"
+    _emit_banner()
+    _emit_state()
+
+
 def advance_position():
     """Advance to the next position (or finish the run)."""
     global _cur_pos, _state

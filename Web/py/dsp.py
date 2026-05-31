@@ -5,7 +5,7 @@ Public functions
 ----------------
   load_frf(filename_js, data_js)   — parse FRF via files.load()  → onFRFResult
   load_wav(filename_js, data_js)   — decode WAV bytes             → onWavResult
-  convolve(gain_db_js)             — IR convolution               → onConvolveResult
+  convolve()                        — IR convolution               → onConvolveResult
 """
 
 import io
@@ -133,20 +133,19 @@ def load_wav(filename_js, data_js):
 
 # ── Convolution ────────────────────────────────────────────────────────────
 
-def convolve(gain_db_js):
+def convolve():
     from convolution import convolve_it
     try:
         if _wav is None or _frf_freqs is None:
             js.window.onConvolveError('Load an FRF and a WAV file first')
             return
-        gain = 10.0 ** (float(gain_db_js) / 20.0)
 
         js.window.setProgMsg('Building impulse response…')
-        H_l = (np.power(10.0, _frf_dbs / 20.0) * gain).astype(np.complex128)
+        H_l = np.power(10.0, _frf_dbs / 20.0).astype(np.complex128)
 
         js.window.setProgMsg('Convolving…')
         if _frf_freqs_r is not None and _frf_dbs_r is not None:
-            H_r = (np.power(10.0, _frf_dbs_r / 20.0) * gain).astype(np.complex128)
+            H_r = np.power(10.0, _frf_dbs_r / 20.0).astype(np.complex128)
             y = convolve_it(_wav, (_frf_freqs, _frf_freqs_r), (H_l, H_r), _wav_sr)
             # y is (N, 2); normalise jointly then interleave for JS
             peak = np.max(np.abs(y))

@@ -15,6 +15,7 @@
   <link  rel="stylesheet" href="https://pyscript.net/releases/2026.3.1/core.css">
   <script type="module"   src="https://pyscript.net/releases/2026.3.1/core.js"></script>
 
+  <script src="../../version.js"></script>
   <script src="../../js/obie-settings.js"></script>
   <script src="../../js/browser-check.js"></script>
   <script src="../../js/acquire.js" defer></script>
@@ -519,6 +520,7 @@
     <p class="pos-complete-hint">Space bar → Next Position</p>
     <div class="pos-complete-btns">
       <button class="act-btn pos-complete-repeat" onclick="acqRepeatPosition()">↺ Repeat Position</button>
+      <button class="act-btn pos-complete-pause" onclick="acqPausePosition()">⏸ Pause</button>
       <button id="pos-complete-next-btn" class="act-btn accent pos-complete-next" onclick="acqNextPosition()">Next Position →</button>
     </div>
   </div>

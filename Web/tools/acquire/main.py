@@ -20,6 +20,7 @@ from acquire_logic import (
     stop_audio,
     arm,
     repeat_position,
+    pause_after_position,
     advance_position,
 )
 
@@ -164,6 +165,7 @@ js.window.pyExportTRF        = create_proxy(export_trf)
 js.window.pyStopAudio        = create_proxy(stop_audio)
 js.window.pyArm              = create_proxy(arm)
 js.window.pyRepeatPosition   = create_proxy(repeat_position)
+js.window.pyPausePosition    = create_proxy(pause_after_position)
 js.window.pyAdvancePosition  = create_proxy(advance_position)
 js.window.pyParseLabviewTxt  = create_proxy(lambda t: json.dumps(_lv_parse(str(t))))
 

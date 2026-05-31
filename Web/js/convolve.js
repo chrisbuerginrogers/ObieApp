@@ -230,7 +230,6 @@ function runConvolution() {
     const el = document.getElementById(id); if (el) el.disabled = true;
   });
   setProgMsg('Computing…');
-  const gainDb = +document.getElementById('gain-sl').value;
   setTimeout(() => {
     if (!window.pyConvolve) {
       clearProgMsg(); setProgMsg('Python not ready — please wait…');
@@ -239,7 +238,7 @@ function runConvolution() {
       return;
     }
     try {
-      window.pyConvolve(gainDb);
+      window.pyConvolve();
     } catch (e) {
       clearProgMsg(); setProgMsg('Error: ' + e.message.slice(0, 60));
       setTimeout(clearProgMsg, 5000);
@@ -362,22 +361,8 @@ function _initResizer() {
   });
 }
 
-// ── Gain slider live display ──────────────────────────────────────────
-function _initGainSlider() {
-  const sl = document.getElementById('gain-sl');
-  const disp = document.getElementById('gain-disp');
-  if (!sl || !disp) return;
-  const update = () => {
-    const v = parseInt(sl.value, 10);
-    disp.textContent = (v >= 0 ? '+' : '') + v + ' dB';
-  };
-  sl.addEventListener('input', update);
-  update();
-}
-
 // ── Boot ──────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   enumerateOutputDevices();
   _initResizer();
-  _initGainSlider();
 });

@@ -64,6 +64,14 @@ async function loadDataFolderHandle() {
   catch (_) { return null; }
 }
 
+// ── Version tooltip (OBIE_VERSION defined in version.js, loaded before this) ──
+
+document.addEventListener('DOMContentLoaded', () => {
+  const brand = document.querySelector('a.brand');
+  if (brand && typeof OBIE_VERSION !== 'undefined')
+    brand.title = `ObieWebApp v${OBIE_VERSION}`;
+});
+
 // ── Seed content ──────────────────────────────────────────────────────────────
 
 const _GH_BASE = 'https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/DefaultSettings/ObieAppSettings/';

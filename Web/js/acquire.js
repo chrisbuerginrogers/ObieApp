@@ -286,6 +286,18 @@ window.acqRepeatPosition = function() {
   window.pyRepeatPosition?.();
 };
 
+window.acqPausePosition = async function() {
+  document.getElementById('pos-complete-modal')?.classList.remove('open');
+  // Stop audio hardware but keep the current folder/run/position intact
+  // so the user can press Start again to continue from where they left off.
+  if (workletNode) { workletNode.disconnect(); workletNode = null; }
+  if (sourceNode)  { sourceNode.disconnect();  sourceNode  = null; }
+  if (audioCtx)    { await audioCtx.close();   audioCtx    = null; }
+  if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+  window.pyPausePosition?.();
+  _updateStopBtn();
+};
+
 window.acqNextPosition = function() {
   document.getElementById('pos-complete-modal')?.classList.remove('open');
   window.pyAdvancePosition?.();
@@ -922,13 +934,20 @@ async function _enumeratePrefsDevices() {
     if (!sel) return;
     const saved = _loadPrefs().deviceId;
     sel.innerHTML = '<option value="">Default device</option>';
+    let savedFound = false;
     devices.filter(d => d.kind === 'audioinput').forEach(d => {
       const o = document.createElement('option');
       o.value = d.deviceId;
       o.textContent = d.label || `Mic (${d.deviceId.slice(0, 8)}…)`;
-      if (d.deviceId === saved) o.selected = true;
+      if (d.deviceId === saved) { o.selected = true; savedFound = true; }
       sel.appendChild(o);
     });
+    // Saved device is no longer available — clear the stale label so the blue
+    // indicator doesn't show a hardware ID instead of "Default device".
+    if (saved && !savedFound) {
+      _patchPrefs({ deviceId: '', deviceLabel: '' });
+      _updateSoundcardDisplay();
+    }
   } catch (_) {}
 }
 
@@ -2066,8 +2085,26 @@ window.acqLiveView = function() {
 // Audio — start / stop
 // ════════════════════════════════════════════════════════════════════════════
 
+function _isBuiltInMic(label, deviceId) {
+  if (!deviceId) return true;   // empty = system default = built-in
+  const l = (label || '').toLowerCase();
+  return /built.?in|internal|macbook|imac|laptop|headset mic/.test(l);
+}
+
 window.acqToggleAcquire = async function() {
   if (appState === 'idle' || appState === 'complete') {
+    const p      = _loadPrefs();
+    const label  = p.deviceLabel || '';
+    const devId  = p.deviceId    || '';
+    if (_isBuiltInMic(label, devId)) {
+      const name = label || 'Default device';
+      const ok   = confirm(
+        `"${name}" looks like a built-in microphone.\n\n` +
+        `Impact hammer measurements need a directional external mic.\n\n` +
+        `Start anyway?`
+      );
+      if (!ok) return;
+    }
     await _startAudio();
   } else {
     await _stopAudio();
@@ -2102,6 +2139,19 @@ async function _startAudio() {
     audioCtx = new AudioContext();
     const sr = audioCtx.sampleRate;
     _patchPrefs({ sample_rate: sr });   // record actual hardware rate
+
+    // Read the device that was actually opened — may differ from the requested
+    // deviceId if the browser fell back to the default input.
+    try {
+      const track    = mediaStream.getAudioTracks()[0];
+      const actualId = track?.getSettings().deviceId || '';
+      const devices  = await navigator.mediaDevices.enumerateDevices();
+      const dev      = devices.find(d => d.kind === 'audioinput' && d.deviceId === actualId);
+      const actualLabel = dev?.label || track?.label || '';
+      _patchPrefs({ deviceId: actualId, deviceLabel: actualLabel });
+      _updateSoundcardDisplay();
+    } catch (_) {}
+
     _pushSettingsFromPrefs({ ...prefs });
     const blob    = new Blob([WORKLET_SRC], { type: 'application/javascript' });
     const blobURL = URL.createObjectURL(blob);

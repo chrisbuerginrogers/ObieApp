@@ -7,6 +7,7 @@
   <title>ObieWebApp — Violin Acoustics Toolkit</title>
   <link rel="stylesheet" href="./css/theme.css">
   <link rel="stylesheet" href="./css/index.css">
+  <script src="./version.js"></script>
   <script src="./js/obie-settings.js"></script>
   <script src="./js/browser-check.js"></script>
 </head>
@@ -135,7 +136,7 @@
   </div>
 
   <footer class="obie-footer">
-    Oberlin Acoustics Workshop &nbsp;·&nbsp; ObieWebApp &nbsp;·&nbsp;
+    Oberlin Acoustics Workshop &nbsp;·&nbsp; ObieWebApp <span id="footer-version"></span> &nbsp;·&nbsp;
     Built by <a href="https://claude.ai/code" target="_blank" rel="noopener">Claude</a>
     with <a href="https://pyscript.net/" target="_blank" rel="noopener">PyScript</a>
     &nbsp;+&nbsp; <a href="https://plotly.com/javascript/" target="_blank" rel="noopener">Plotly</a>
@@ -143,6 +144,10 @@
 
 </main>
 
+<script>
+  const _vEl = document.getElementById('footer-version');
+  if (_vEl && typeof OBIE_VERSION !== 'undefined') _vEl.textContent = 'v' + OBIE_VERSION;
+</script>
 <script>
 (function () {
   const bar     = document.getElementById('folder-bar');

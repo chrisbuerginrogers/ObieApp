@@ -19,7 +19,7 @@ html, body { overflow: hidden; height: 100%; }
 .ci-page { display: flex; flex-direction: column; height: 100vh; background: var(--bg); }
 
 /* ── Compact header (same as Acquire / Explore) ──────────────────────── */
-header.obie-header { padding: 4px 12px; min-height: 0; }
+header.obie-header { padding: 4px 12px; min-height: 0; background: #e8d8be; border-bottom-color: #c9b48f; }
 header.obie-header h1 { font-size: 1rem; }
 header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 
@@ -128,14 +128,6 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
   background: #fff; color: var(--text); font-family: inherit;
 }
 
-/* ── Gain slider ─────────────────────────────────────────────────────── */
-.ci-gain-hdr {
-  display: flex; justify-content: space-between; align-items: baseline;
-  font-size: 11px; margin-bottom: 4px;
-}
-.ci-gain-hdr label { color: var(--muted); }
-.ci-gain-val { color: var(--accent); font-weight: 600; }
-.ci-gain-slider { width: 100%; accent-color: var(--accent); }
 
 /* ── Convolve + progress ─────────────────────────────────────────────── */
 .ci-action {
