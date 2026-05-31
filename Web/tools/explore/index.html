@@ -4,7 +4,7 @@
   <script src="../../coi-serviceworker.js"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Explore — ObieWebApp 2</title>
+  <title>Explore — ObieWebApp</title>
 
   <link rel="stylesheet" href="../../css/theme.css">
   <link rel="stylesheet" href="../../css/explore.css">
@@ -35,7 +35,7 @@
   <header class="obie-header">
     <a class="brand" href="../../index.html">
       <div class="logo-icon">🎻</div>
-      <h1>ObieWebApp 2</h1>
+      <h1>ObieWebApp</h1>
     </a>
     <span class="crumb">· Explore</span>
     <div class="gap"></div>
@@ -183,7 +183,6 @@
         <label class="sf-chk"><input type="checkbox" id="ft-avr"> AvR</label>
         <label class="sf-chk"><input type="checkbox" id="ft-avc"> AvC</label>
         <label class="sf-chk"><input type="checkbox" id="ft-trf"> TRF / TRV</label>
-        <label class="sf-chk"><input type="checkbox" id="ft-wav"> WAV</label>
 
         <div class="sf-section" style="margin-top:12px">Keywords <span style="font-weight:400;text-transform:none;letter-spacing:0">(OR)</span></div>
         <input id="search-kw1" class="tb-inp" type="text" placeholder="keyword 1" style="width:100%;box-sizing:border-box;margin-bottom:4px">
@@ -261,28 +260,32 @@
 
 <!-- ── Lists modal ──────────────────────────────────────────────────── -->
 <div id="lists-modal" class="modal-overlay">
-  <div class="modal-box" style="width:min(90vw,480px);max-height:80vh">
+  <div class="modal-box" style="width:min(90vw,480px);height:min(80vh,520px)">
     <div class="modal-header">
-      <span class="modal-title">Predefined Lists</span>
+      <span class="modal-title">Lists</span>
       <button class="modal-close" onclick="expCloseLists()">✕</button>
     </div>
-    <div class="modal-body">
-      <p style="font-size:11px;color:var(--muted);margin-bottom:10px">
-        These lists define FRF file collections. Use <b>Browse</b> or <b>Search</b> to load the files.
-      </p>
+    <div class="modal-body lists-modal-body">
       <div class="lists-content"><!-- filled by explore.js --></div>
+    </div>
+    <div class="lists-modal-footer">
+      <button class="act-btn" onclick="expSaveCurrentList()">💾 Make current datasets a list</button>
+      <div style="flex:1"></div>
+      <button class="act-btn" onclick="expCloseLists()">Close</button>
     </div>
   </div>
 </div>
 
 <!-- ── Colors modal ─────────────────────────────────────────────────── -->
 <div id="colors-modal" class="modal-overlay">
-  <div class="modal-box" style="width:min(90vw,360px)">
+  <div class="modal-box" style="width:min(90vw,420px);max-height:90vh">
     <div class="modal-header">
-      <span class="modal-title">Choose Colour Palette</span>
+      <span class="modal-title">Color Palette</span>
       <button class="modal-close" onclick="expCloseColors()">✕</button>
     </div>
-    <div class="modal-body">
+    <div class="modal-body" style="overflow-y:auto">
+
+      <div class="cp-section">Built-in</div>
       <div class="palette-grid">
         <button class="palette-btn" onclick="expPickPalette('default')">
           <div class="palette-name">Default</div>
@@ -325,6 +328,26 @@
           </div>
         </button>
       </div>
+
+      <div class="cp-section" style="margin-top:16px">Saved Custom</div>
+      <div id="custom-palettes-list"></div>
+
+      <div class="cp-section" style="margin-top:16px">Create New</div>
+      <div class="cp-name-row">
+        <label style="font-size:11px;color:var(--muted);white-space:nowrap">Name</label>
+        <input id="custom-palette-name" class="tb-inp" type="text" placeholder="My palette" style="flex:1">
+      </div>
+      <div class="cp-builder-row">
+        <div id="custom-palette-swatches" class="cp-swatches"></div>
+        <button class="act-btn" onclick="expCustomPaletteAdd()" title="Add color">+</button>
+        <button class="act-btn" onclick="expCustomPaletteRemove()" title="Remove last color">−</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="act-btn" onclick="expApplyCustomPalette()">Apply</button>
+        <button class="act-btn" style="background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600"
+                onclick="expSaveCustomPalette()">Save &amp; Apply</button>
+      </div>
+
     </div>
   </div>
 </div>

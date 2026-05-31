@@ -282,13 +282,25 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 #interpret-plot { width: 100%; height: 100%; min-height: 380px; }
 
 /* Lists modal */
+.lists-modal-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 14px; }
+.lists-modal-footer {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-top: 1px solid var(--border);
+  flex-shrink: 0; background: var(--bg-deep);
+}
 .list-item { border: 1px solid var(--border); border-radius: 5px; padding: 8px 10px; background: var(--bg-deep); margin-bottom: 6px; }
+.list-item-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .list-name { font-size: 12px; font-weight: 600; }
 .list-desc { font-size: 10px; color: var(--muted); margin-top: 2px; }
 .list-files { font-size: 10px; color: var(--muted); margin: 5px 0 0 10px; }
 .list-files li { margin-top: 1px; }
 
 /* Colors modal */
+.cp-section {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--muted); margin-bottom: 6px;
+  border-bottom: 1px solid var(--border); padding-bottom: 3px;
+}
 .palette-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .palette-btn {
   border: 2px solid var(--border); border-radius: 6px;
@@ -297,8 +309,27 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 }
 .palette-btn:hover { border-color: var(--accent); }
 .palette-name { font-size: 11px; font-weight: 600; margin-bottom: 4px; }
-.palette-swatches { display: flex; gap: 3px; }
+.palette-swatches { display: flex; gap: 3px; flex-wrap: wrap; }
 .palette-sw { width: 14px; height: 14px; border-radius: 2px; }
+
+/* Custom palette builder */
+.cp-del-btn {
+  background: none; border: 1px solid var(--border); border-radius: 4px;
+  cursor: pointer; font-size: 12px; color: var(--muted); padding: 0 7px;
+  flex-shrink: 0; transition: color 0.1s, border-color 0.1s;
+}
+.cp-del-btn:hover { color: var(--red); border-color: var(--red); }
+.cp-name-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.cp-builder-row { display: flex; align-items: center; gap: 5px; }
+.cp-swatches { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; }
+input[type=color].cp-color-inp {
+  -webkit-appearance: none; appearance: none;
+  width: 26px; height: 26px; padding: 1px;
+  border: 1px solid var(--border); border-radius: 3px; cursor: pointer;
+  background: none;
+}
+input[type=color].cp-color-inp::-webkit-color-swatch-wrapper { padding: 0; }
+input[type=color].cp-color-inp::-webkit-color-swatch { border: none; border-radius: 2px; }
 
 /* ── Search modal ────────────────────────────────────────────────────── */
 .search-modal-box { width: min(90vw,720px); height: min(88vh,560px); }

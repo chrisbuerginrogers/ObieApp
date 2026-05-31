@@ -75,16 +75,16 @@ const _TEMPLATE_SEEDS = [
 ];
 
 const _BAND_SEEDS = [
-  ['1 flat (200-7000)_filter.txt',
-    _GH_BASE + 'bands/1%20flat%20(200-7000)_filter.txt'],
-  ['2 JC vln 4 band (200-780-1740-2930-7000)_filter.txt',
-    _GH_BASE + 'bands/2%20JC%20vln%204%20band%20%20(200-780-1740-2930-7000)_filter.txt'],
-  ['3 JC vln 5 band (200-780-1740-3000-5200-7000)_filter.txt',
-    _GH_BASE + 'bands/3%20JC%20vln%205%20band%20(200-780-1740-3000-5200-7000)_filter.txt'],
-  ['4 JC vla 4 band (200-650-1500-2700-6300)_filter.txt',
-    _GH_BASE + 'bands/4%20JC%20vla%204%20band%20%7B200-650-1500-2700-6300%7D_filter.txt'],
-  ['Bark (200-9500)_filter.txt',
-    _GH_BASE + 'bands/Bark%20%20(200-300-400-510-630-770-920-1080-1270-1480-1700-2000-2330-3000-3150-3700-4400-5300-6400-7700-9500)_filter.txt'],
+  ['1 flat (200-7000).json',
+    _GH_BASE + 'bands/1%20flat%20(200-7000).json'],
+  ['2 JC vln 4 band (200-780-1740-2930-7000).json',
+    _GH_BASE + 'bands/2%20JC%20vln%204%20band%20(200-780-1740-2930-7000).json'],
+  ['3 JC vln 5 band (200-780-1740-3000-5200-7000).json',
+    _GH_BASE + 'bands/3%20JC%20vln%205%20band%20(200-780-1740-3000-5200-7000).json'],
+  ['4 JC vla 4 band (200-650-1500-2700-6300).json',
+    _GH_BASE + 'bands/4%20JC%20vla%204%20band%20(200-650-1500-2700-6300).json'],
+  ['Bark (200-9500).json',
+    _GH_BASE + 'bands/Bark%20(200-9500).json'],
 ];
 
 const _COLOR_SEEDS = [
@@ -122,7 +122,7 @@ async function _seedFiles(dirHandle, seeds) {
  * If newly created, seeds Templates/ and bands/ from GitHub.
  *
  * @param {FileSystemDirectoryHandle} dirHandle
- * @returns {{ settingsHandle, templatesHandle, bandsHandle, colorsHandle }}
+ * @returns {{ settingsHandle, templatesHandle, bandsHandle, colorsHandle, listsHandle }}
  */
 async function openObieAppSettings(dirHandle) {
   let settingsHandle;
@@ -138,6 +138,7 @@ async function openObieAppSettings(dirHandle) {
   const templatesHandle = await settingsHandle.getDirectoryHandle('Templates', { create: true });
   const bandsHandle     = await settingsHandle.getDirectoryHandle('bands',     { create: true });
   const colorsHandle    = await settingsHandle.getDirectoryHandle('colors',    { create: true });
+  const listsHandle     = await settingsHandle.getDirectoryHandle('lists',     { create: true });
 
   if (isNew) {
     await _seedFiles(settingsHandle,  _SETTINGS_SEEDS);
@@ -146,7 +147,20 @@ async function openObieAppSettings(dirHandle) {
     await _seedFiles(colorsHandle,    _COLOR_SEEDS);
     const samplesHandle = await dirHandle.getDirectoryHandle('Test_Samples', { create: true });
     await _seedFiles(samplesHandle, _TEST_SAMPLE_SEEDS);
+
+    // Seed default list pointing at Test_Samples
+    try {
+      const defaultList = {
+        name: 'Two Strads',
+        description: 'Jackson and Titian Stradivarius samples (Test_Samples)',
+        files: ['Test_Samples/JacksonStrad H.AvC', 'Test_Samples/Titian Strad H.AvC'],
+      };
+      const fh = await listsHandle.getFileHandle('Two Strads.json', { create: true });
+      const w  = await fh.createWritable();
+      await w.write(JSON.stringify(defaultList, null, 2));
+      await w.close();
+    } catch(_) {}
   }
 
-  return { settingsHandle, templatesHandle, bandsHandle, colorsHandle, isNew };
+  return { settingsHandle, templatesHandle, bandsHandle, colorsHandle, listsHandle, isNew };
 }

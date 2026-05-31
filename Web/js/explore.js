@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  // ── Colour palettes ────────────────────────────────────────────────────
+  // ── Color palettes ────────────────────────────────────────────────────
   const PALETTES = {
     default:  ['#ff6f00','#2196f3','#4caf50','#e91e63','#9c27b0','#00bcd4','#ff5722','#8bc34a','#ffc107','#607d8b'],
     warm:     ['#b71c1c','#c62828','#d32f2f','#e64a19','#f57c00','#ff8f00','#f9a825','#f57f17'],
@@ -54,11 +54,16 @@
   let _dataDir              = null;  // FileSystemDirectoryHandle
   let _exploreSettingsHandle = null;  // ObieAppSettings/ dir
   let _bandsHandle          = null;  // ObieAppSettings/bands/ dir
+  let _listsHandle          = null;  // ObieAppSettings/lists/ dir
+  let _colorsHandle         = null;  // ObieAppSettings/colors/ dir
+  let _customPalettesList   = [];   // cached from folder (or localStorage)
   let _dirFiles  = [];     // [{name, ext, path, handle}] — scanned from data folder
   let _searchResults  = []; // current filtered list
   let _pendingPaths   = {}; // filename → full relative path, populated just before pyExploreLoadFile
+  let _pendingColors  = {}; // filename → hex color, set by list loader, consumed by obieExploreAddDataset
   let _lists     = [];
   let _customBands = null;
+  let _lastSearchClickIdx = -1;
 
   const _S = {
     xLog: true, xMin: 200, xMax: 7000,
@@ -182,32 +187,103 @@
   }
 
   // ── Band loading from ObieAppSettings/bands/ ─────────────────────────
+  function _edgesToBands(edges) {
+    const bands = [];
+    for (let i = 0; i < edges.length - 1; i++)
+      bands.push({ label: `${Math.round(edges[i])}–${Math.round(edges[i+1])}`,
+                   f_lo: edges[i], f_hi: edges[i+1] });
+    return bands;
+  }
+
   async function _loadBandsFromFolder(dir) {
     _dynamicBandPresets = {};
     try {
       for await (const [name, h] of dir.entries()) {
-        if (h.kind !== 'file' || !name.toLowerCase().endsWith('.txt')) continue;
+        if (h.kind !== 'file') continue;
+        const lname = name.toLowerCase();
         try {
-          const text  = await (await h.getFile()).text();
-          // Strip _filter.txt, _filter, or plain .txt — whichever applies
-          const label = name
-            .replace(/_filter\.txt$/i, '')
-            .replace(/_filter$/i,      '')
-            .replace(/\.txt$/i,        '')
-            .replace(/\s+/g, ' ')
-            .trim();
-          // Parse tab-separated edge values (one line)
-          const edges = text.trim().split(/\t/).map(s => parseFloat(s.trim())).filter(isFinite);
-          if (edges.length < 2) continue;
-          const bands = [];
-          for (let i = 0; i < edges.length - 1; i++)
-            bands.push({ label: `${Math.round(edges[i])}–${Math.round(edges[i+1])}`,
-                         f_lo: edges[i], f_hi: edges[i+1] });
-          _dynamicBandPresets[label] = { label, bands };
+          if (lname.endsWith('.json')) {
+            // JSON format: { name, edges } or { name, bands:[{f_lo,f_hi,label}] }
+            const data = JSON.parse(await (await h.getFile()).text());
+            const label = (data.name || name.replace(/\.json$/i, '')).replace(/\s+/g, ' ').trim();
+            let bands = [];
+            if (Array.isArray(data.edges) && data.edges.length >= 2)
+              bands = _edgesToBands(data.edges.map(Number).filter(isFinite));
+            else if (Array.isArray(data.bands) && data.bands.length)
+              bands = data.bands;
+            if (bands.length) _dynamicBandPresets[label] = { label, bands };
+          } else if (lname.endsWith('.txt')) {
+            // Legacy LabVIEW format: tab-separated edge values on one line
+            const text = await (await h.getFile()).text();
+            const label = name
+              .replace(/_filter\.txt$/i, '')
+              .replace(/_filter$/i,      '')
+              .replace(/\.txt$/i,        '')
+              .replace(/\s+/g, ' ').trim();
+            const edges = text.trim().split(/\t/).map(s => parseFloat(s.trim())).filter(isFinite);
+            if (edges.length < 2) continue;
+            _dynamicBandPresets[label] = { label, bands: _edgesToBands(edges) };
+          }
         } catch(_) {}
       }
     } catch(_) {}
     _populateBandSel();
+  }
+
+  // Parse a LabVIEW XML list file (<Array><Cluster>…) into our list format.
+  // Returns {name, description, files, colors} or null if not a valid LV list.
+  function _parseLVList(text, listName) {
+    try {
+      const doc = new DOMParser().parseFromString(text.trim(), 'text/xml');
+      if (doc.querySelector('parsererror')) return null;
+      const root = doc.documentElement;
+      if (!root || root.tagName !== 'Array') return null;
+
+      const files = [], colors = {};
+      for (const cluster of root.children) {
+        if (cluster.tagName !== 'Cluster') continue;
+        const fields = {};
+        for (const el of cluster.children) {
+          const n = el.querySelector('Name')?.textContent?.trim();
+          const v = el.querySelector('Val')?.textContent?.trim();
+          if (n != null && v != null) fields[n] = v;
+        }
+        if (fields['Show?'] === '0') continue;
+        const fname = fields['Name'];
+        if (!fname) continue;
+        files.push(fname);
+        const colorInt = parseInt(fields['Color'] || '0', 10);
+        if (colorInt !== 0)
+          colors[fname] = '#' + (colorInt & 0xFFFFFF).toString(16).padStart(6, '0');
+      }
+      return files.length ? { name: listName, description: 'LabVIEW list', files, colors } : null;
+    } catch(_) { return null; }
+  }
+
+  async function _loadListsFromFolder(dir) {
+    _lists = [];
+    try {
+      for await (const [name, h] of dir.entries()) {
+        if (h.kind !== 'file') continue;
+        const lname = name.toLowerCase();
+        try {
+          if (lname.endsWith('.json')) {
+            const data = JSON.parse(await (await h.getFile()).text());
+            if (data.name && Array.isArray(data.files))
+              _lists.push({ ...data, _filename: name });
+          } else if (lname.endsWith('.txt')) {
+            const text = await (await h.getFile()).text();
+            if (!text.trim().startsWith('<Array>')) continue;
+            const listName = name
+              .replace(/_list\.txt$/i, '').replace(/\.txt$/i, '')
+              .replace(/\s+/g, ' ').trim();
+            const list = _parseLVList(text, listName);
+            if (list) _lists.push({ ...list, _filename: name });
+          }
+        } catch(_) {}
+      }
+      _lists.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    } catch(_) {}
   }
 
   function _shortBandLabel(full) {
@@ -342,7 +418,7 @@
     box.innerHTML = _datasets.map(d =>
       `<div class="ds-row${d.visible?'':' ds-hidden'}" data-id="${d.id}" title="${_esc(d.path || d.name)}">
         <input type="checkbox" class="ds-vis" data-id="${d.id}"${d.visible?' checked':''}>
-        <span class="ds-swatch" data-id="${d.id}" style="background:${d.color}" title="Change colour"></span>
+        <span class="ds-swatch" data-id="${d.id}" style="background:${d.color}" title="Change color"></span>
         <span class="ds-label">${_esc(d.name)}</span>
         <button class="ds-play-btn" data-id="${d.id}" title="Convolve and play">▶</button>
       </div>`
@@ -568,7 +644,7 @@
   window.expGettingStarted = () => alert('You pressed: Getting Started');
 
   // ── Data Folder helpers ───────────────────────────────────────────────
-  const _SCAN_EXTS = new Set(['.trf','.trv','.avc','.avr','.csv','.wav']);
+  const _SCAN_EXTS = new Set(['.trf','.trv','.avc','.avr','.csv']);
 
   const _NON_INSTRUMENT_DIRS = new Set(['ObieAppSettings', 'Test_Samples']);
   async function _countTopDirs(dh) {
@@ -605,7 +681,8 @@
     try {
       let templatesHandle;
       let _expFolderIsNew;
-      ({ settingsHandle: _exploreSettingsHandle, bandsHandle: _bandsHandle, templatesHandle, isNew: _expFolderIsNew }
+      ({ settingsHandle: _exploreSettingsHandle, bandsHandle: _bandsHandle, templatesHandle,
+         listsHandle: _listsHandle, colorsHandle: _colorsHandle, isNew: _expFolderIsNew }
         = await openObieAppSettings(dir));
       if (_expFolderIsNew) alert('This is a new Data Folder and I moved over the default settings folder.');
 
@@ -623,6 +700,12 @@
 
       // Load bands from ObieAppSettings/bands/
       if (_bandsHandle) await _loadBandsFromFolder(_bandsHandle);
+
+      // Load lists from ObieAppSettings/lists/
+      if (_listsHandle) await _loadListsFromFolder(_listsHandle);
+
+      // Load custom palettes from ObieAppSettings/colors/
+      if (_colorsHandle) await _loadCustomPalettesFromFolder(_colorsHandle);
 
       // Load templates from ObieAppSettings/Templates/
       try {
@@ -693,7 +776,6 @@
     const ftAvR = $('ft-avr')?.checked;
     const ftAvC = $('ft-avc')?.checked;
     const ftTrf = $('ft-trf')?.checked;
-    const ftWav = $('ft-wav')?.checked;
 
     const patterns = pattern ? pattern.split(',').map(p => p.trim()).filter(Boolean) : [];
     const keywords = [kw1, kw2, kw3].filter(Boolean);
@@ -705,8 +787,7 @@
       if (!ftAll) {
         const ok = (ftAvR && f.ext === '.avr') ||
                    (ftAvC && f.ext === '.avc') ||
-                   (ftTrf && (f.ext === '.trf' || f.ext === '.trv')) ||
-                   (ftWav && f.ext === '.wav');
+                   (ftTrf && (f.ext === '.trf' || f.ext === '.trv'));
         if (!ok) return false;
       }
 
@@ -724,17 +805,15 @@
 
     const list = $('search-results-list');
     if (!list) return;
+    _lastSearchClickIdx = -1;
     if (!_searchResults.length) {
       list.innerHTML = '<div class="sr-empty">No matching files</div>';
       return;
     }
-    // All results start selected (blue) — user deselects what they don't want
     list.innerHTML = _searchResults.map((f, i) =>
-      `<div class="sr-item selected" data-idx="${i}" onclick="expToggleSearchItem(this)">${_esc(f.name)}</div>`
+      `<div class="sr-item" data-idx="${i}">${_esc(f.name)}</div>`
     ).join('');
   }
-
-  window.expToggleSearchItem = function(el) { el.classList.toggle('selected'); };
 
   window.expSelectAllSearch  = function() {
     document.querySelectorAll('#search-results-list .sr-item').forEach(el => el.classList.add('selected'));
@@ -762,17 +841,38 @@
     ['search-pattern','search-kw1','search-kw2','search-kw3'].forEach(id => {
       const el = $(id); if (el) el.addEventListener('input', _runSearch);
     });
-    ['ft-avr','ft-avc','ft-trf','ft-wav','ft-all'].forEach(id => {
+    ['ft-avr','ft-avc','ft-trf','ft-all'].forEach(id => {
       const el = $(id); if (!el) return;
       el.addEventListener('change', e => {
         if (id === 'ft-all' && e.target.checked)
-          ['ft-avr','ft-avc','ft-trf','ft-wav'].forEach(o => { const x=$(o); if(x) x.checked=false; });
+          ['ft-avr','ft-avc','ft-trf'].forEach(o => { const x=$(o); if(x) x.checked=false; });
         else if (id !== 'ft-all' && e.target.checked) {
           const a=$('ft-all'); if(a) a.checked=false;
         }
         _runSearch();
       });
     });
+
+    // Search list click — toggle on plain click, range-select on shift-click
+    const list = $('search-results-list');
+    if (list) {
+      list.addEventListener('click', e => {
+        const item = e.target.closest('.sr-item');
+        if (!item) return;
+        const idx = +item.dataset.idx;
+        if (e.shiftKey && _lastSearchClickIdx >= 0) {
+          const lo = Math.min(_lastSearchClickIdx, idx);
+          const hi = Math.max(_lastSearchClickIdx, idx);
+          list.querySelectorAll('.sr-item').forEach(el => {
+            if (+el.dataset.idx >= lo && +el.dataset.idx <= hi)
+              el.classList.add('selected');
+          });
+        } else {
+          item.classList.toggle('selected');
+          _lastSearchClickIdx = idx;
+        }
+      });
+    }
   }
 
   // ── File ops ──────────────────────────────────────────────────────────
@@ -793,18 +893,81 @@
     const box = modal.querySelector('.lists-content');
     if (box) {
       box.innerHTML = _lists.length
-        ? _lists.map(l =>
+        ? _lists.map((l, i) =>
             `<div class="list-item">
-              <div class="list-name">${_esc(l.name)}</div>
-              <div class="list-desc">${_esc(l.description||'')}</div>
+              <div class="list-item-header">
+                <div>
+                  <div class="list-name">${_esc(l.name)}</div>
+                  ${l.description ? `<div class="list-desc">${_esc(l.description)}</div>` : ''}
+                </div>
+                <button class="act-btn" onclick="expLoadList(${i})">Load</button>
+              </div>
               <ul class="list-files">${(l.files||[]).map(f=>`<li>${_esc(f)}</li>`).join('')}</ul>
             </div>`
           ).join('')
-        : '<p class="muted-txt">No predefined lists found.</p>';
+        : '<p class="muted-txt">No lists found in ObieAppSettings/lists/.</p>';
     }
     modal.classList.add('open');
   };
   window.expCloseLists = () => $('lists-modal')?.classList.remove('open');
+
+  window.expLoadList = async function(idx) {
+    const list = _lists[idx]; if (!list) return;
+    if (!window.pyExploreLoadFile) { alert('Python not ready.'); return; }
+    $('lists-modal')?.classList.remove('open');
+    let loaded = 0;
+    const notFound = [];
+    for (const filePath of (list.files || [])) {
+      const fname = filePath.split('/').pop().split('\\').pop();
+      const f = _dirFiles.find(x => x.path === filePath) || _dirFiles.find(x => x.name === fname);
+      if (f) {
+        try {
+          const file = await f.handle.getFile();
+          _pendingPaths[f.name] = f.path;
+          if (list.colors?.[filePath] || list.colors?.[fname])
+            _pendingColors[f.name] = list.colors[filePath] || list.colors[fname];
+          window.pyExploreLoadFile(f.name, new Uint8Array(await file.arrayBuffer()));
+          loaded++;
+        } catch(e) { notFound.push(filePath); }
+      } else {
+        notFound.push(filePath);
+      }
+    }
+    const st = $('explore-status');
+    if (notFound.length && st) {
+      st.textContent = `${loaded} loaded, ${notFound.length} not found`;
+      setTimeout(() => st.textContent = '', 5000);
+    }
+  };
+
+  window.expSaveCurrentList = async function() {
+    if (!_listsHandle) {
+      alert('Set a Data Folder first — lists are saved in ObieAppSettings/lists/.');
+      return;
+    }
+    if (!_datasets.length) {
+      alert('No datasets loaded to save as a list.');
+      return;
+    }
+    const name = prompt('List name:', 'My List');
+    if (!name?.trim()) return;
+    const description = (prompt('Short description (optional):') ?? '').trim();
+    const files = _datasets.map(d => d.path || d.name);
+    const data = { name: name.trim(), description, files };
+    const filename = name.trim().replace(/[/\\?%*:|"<>]/g, '-') + '.json';
+    try {
+      const fh = await _listsHandle.getFileHandle(filename, { create: true });
+      const w  = await fh.createWritable();
+      await w.write(JSON.stringify(data, null, 2));
+      await w.close();
+      await _loadListsFromFolder(_listsHandle);
+      expLists();   // re-render modal in place
+      const st = $('explore-status');
+      if (st) { st.textContent = `✓ Saved list "${name.trim()}"`; setTimeout(() => st.textContent = '', 3000); }
+    } catch(e) {
+      alert('Could not save list: ' + e.message);
+    }
+  };
 
   window.expShare = function() {
     const vis = _datasets.filter(d => d.visible);
@@ -825,13 +988,151 @@
     a.click(); URL.revokeObjectURL(url);
   };
 
-  window.expColors = function() { $('colors-modal')?.classList.add('open'); };
+  // ── Custom palette persistence ────────────────────────────────────────
+  // localStorage fallback (used when no data folder is set)
+  function _lsLoadPalettes() {
+    try { return JSON.parse(localStorage.getItem('obieExplore_customPalettes') || '[]'); }
+    catch(_) { return []; }
+  }
+  function _lsSavePalettes(list) {
+    try { localStorage.setItem('obieExplore_customPalettes', JSON.stringify(list)); } catch(_) {}
+  }
+
+  // Normalize a color entry: plain "#hex" string OR {hex:"#..."} object → "#hex"
+  function _normalizeColor(c) {
+    if (typeof c === 'string') return c;
+    if (c && typeof c === 'object') return c.hex || c.color || c.value || null;
+    if (typeof c === 'number') return '#' + (c & 0xFFFFFF).toString(16).padStart(6, '0');
+    return null;
+  }
+
+  async function _loadCustomPalettesFromFolder(dir) {
+    _customPalettesList = [];
+    try {
+      for await (const [name, h] of dir.entries()) {
+        if (h.kind !== 'file' || !name.toLowerCase().endsWith('.json')) continue;
+        try {
+          const data = JSON.parse(await (await h.getFile()).text());
+          const colors = (data.colors || []).map(_normalizeColor).filter(Boolean);
+          if (data.name && colors.length)
+            _customPalettesList.push({ name: data.name, colors, _filename: name });
+        } catch(_) {}
+      }
+      _customPalettesList.sort((a, b) => a.name.localeCompare(b.name));
+    } catch(_) {}
+  }
+
+  let _cpColors = [...PALETTES.default];   // current builder state
+
+  function _renderCustomPaletteBuilder() {
+    const row = $('custom-palette-swatches'); if (!row) return;
+    row.innerHTML = _cpColors.map((c, i) =>
+      `<input type="color" class="cp-color-inp" value="${c}" data-idx="${i}">`
+    ).join('');
+    row.querySelectorAll('.cp-color-inp').forEach(inp =>
+      inp.addEventListener('input', e => { _cpColors[+e.target.dataset.idx] = e.target.value; })
+    );
+  }
+
+  function _renderColorModal() {
+    const box = $('custom-palettes-list'); if (!box) return;
+    const list = _colorsHandle ? _customPalettesList : _lsLoadPalettes();
+    if (!list.length) {
+      box.innerHTML = `<p class="muted-txt" style="font-size:10px;margin:0">${_colorsHandle ? 'No custom palettes in ObieAppSettings/colors/ yet.' : 'No saved custom palettes yet.'}</p>`;
+      return;
+    }
+    box.innerHTML = `<div class="palette-grid">${
+      list.map((p, i) =>
+        `<div style="position:relative">
+          <button class="palette-btn" onclick="expPickCustomPalette(${i})" style="width:100%;text-align:left">
+            <div class="palette-name">${_esc(p.name)}</div>
+            <div class="palette-swatches">${p.colors.map(c=>`<div class="palette-sw" style="background:${_esc(c)}"></div>`).join('')}</div>
+          </button>
+          <button class="cp-del-btn" onclick="expDeleteCustomPalette(${i})" title="Delete"
+                  style="position:absolute;top:3px;right:3px;padding:0 5px;line-height:16px;font-size:10px">✕</button>
+        </div>`
+      ).join('')
+    }</div>`;
+  }
+
+  window.expColors = function() {
+    _cpColors = [..._palette];    // seed builder with current palette
+    _renderColorModal();
+    _renderCustomPaletteBuilder();
+    $('colors-modal')?.classList.add('open');
+  };
   window.expCloseColors = () => $('colors-modal')?.classList.remove('open');
+
   window.expPickPalette = function(name) {
     _palette = PALETTES[name] || PALETTES.default;
     _datasets.forEach((d,i) => d.color = _palette[i % _palette.length]);
     _renderList(); render();
     $('colors-modal')?.classList.remove('open');
+  };
+
+  window.expPickCustomPalette = function(idx) {
+    const list = _colorsHandle ? _customPalettesList : _lsLoadPalettes();
+    const p = list[idx]; if (!p) return;
+    _palette = [...p.colors];
+    _datasets.forEach((d,i) => d.color = _palette[i % _palette.length]);
+    _renderList(); render();
+    $('colors-modal')?.classList.remove('open');
+  };
+
+  window.expDeleteCustomPalette = async function(idx) {
+    if (_colorsHandle) {
+      const entry = _customPalettesList[idx]; if (!entry) return;
+      try { await _colorsHandle.removeEntry(entry._filename); } catch(_) {}
+      await _loadCustomPalettesFromFolder(_colorsHandle);
+    } else {
+      const list = _lsLoadPalettes();
+      list.splice(idx, 1);
+      _lsSavePalettes(list);
+    }
+    _renderColorModal();
+  };
+
+  window.expCustomPaletteAdd = function() {
+    if (_cpColors.length >= 12) return;
+    _cpColors.push('#888888');
+    _renderCustomPaletteBuilder();
+  };
+  window.expCustomPaletteRemove = function() {
+    if (_cpColors.length <= 2) return;
+    _cpColors.pop();
+    _renderCustomPaletteBuilder();
+  };
+
+  window.expApplyCustomPalette = function() {
+    _palette = [..._cpColors];
+    _datasets.forEach((d,i) => d.color = _palette[i % _palette.length]);
+    _renderList(); render();
+    $('colors-modal')?.classList.remove('open');
+  };
+
+  window.expSaveCustomPalette = async function() {
+    const name = ($('custom-palette-name')?.value || '').trim();
+    if (!name) { alert('Enter a name for this palette first.'); return; }
+    const entry = { name, colors: [..._cpColors] };
+    if (_colorsHandle) {
+      const filename = name.replace(/[/\\?%*:|"<>]/g, '-') + '.json';
+      try {
+        const fh = await _colorsHandle.getFileHandle(filename, { create: true });
+        const w  = await fh.createWritable();
+        await w.write(JSON.stringify(entry, null, 2));
+        await w.close();
+        await _loadCustomPalettesFromFolder(_colorsHandle);
+      } catch(e) { alert('Could not save palette: ' + e.message); return; }
+    } else {
+      const list = _lsLoadPalettes();
+      list.push(entry);
+      _lsSavePalettes(list);
+    }
+    _palette = [..._cpColors];
+    _datasets.forEach((d,i) => d.color = _palette[i % _palette.length]);
+    _renderList(); render();
+    _renderColorModal();
+    const inp = $('custom-palette-name'); if (inp) inp.value = '';
   };
 
   // ── Plot controls ─────────────────────────────────────────────────────
@@ -863,19 +1164,40 @@
     if (v === 'custom') { expCustomBands(); return; }
     _S.bandPreset = v; render();
   };
-  window.expCustomBands = function() {
+  window.expCustomBands = async function() {
     const input = prompt(
       'Enter custom band boundaries (Hz), comma-separated.\nExample: 200,500,1000,2000,4000,7000'
     );
     if (!input) return;
     const edges = input.split(',').map(s => parseFloat(s.trim())).filter(isFinite);
     if (edges.length < 2) { alert('Need at least 2 boundary values.'); return; }
-    _customBands = [];
-    for (let i = 0; i < edges.length - 1; i++)
-      _customBands.push({label: `${edges[i]}–${edges[i+1]}`, f_lo: edges[i], f_hi: edges[i+1]});
+    _customBands = _edgesToBands(edges);
     _S.bandPreset = 'custom';
-    const sel = $('band-sel'); if (sel) { const o = document.createElement('option'); o.value='custom'; o.textContent='Custom'; sel.appendChild(o); sel.value='custom'; }
+    const sel = $('band-sel');
+    if (sel) {
+      let o = sel.querySelector('option[value="custom"]');
+      if (!o) { o = document.createElement('option'); o.value = 'custom'; sel.appendChild(o); }
+      o.textContent = 'Custom'; sel.value = 'custom';
+    }
     render();
+
+    // Offer to save as a preset to ObieAppSettings/bands/
+    if (_bandsHandle) {
+      const saveName = prompt('Save as a band preset? Enter a name (or Cancel to skip):', '');
+      if (saveName?.trim()) {
+        const name = saveName.trim();
+        const filename = name.replace(/[/\\?%*:|"<>]/g, '-') + '.json';
+        try {
+          const fh = await _bandsHandle.getFileHandle(filename, { create: true });
+          const w  = await fh.createWritable();
+          await w.write(JSON.stringify({ name, edges }, null, 2));
+          await w.close();
+          await _loadBandsFromFolder(_bandsHandle);
+          const st = $('explore-status');
+          if (st) { st.textContent = `✓ Saved band preset "${name}"`; setTimeout(() => st.textContent = '', 3000); }
+        } catch(e) { alert('Could not save band preset: ' + e.message); }
+      }
+    }
   };
   window.expExportBands = function() {
     if (!window._exploreLastBandData?.length) { alert('Select a band preset first.'); return; }
@@ -1021,7 +1343,8 @@
     const n = String(name).split('/').pop().split('\\').pop();
     _saveUndo();
     const id = _nextId++;
-    const color = _palette[_datasets.length % _palette.length];
+    const color = _pendingColors[n] || _palette[_datasets.length % _palette.length];
+    delete _pendingColors[n];
     const path  = _pendingPaths[n] || n;
     delete _pendingPaths[n];
     _datasets.push({id, name:n, path, color, visible:true, freqs:Array.from(freqsJs), mags:Array.from(magsJs)});
