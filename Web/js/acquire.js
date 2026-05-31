@@ -908,6 +908,8 @@ function _updateInfoPanel() {
   const p = _loadPrefs();
   const rows = [
     ['Device',     p.deviceLabel || '—'],
+    ['Sample rate', `${p.sample_rate ?? 48000} Hz`],
+    ['Bit depth',  `${p.bit_depth ?? 24} bit`],
     ['Threshold',  `${p.threshold} V`],
     ['Hits/pos',   p.taps],
     ['Positions',  p.positions],
@@ -1861,11 +1863,12 @@ window.lvToggleCapture = async function() {
   const deviceId = sel?.value || '';
   try {
     _lvSetSt('Requesting microphone…');
+    const prefs = _loadPrefs();
     _lvStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         deviceId:         deviceId ? { exact: deviceId } : undefined,
         channelCount:     { ideal: 2 },
-        sampleRate:       { ideal: 44100 },
+        sampleRate:       { ideal: prefs.sample_rate ?? 48000 },
         echoCancellation: false,
         noiseSuppression: false,
         autoGainControl:  false,
@@ -2134,7 +2137,7 @@ async function _startAudio() {
       audio: {
         deviceId:         deviceId ? { exact: deviceId } : undefined,
         channelCount:     { ideal: 2 },
-        sampleRate:       { ideal: 44100 },
+        sampleRate:       { ideal: prefs.sample_rate ?? 48000 },
         echoCancellation: false,
         noiseSuppression: false,
         autoGainControl:  false,
@@ -2170,7 +2173,7 @@ async function _startAudio() {
           audio: {
             deviceId:         undefined,
             channelCount:     { ideal: 2 },
-            sampleRate:       { ideal: 44100 },
+            sampleRate:       { ideal: prefs.sample_rate ?? 48000 },
             echoCancellation: false,
             noiseSuppression: false,
             autoGainControl:  false,
