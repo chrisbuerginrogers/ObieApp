@@ -935,7 +935,10 @@ async function _enumeratePrefsDevices() {
     const saved = _loadPrefs().deviceId;
     sel.innerHTML = '<option value="">Default device</option>';
     let savedFound = false;
-    devices.filter(d => d.kind === 'audioinput').forEach(d => {
+    // Filter Windows virtual entries (default / communications) — same physical
+    // device appears three times on Windows; keep only the real hardware ID.
+    const SKIP = new Set(['default', 'communications']);
+    devices.filter(d => d.kind === 'audioinput' && !SKIP.has(d.deviceId)).forEach(d => {
       const o = document.createElement('option');
       o.value = d.deviceId;
       o.textContent = d.label || `Mic (${d.deviceId.slice(0, 8)}…)`;
@@ -1833,7 +1836,8 @@ async function _lvEnumerateMics() {
     const sel = document.getElementById('lv-mic-sel'); if (!sel) return;
     const savedId = _loadPrefs().deviceId || '';
     sel.innerHTML = '';
-    devices.filter(d => d.kind === 'audioinput').forEach(d => {
+    const SKIP_LV = new Set(['default', 'communications']);
+    devices.filter(d => d.kind === 'audioinput' && !SKIP_LV.has(d.deviceId)).forEach(d => {
       const o = document.createElement('option');
       o.value = d.deviceId;
       o.textContent = d.label || `Mic (${d.deviceId.slice(0,8)}…)`;
@@ -2085,8 +2089,7 @@ window.acqLiveView = function() {
 // Audio — start / stop
 // ════════════════════════════════════════════════════════════════════════════
 
-function _isBuiltInMic(label, deviceId) {
-  if (!deviceId) return true;   // empty = system default = built-in
+function _isBuiltInMic(label) {
   const l = (label || '').toLowerCase();
   return /built.?in|internal|macbook|imac|laptop|headset mic/.test(l);
 }
@@ -2095,9 +2098,10 @@ window.acqToggleAcquire = async function() {
   if (appState === 'idle' || appState === 'complete') {
     const p      = _loadPrefs();
     const label  = p.deviceLabel || '';
-    const devId  = p.deviceId    || '';
-    if (_isBuiltInMic(label, devId)) {
-      const name = label || 'Default device';
+    // Only warn pre-start when we already know the device name — if they chose
+    // "Default device" we don't know the label yet and will check post-open.
+    if (label && _isBuiltInMic(label)) {
+      const name = label;
       const ok   = confirm(
         `"${name}" looks like a built-in microphone.\n\n` +
         `Impact hammer measurements need a directional external mic.\n\n` +
@@ -2150,6 +2154,29 @@ async function _startAudio() {
       const actualLabel = dev?.label || track?.label || '';
       _patchPrefs({ deviceId: actualId, deviceLabel: actualLabel });
       _updateSoundcardDisplay();
+      // Post-open built-in check: covers the "Default device" case where we
+      // couldn't know the label until audio was actually opened.
+      if (!prefs.deviceId && _isBuiltInMic(actualLabel)) {
+        mediaStream.getTracks().forEach(t => t.stop());
+        mediaStream = null;
+        const ok = confirm(
+          `"${actualLabel}" looks like a built-in microphone.\n\n` +
+          `Impact hammer measurements need a directional external mic.\n\n` +
+          `Start anyway?`
+        );
+        if (!ok) { audioCtx.close(); audioCtx = null; return; }
+        // Re-open with same constraints — user confirmed
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            deviceId:         undefined,
+            channelCount:     { ideal: 2 },
+            sampleRate:       { ideal: 44100 },
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl:  false,
+          },
+        });
+      }
     } catch (_) {}
 
     _pushSettingsFromPrefs({ ...prefs });
