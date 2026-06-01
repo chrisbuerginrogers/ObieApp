@@ -2470,7 +2470,7 @@ window.addEventListener('load', () => {
   _micXRange      = [prefs.mic_x_min ?? 0,  prefs.mic_x_max ?? 0.3];
   const instrEl = document.getElementById('inp-instrument-banner');
   if (instrEl && instrEl.textContent.trim() === '—') instrEl.textContent = prefs.instrument || 'scratch';
-  _initPlots();
+  try { _initPlots(); } catch (e) { console.warn('Plotly not available — plots disabled:', e); }
   _initResizer();
   _updateStopBtn();
   _updateEditBtns({ hit_n: 0 });

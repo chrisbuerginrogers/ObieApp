@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="../../css/theme.css">
   <link rel="stylesheet" href="./acquire.css">
 
-  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" crossorigin="anonymous"></script>
 
   <!-- PyScript 2026.3.1 -->
   <link  rel="stylesheet" href="https://pyscript.net/releases/2026.3.1/core.css">
@@ -27,6 +27,19 @@
   <div class="load-title">Loading PyScript + NumPy…</div>
   <div class="load-sub">First load may take 15–30 s</div>
 </div>
+<script>
+  // Safety net: if Python never dismisses the overlay (e.g. Safari CORS failure),
+  // show an error message and clear after 90 s.
+  setTimeout(function() {
+    var el = document.getElementById('loading');
+    if (!el || el.classList.contains('gone')) return;
+    el.querySelector('.spin').style.display = 'none';
+    el.querySelector('.load-title').textContent = 'Failed to load';
+    el.querySelector('.load-sub').textContent =
+      'PyScript or a required resource could not be fetched. ' +
+      'This app requires Chrome or Edge — Safari is not supported.';
+  }, 90000);
+</script>
 
 <div class="acq-page">
 
