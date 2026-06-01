@@ -320,7 +320,7 @@ def _do_capture():
     ham_win = ham_win * _ham_cal
     mic_win = mic_win * _mic_cal
 
-    t = np.linspace(-_pre_trig_s, _post_trig_s, pre + post, endpoint=False)
+    t = np.linspace(0, _pre_trig_s + _post_trig_s, pre + post, endpoint=False)
     js.window.onTriggered(to_js(t.tolist()), to_js(ham_win.tolist()),
                           to_js(mic_win.tolist()), float(_threshold))
 

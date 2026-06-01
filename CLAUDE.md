@@ -13,9 +13,10 @@ ObieApp/
 │   └── Aquire.py        ← Desktop capture tool (reference for tool structure)
 └── Web/
     ├── py/              ← PyScript (browser) versions of the Python modules
-    ├── js/              ← JavaScript UI logic
-    ├── css/             ← Shared stylesheets (theme.css + per-tool)
-    └── tools/           ← One subfolder per web tool (explore/, acquire/, convolve/, …)
+    ├── js/              ← Shared JS only (obie-settings, browser-check, audio, plotly-theme, …)
+    ├── css/             ← Shared CSS only (theme.css, index.css)
+    └── tools/           ← One subfolder per web tool; each folder is self-contained
+        └── <tool>/      ← index.html + main.py + pyscript.toml + <tool>.js + <tool>.css
 ```
 
 ## Rule 1 — Always Use the Python from This Repo
@@ -64,7 +65,7 @@ Every new web tool under `Web/tools/<tool-name>/` must follow the exact same str
   <title>[Tool Name] — ObieWebApp 2</title>
 
   <link rel="stylesheet" href="../../css/theme.css">
-  <link rel="stylesheet" href="../../css/[tool-name].css">
+  <link rel="stylesheet" href="./[tool-name].css">
 
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
 
@@ -77,7 +78,7 @@ Every new web tool under `Web/tools/<tool-name>/` must follow the exact same str
   <script src="../../js/audio.js"></script>
   <script src="../../js/obie-settings.js"></script>
   <script src="../../js/browser-check.js"></script>       <!-- Chrome check -->
-  <script src="../../js/[tool-name].js" defer></script>
+  <script src="./[tool-name].js" defer></script>
 </head>
 <body>
 

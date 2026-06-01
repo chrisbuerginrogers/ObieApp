@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../coi-serviceworker.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WAV Viewer — ObieWebApp</title>
+
+  <link rel="stylesheet" href="../../css/theme.css">
+  <link rel="stylesheet" href="./wavview.css">
+
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+
+  <!-- PyScript 2026.3.1 -->
+  <link  rel="stylesheet" href="https://pyscript.net/releases/2026.3.1/core.css">
+  <script type="module"   src="https://pyscript.net/releases/2026.3.1/core.js"></script>
+
+  <script src="../../js/obie-settings.js"></script>
+  <script src="../../js/browser-check.js"></script>
+  <script src="./wavview.js" defer></script>
+</head>
+<body>
+
+<div id="loading" class="loading-overlay">
+  <div class="spin"></div>
+  <div class="load-title">Loading PyScript + NumPy…</div>
+  <div class="load-sub">First load may take 15–30 s</div>
+</div>
+
+<div class="wav-page">
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <header class="obie-header">
+    <a class="brand" href="../../index.html">
+      <div class="logo-icon">🎻</div>
+      <h1>ObieWebApp</h1>
+    </a>
+    <span class="crumb">· WAV Viewer</span>
+    <div class="gap"></div>
+    <a class="btn" href="../../index.html" style="font-size:0.75rem;padding:3px 9px">← All tools</a>
+  </header>
+
+  <!-- ── Toolbar ──────────────────────────────────────────────────────────── -->
+  <div class="wav-toolbar">
+    <div class="tb-r">
+      <button class="tb-btn" onclick="wavPreferences()">Settings</button>
+      <button class="tb-btn" onclick="wavSetDataFolder()">📁 Data Folder</button>
+      <span id="folder-name-ind" class="folder-name-disp"></span>
+      <div class="tb-flex"></div>
+      <button class="tb-btn" onclick="wavHelp()">Help</button>
+    </div>
+    <div class="tb-r">
+      <span class="tb-lbl">Instrument:</span>
+      <select id="instrument-sel" class="tb-sel" style="max-width:180px"
+              onchange="wavFilterInstrument(this.value)">
+        <option value="">All</option>
+      </select>
+      <div class="tb-flex"></div>
+    </div>
+  </div>
+
+  <!-- ── Status row ───────────────────────────────────────────────────────── -->
+  <div class="wav-status-row">
+    <span id="wav-status" class="wav-status-txt">Select a Data Folder, then click a WAV file to view it</span>
+  </div>
+
+  <!-- ── Body ────────────────────────────────────────────────────────────── -->
+  <div class="wav-body">
+
+    <!-- File-list sidebar -->
+    <div class="wav-sidebar">
+      <div class="wav-sidebar-hdr">WAV Files</div>
+      <div id="wav-file-list" class="wav-file-list">
+        <div class="wav-no-files">No folder selected</div>
+      </div>
+    </div>
+
+    <!-- Drag handle -->
+    <div id="wav-resizer" class="wav-resizer"></div>
+
+    <!-- Main plots area -->
+    <div class="wav-main">
+
+      <!-- Time domain: hammer + mic side-by-side -->
+      <div class="wav-time-row">
+        <div class="wav-time-wrap">
+          <div id="wav-ham-plot" class="wav-time-plot"></div>
+        </div>
+        <div class="wav-time-wrap">
+          <div id="wav-mic-plot" class="wav-time-plot"></div>
+        </div>
+      </div>
+
+      <!-- FRF -->
+      <div class="wav-frf-wrap">
+        <div class="plot-toolbar">
+          <button class="tb-btn" onclick="wavRescaleY()" title="Autoscale Y axis">↕Y</button>
+          <button id="x-log-btn" class="tb-btn active" onclick="wavToggleXLog()" title="Toggle X axis log/linear">X=log</button>
+        </div>
+        <div id="wav-frf-plot" class="wav-frf-plot"></div>
+      </div>
+
+    </div><!-- wav-main -->
+  </div><!-- wav-body -->
+
+</div><!-- wav-page -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Preferences modal
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="prefs-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(92vw,420px)">
+    <div class="modal-header">
+      <span class="modal-title">WAV Viewer Settings</span>
+      <button class="modal-close" onclick="wavClosePrefs()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="pref-section">Hit Detection</div>
+      <div class="pref-row">
+        <label for="wav-pref-threshold">Trigger threshold</label>
+        <input id="wav-pref-threshold" type="number" value="0.05" step="0.005" min="0.001" max="1" style="max-width:80px">
+        <span class="pref-unit">V</span>
+      </div>
+      <div class="pref-row">
+        <label for="wav-pref-pre">Time before hit</label>
+        <input id="wav-pref-pre" type="number" value="0.01" step="0.005" min="0.001" max="0.5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+      <div class="pref-row">
+        <label for="wav-pref-post">Time after hit</label>
+        <input id="wav-pref-post" type="number" value="0.30" step="0.05" min="0.05" max="5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+      <p class="pref-hint">Match these to the Acquire settings used to record the file.</p>
+
+      <div class="pref-section">Channels</div>
+      <div class="pref-row">
+        <label for="wav-pref-swap">Hammer on left channel (swap)</label>
+        <input id="wav-pref-swap" type="checkbox">
+      </div>
+      <p class="pref-hint">Default: hammer on right (channel 1), mic on left (channel 0) — matching Acquire's default.</p>
+
+      <div class="save-row">
+        <button class="act-btn accent" onclick="wavSavePrefs()">Apply &amp; Save</button>
+        <button class="act-btn" onclick="wavClosePrefs()">Cancel</button>
+        <span id="prefs-save-msg" class="save-msg"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="py" src="./main.py" config="./pyscript.toml" async></script>
+
+</body>
+</html>

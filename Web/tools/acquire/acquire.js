@@ -37,6 +37,9 @@ let audioCtx    = null;
 let sourceNode  = null;
 let workletNode = null;
 let mediaStream = null;
+let _simInterval = null;   // non-null when running in simulated-input mode
+let _simSample   = 0;      // running sample counter for simulation
+let _simNextHit  = 0;      // sample index of the next synthetic hit
 
 const BATCH_SIZE = 2048;
 let batchL    = new Float32Array(BATCH_SIZE);
@@ -49,6 +52,7 @@ let currentPos    = 0;
 let frfCache      = {};     // pos → { freq[], H1db[], coh[], nHits }
 let _hamTimeCutoffS = 0.30;  // green line on hammer plot (s after trigger)
 let _micTimeCutoffS = 0.30;  // green line on mic plot (s after trigger)
+let _preTrigS       = 0.01;  // pre-trigger duration — added to cutoff positions since t=0 is window start
 let _lineWidth    = 0.5;    // FRF trace width in px
 let _S = {
   xLog: true, xMin: 100, xMax: 12000,
@@ -62,8 +66,7 @@ let _fftYRange  = null;
 let _hamYRange  = null;
 let _micYRange  = null;
 
-// When true the main FRF plot passes autorange:true to Plotly instead of our dB window
-let _yTrueAutorange = false;
+let _yTrueAutorange = false;      // true while Plotly.react is running (suppress re-entrant relayout)
 
 // Individual tap FRF traces
 let tapCache    = {};     // pos → [{freq, H1db}, ...]
@@ -139,11 +142,13 @@ function _drawTrigPlots(t, ham, mic, thrF) {
 
   // Cutoff lines only drawn when the cutoff falls within the visible x range
   const hamShapes = [hDot(thrF, '#7c2bc8')];
-  if (_hamTimeCutoffS >= _hamXRange[0] && _hamTimeCutoffS <= _hamXRange[1])
-    hamShapes.push(vLine(_hamTimeCutoffS, '#2e7d32'));
+  const hamCutX = _preTrigS + _hamTimeCutoffS;
+  if (hamCutX >= _hamXRange[0] && hamCutX <= _hamXRange[1])
+    hamShapes.push(vLine(hamCutX, '#2e7d32'));
   const micShapes = [];
-  if (_micTimeCutoffS >= _micXRange[0] && _micTimeCutoffS <= _micXRange[1])
-    micShapes.push(vLine(_micTimeCutoffS, '#2e7d32'));
+  const micCutX = _preTrigS + _micTimeCutoffS;
+  if (micCutX >= _micXRange[0] && micCutX <= _micXRange[1])
+    micShapes.push(vLine(micCutX, '#2e7d32'));
 
   Plotly.react('plot-hammer',
     [{ x: t, y: ham, type: 'scatter', mode: 'lines', line: { color: '#c62828', width: 1 } }],
@@ -419,11 +424,10 @@ function renderFRF() {
   }
 
   // Y range — 99th-percentile of FRF only (coherence values would skew this).
-  // When _yTrueAutorange is true we let Plotly compute from the data instead.
   let yRange;
   if (_S.yMin != null && _S.yMax != null) {
     yRange = [_S.yMin, _S.yMax];
-  } else if (!_yTrueAutorange) {
+  } else {
     const allY = [];
     for (const t of frfTraces)
       for (const v of t.y)
@@ -457,6 +461,7 @@ function renderFRF() {
     ? [Math.log10(Math.max(_S.xMin, 1)), Math.log10(_S.xMax)]
     : [_S.xMin, _S.xMax];
 
+  _yTrueAutorange = true;
   Plotly.react('acq-plot', traces, {
     paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
     margin: { l: 58, r: 20, t: 12, b: 50 },
@@ -471,12 +476,13 @@ function renderFRF() {
     },
     yaxis: {
       title: { text: 'Intensity (dB)', font: { size: 11 } },
-      ...( yRange ? { range: yRange } : { autorange: true } ),
+      ...(yRange ? { range: yRange, autorange: false } : { autorange: true }),
       gridcolor: '#c0c4cc', tickfont: { size: 10 },
     },
     autosize: true,
   }, { ...PCFG, displayModeBar: true, displaylogo: false,
        modeBarButtonsToRemove: ['sendDataToCloud'] });
+  _yTrueAutorange = false;
 }
 
 
@@ -517,7 +523,6 @@ document.addEventListener('keydown', e => {
 
 window.acqRescaleY = function() {
   _S.yMin = null; _S.yMax = null;
-  _yTrueAutorange = false;
   renderFRF();
 };
 
@@ -899,11 +904,12 @@ window.acqResetPrefs = async function() {
 function _pushSettingsFromPrefs(prefs) {
   _hamTimeCutoffS  = prefs.time_cutoff_s     ?? prefs.post_trig_s ?? 0.30;
   _micTimeCutoffS  = prefs.mic_time_cutoff_s ?? prefs.time_cutoff_s ?? prefs.post_trig_s ?? 0.30;
+  _preTrigS        = prefs.pre_trig_s        ?? 0.01;
   _lineWidth       = prefs.line_width        ?? 0.5;
   _S.xMin          = prefs.frf_x_min        ?? 100;
   _S.xMax          = prefs.frf_x_max        ?? 12000;
-  _hamXRange       = [prefs.ham_x_min ?? 0,   prefs.ham_x_max ?? 0.1];
-  _micXRange       = [prefs.mic_x_min ?? 0,   prefs.mic_x_max ?? 0.3];
+  _hamXRange       = [prefs.ham_x_min ?? 0,  prefs.ham_x_max ?? 0.1];
+  _micXRange       = [prefs.mic_x_min ?? 0,  prefs.mic_x_max ?? 0.3];
   _S.yDbRange      = prefs.db_spread         ?? 38;
   _S.dbOffset      = prefs.db_offset         ?? 0;
   const yDbEl = document.getElementById('y-db-range');
@@ -962,6 +968,11 @@ async function _enumeratePrefsDevices() {
     const saved = _loadPrefs().deviceId;
     sel.innerHTML = '<option value="">Default device</option>';
     let savedFound = false;
+    { const o = document.createElement('option');
+      o.value = '__simulated__';
+      o.textContent = '⚡ Simulated Input';
+      if (saved === '__simulated__') { o.selected = true; savedFound = true; }
+      sel.appendChild(o); }
     // Filter Windows virtual entries (default / communications) — same physical
     // device appears three times on Windows; keep only the real hardware ID.
     const SKIP = new Set(['default', 'communications']);
@@ -2149,9 +2160,49 @@ window.acqToggleAcquire = async function() {
   }
 };
 
+function _startSimulation(sr, swapChannels) {
+  _simSample  = 0;
+  _simNextHit = Math.round(sr * 1.5);                // first hit after 1.5 s
+  const hitSpacing = Math.round(sr * 2.5);           // subsequent hits every 2.5 s
+  const delay = Math.max(10, Math.round(BATCH_SIZE / sr * 1000));
+
+  _simInterval = setInterval(() => {
+    const L = new Float32Array(BATCH_SIZE);
+    const R = new Float32Array(BATCH_SIZE);
+    for (let i = 0; i < BATCH_SIZE; i++) {
+      const s  = _simSample + i;
+      const dt = (s - _simNextHit) / sr;
+      let ham = 0, mic = 0;
+      if (dt >= 0 && dt < 0.1) {
+        ham = 0.4  * Math.exp(-dt / 0.0001);
+        mic = 0.2  * Math.sin(2 * Math.PI * 600 * dt) * Math.exp(-dt / 0.012);
+      }
+      const noise = () => (Math.random() - 0.5) * 0.002;
+      if (swapChannels) { L[i] = ham + noise(); R[i] = mic + noise(); }
+      else              { R[i] = ham + noise(); L[i] = mic + noise(); }
+    }
+    _simSample += BATCH_SIZE;
+    if (_simSample > _simNextHit + Math.round(sr * 0.5)) _simNextHit += hitSpacing;
+    if (window.pyProcessAudio) window.pyProcessAudio(L, R);
+  }, delay);
+}
+
+function _stopSimulation() {
+  if (_simInterval) { clearInterval(_simInterval); _simInterval = null; }
+}
+
 async function _startAudio() {
   const prefs    = _loadPrefs();
   const deviceId = prefs.deviceId;
+
+  if (deviceId === '__simulated__') {
+    _pushSettingsFromPrefs({ ...prefs });
+    _patchPrefs({ deviceLabel: '⚡ Simulated Input' });
+    _updateSoundcardDisplay();
+    _startSimulation(prefs.sample_rate ?? 48000, prefs.swap_channels ?? false);
+    window.pyArm();
+    return;
+  }
 
   // Folder is created by _refreshInstrumentFolder (called from Instrument modal
   // and after each run completes). Just warn if somehow not ready.
@@ -2254,6 +2305,7 @@ async function _startAudio() {
 }
 
 async function _stopAudio() {
+  _stopSimulation();
   if (workletNode)  { workletNode.disconnect(); workletNode = null; }
   if (sourceNode)   { sourceNode.disconnect();  sourceNode  = null; }
   if (audioCtx)     { await audioCtx.close();   audioCtx   = null; }
@@ -2364,6 +2416,7 @@ function _initPlots() {
 
   // Track main FRF plot zoom/pan — must attach after first renderFRF() initialises the plot.
   document.getElementById('acq-plot').on('plotly_relayout', e => {
+    if (_yTrueAutorange) return;  // ignore events triggered by our own Plotly.react calls
     if (e['xaxis.range[0]'] != null) {
       // Plotly reports log10 values when axis type is 'log'
       _S.xMin = _S.xLog ? Math.pow(10, e['xaxis.range[0]']) : e['xaxis.range[0]'];
@@ -2383,10 +2436,8 @@ function _initPlots() {
     }
     if (e['yaxis.range[0]'] != null) {
       _S.yMin = e['yaxis.range[0]']; _S.yMax = e['yaxis.range[1]'];
-      _yTrueAutorange = false;
     } else if (e['yaxis.autorange']) {
       _S.yMin = null; _S.yMax = null;
-      _yTrueAutorange = true;
     }
   });
 }
