@@ -144,6 +144,22 @@ main.landing {
 .folder-bar-btn:hover { background: #e4e8ee; border-color: #9aa0aa; }
 /* ─────────────────────────────────────────────────────────────────────── */
 
+/* ── Pyodide pre-load status (inline with "🔍 Tools" label) ─────────── */
+.py-preload-bar {
+  font-size: 0.72rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--muted);
+  margin-left: 10px;
+  opacity: 0.8;
+  transition: opacity 1.5s ease;
+}
+.py-preload-bar.ready {
+  color: var(--accent-3);
+}
+/* ─────────────────────────────────────────────────────────────────────── */
+
 footer.obie-footer {
   text-align: center;
   font-size: 0.8rem;

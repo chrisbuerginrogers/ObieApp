@@ -44,7 +44,9 @@
 
   <hr class="divider">
 
-  <p class="section-label">🔍 Tools</p>
+  <p class="section-label">🔍 Tools
+    <span id="py-preload-bar" class="py-preload-bar"></span>
+  </p>
   <div class="tool-grid">
 
     <a class="tool-card" href="./tools/explore/">
@@ -157,6 +159,31 @@
 
 </main>
 
+<script type="module">
+import { donkey } from 'https://pyscript.net/releases/2026.3.1/core.js';
+
+async function preloadPyodide() {
+  const bar = document.getElementById('py-preload-bar');
+  if (!bar) return;
+  try {
+    bar.textContent = '⏳ pre-loading Python…';
+    const py = await donkey({
+      type: 'py',
+      persistent: false,
+      config: { packages: ['numpy', 'scipy'] }
+    });
+    await py.execute('import numpy, scipy');
+    await py.kill();
+    bar.className = 'py-preload-bar ready';
+    bar.textContent = '✓ Python ready';
+    setTimeout(() => { bar.style.opacity = '0'; }, 3000);
+  } catch (_) {
+    if (bar) bar.textContent = '';
+  }
+}
+
+preloadPyodide();
+</script>
 <script>
   const _vEl = document.getElementById('footer-version');
   if (_vEl && typeof OBIE_VERSION !== 'undefined') _vEl.textContent = 'v' + OBIE_VERSION;
