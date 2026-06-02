@@ -40,6 +40,7 @@
       <span class="folder-bar-name" id="folder-bar-name">No folder selected</span>
     </div>
     <button class="folder-bar-btn" id="folder-bar-btn" onclick="pickDataFolder()">Select…</button>
+    <button class="folder-bar-btn" onclick="openCreateFolder()">+ Create new…</button>
   </div>
 
   <hr class="divider">
@@ -148,6 +149,45 @@
       <span class="tag experimental-tag">Experimental</span>
     </a>
 
+    <a class="tool-card experimental" href="./Docs/experimental.html" target="_blank" rel="noopener">
+      <div class="head">
+        <div class="icon">📋</div>
+        <span class="name">Experimental Docs</span>
+      </div>
+      <p class="desc">
+        Documentation for experimental tools: Export to MATLAB and WAV Viewer.
+      </p>
+      <span class="tag experimental-tag">Experimental</span>
+    </a>
+
+  </div>
+
+  <div class="ps-ver-row">
+    <span class="ps-ver-label">PyScript version:</span>
+    <select id="ps-ver-sel">
+      <option value="2026.3.1">2026.3.1 — recommended</option>
+      <option value="2024.11.1">2024.11.1 — Chrome 116 compatible</option>
+    </select>
+  </div>
+
+  <!-- ── Create new Data Folder modal ─────────────────────────────────── -->
+  <div class="idx-modal-overlay" id="create-folder-modal">
+    <div class="idx-modal-box">
+      <div class="idx-modal-header">
+        <span class="idx-modal-title">Create a new Data Folder</span>
+        <button class="idx-modal-close" onclick="closeCreateFolder()">✕</button>
+      </div>
+      <div class="idx-modal-body">
+        <p class="idx-modal-hint" id="create-folder-hint">A folder picker will open. To create a new folder inside it:</p>
+        <ol class="idx-modal-steps" id="create-folder-steps"></ol>
+        <p class="idx-modal-hint idx-modal-warn" id="create-folder-warn" style="display:none"></p>
+        <div id="create-folder-err" class="idx-modal-err"></div>
+      </div>
+      <div class="idx-modal-footer">
+        <button class="idx-act-btn" onclick="closeCreateFolder()">Cancel</button>
+        <button class="idx-act-btn accent" onclick="doCreateFolder()">Open Folder Picker…</button>
+      </div>
+    </div>
   </div>
 
   <footer class="obie-footer">
@@ -160,9 +200,12 @@
 </main>
 
 <script type="module">
-import { donkey } from 'https://pyscript.net/releases/2026.3.1/core.js';
+const _psVer = localStorage.getItem('obiePyScriptVersion') || '2026.3.1';
+let donkey;
+try { ({ donkey } = await import('https://pyscript.net/releases/' + _psVer + '/core.js')); } catch(_) {}
 
 async function preloadPyodide() {
+  if (!donkey) return;  // older version — skip preload
   const bar = document.getElementById('py-preload-bar');
   if (!bar) return;
   try {
@@ -187,6 +230,15 @@ preloadPyodide();
 <script>
   const _vEl = document.getElementById('footer-version');
   if (_vEl && typeof OBIE_VERSION !== 'undefined') _vEl.textContent = 'v' + OBIE_VERSION;
+
+  (function() {
+    var sel = document.getElementById('ps-ver-sel');
+    if (!sel) return;
+    sel.value = localStorage.getItem('obiePyScriptVersion') || '2026.3.1';
+    sel.addEventListener('change', function() {
+      localStorage.setItem('obiePyScriptVersion', this.value);
+    });
+  })();
 </script>
 <script>
 (function () {
@@ -211,6 +263,57 @@ preloadPyodide();
       }
     }).catch(() => {});
   }
+
+  window.openCreateFolder = function() {
+    document.getElementById('create-folder-err').textContent = '';
+
+    const isMac = /Mac OS X/.test(navigator.userAgent);
+    const steps = document.getElementById('create-folder-steps');
+    const warn  = document.getElementById('create-folder-warn');
+
+    if (isMac) {
+      steps.innerHTML = [
+        'Navigate to where you want the folder (e.g. inside Documents)',
+        'Click the <strong>New Folder</strong> button in the picker',
+        'Name it (e.g. <strong>ObieData</strong>)',
+        'Select it and click <strong>Open</strong>',
+      ].map(s => `<li>${s}</li>`).join('');
+      warn.textContent = '⚠ Chrome on Mac cannot access the Desktop, Documents root, or Downloads directly — navigate into a subfolder first.';
+      warn.style.display = '';
+    } else {
+      steps.innerHTML = [
+        'Navigate to where you want the folder',
+        'Right-click in an empty area and choose <strong>New → Folder</strong>',
+        'Name it (e.g. <strong>ObieData</strong>) and press Enter',
+        'Select it and click <strong>Select Folder</strong>',
+      ].map(s => `<li>${s}</li>`).join('');
+      warn.style.display = 'none';
+    }
+
+    document.getElementById('create-folder-modal').classList.add('open');
+  };
+
+  window.closeCreateFolder = function() {
+    document.getElementById('create-folder-modal').classList.remove('open');
+  };
+
+  window.doCreateFolder = async function() {
+    const errEl = document.getElementById('create-folder-err');
+    if (!window.showDirectoryPicker) { alert('Directory picker requires Chrome or Edge.'); return; }
+    try {
+      const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      closeCreateFolder();
+      await saveDataFolderHandle(handle);
+      const { isNew } = await openObieAppSettings(handle);
+      if (isNew) alert('New Data Folder created. Default settings have been copied in.');
+      document.getElementById('folder-bar-name').textContent = handle.name;
+      document.getElementById('folder-bar').classList.remove('needs-reconnect');
+      document.getElementById('folder-bar').classList.add('has-folder');
+      document.getElementById('folder-bar-btn').textContent = 'Change…';
+    } catch (e) {
+      if (e.name !== 'AbortError') errEl.textContent = 'Could not open folder: ' + e.message;
+    }
+  };
 
   window.pickDataFolder = async function () {
     if (!window.showDirectoryPicker) {

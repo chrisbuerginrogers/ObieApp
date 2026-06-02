@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Experimental Tools — ObieWebApp</title>
+  <link rel="stylesheet" href="../css/theme.css">
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+
+    .obie-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; background: var(--bg-card);
+      border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; }
+    .brand h1 { font-size: 1rem; margin: 0; font-weight: 700; }
+    .logo-icon { font-size: 1.3rem; }
+    .crumb { font-size: 0.85rem; color: var(--muted); }
+    .gap { flex: 1; }
+    .back-btn {
+      font-size: 0.75rem; padding: 3px 9px; border-radius: 4px;
+      background: var(--bg-deep); border: 1px solid var(--border);
+      color: var(--fg); text-decoration: none; cursor: pointer;
+    }
+    .back-btn:hover { background: var(--border); }
+
+    .doc-main { max-width: 820px; margin: 0 auto; padding: 32px 20px 60px; }
+
+    h2.doc-title { font-size: 1.5rem; margin: 0 0 6px; }
+    p.doc-lead { color: var(--muted); margin: 0 0 32px; font-size: 0.95rem; }
+
+    .toc { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+           padding: 16px 20px; margin-bottom: 36px; }
+    .toc h3 { margin: 0 0 10px; font-size: 0.85rem; text-transform: uppercase;
+              letter-spacing: 0.06em; color: var(--muted); }
+    .toc ul { margin: 0; padding: 0 0 0 18px; }
+    .toc li { margin: 4px 0; font-size: 0.9rem; }
+    .toc a { color: var(--accent); text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    .tool-section { margin-bottom: 52px; }
+    .tool-header {
+      display: flex; align-items: center; gap: 10px;
+      border-bottom: 2px solid var(--accent); padding-bottom: 8px; margin-bottom: 20px;
+    }
+    .tool-header .icon { font-size: 1.5rem; }
+    .tool-header h2 { font-size: 1.25rem; margin: 0; }
+    .tool-header .tag {
+      margin-left: auto; font-size: 0.7rem; background: #fff8e1;
+      border: 1px solid #f9a825; border-radius: 4px; padding: 2px 7px;
+      color: #7a5200; font-weight: 600; letter-spacing: 0.04em;
+    }
+
+    .tool-link {
+      display: inline-block; margin-bottom: 16px;
+      font-size: 0.85rem; padding: 5px 12px; border-radius: 5px;
+      background: var(--accent); color: #fff; text-decoration: none; font-weight: 600;
+    }
+    .tool-link:hover { opacity: 0.85; }
+
+    p { font-size: 0.9rem; line-height: 1.65; margin: 0 0 12px; }
+    h3 { font-size: 0.95rem; margin: 22px 0 8px; color: var(--fg); }
+    h4 { font-size: 0.85rem; margin: 18px 0 6px; text-transform: uppercase;
+         letter-spacing: 0.06em; color: var(--muted); }
+
+    .steps { margin: 0 0 14px; padding: 0 0 0 20px; }
+    .steps li { font-size: 0.9rem; line-height: 1.6; margin: 5px 0; }
+
+    .key-table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 0.85rem; }
+    .key-table th { text-align: left; font-size: 0.75rem; text-transform: uppercase;
+                    letter-spacing: 0.05em; color: var(--muted); border-bottom: 1px solid var(--border);
+                    padding: 4px 8px; }
+    .key-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .key-table tr:last-child td { border-bottom: none; }
+    .key-table td:first-child { font-weight: 600; white-space: nowrap; color: var(--accent); }
+
+    .callout {
+      background: var(--bg-deep); border-left: 3px solid var(--accent);
+      border-radius: 0 6px 6px 0; padding: 10px 14px; margin: 14px 0; font-size: 0.85rem;
+    }
+    .callout strong { display: block; margin-bottom: 3px; }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+  </style>
+</head>
+<body>
+
+<header class="obie-header">
+  <a class="brand" href="../index.html">
+    <div class="logo-icon">🎻</div>
+    <h1>ObieWebApp</h1>
+  </a>
+  <span class="crumb">· Experimental Tools</span>
+  <div class="gap"></div>
+  <a class="back-btn" href="../index.html">← All tools</a>
+</header>
+
+<main class="doc-main">
+
+  <h2 class="doc-title">🧪 Experimental Tools</h2>
+  <p class="doc-lead">Documentation for tools that are functional but still evolving. Interfaces and file formats may change between releases.</p>
+
+  <div class="toc">
+    <h3>Contents</h3>
+    <ul>
+      <li><a href="#matlab">Export to MATLAB</a></li>
+      <li><a href="#wavview">WAV Viewer</a></li>
+    </ul>
+  </div>
+
+  <!-- ── Export to MATLAB ───────────────────────────────────────────────── -->
+  <section class="tool-section" id="matlab">
+    <div class="tool-header">
+      <span class="icon">📊</span>
+      <h2>Export to MATLAB</h2>
+      <span class="tag">Experimental</span>
+    </div>
+
+    <a class="tool-link" href="../tools/matlab/" target="_blank">Open Export to MATLAB →</a>
+
+    <p>Converts FRF files from your Data Folder into a single <code>.mat</code> file that MATLAB can open directly. Supports TRF, AvC, and AvR formats. Complex FRF data is preserved for AvC files so phase information is available in MATLAB.</p>
+
+    <h3>Quick start</h3>
+    <ol class="steps">
+      <li>Click <strong>📁 Data Folder</strong> to select your measurement folder.</li>
+      <li>Check the boxes next to the files you want to export.</li>
+      <li>Click <strong>Export .mat</strong>. The file downloads immediately.</li>
+    </ol>
+
+    <h3>Output variables</h3>
+    <p>Each selected file contributes a set of variables named after the file stem (special characters replaced with underscores). For a file named <code>H01.trf</code>:</p>
+    <table class="key-table">
+      <thead><tr><th>Variable</th><th>Contents</th></tr></thead>
+      <tbody>
+        <tr><td>labels</td><td>1×N cell array of all dataset names</td></tr>
+        <tr><td>H01_freq</td><td>Column vector of frequencies (Hz)</td></tr>
+        <tr><td>H01_mag_db</td><td>Column vector of magnitude (dB)</td></tr>
+        <tr><td>H01_H</td><td>Column vector of complex FRF — AvC files only</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Supported formats</h3>
+    <table class="key-table">
+      <thead><tr><th>Format</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>.trf / .trv</td><td>Magnitude only</td></tr>
+        <tr><td>.avc</td><td>Complex FRF + magnitude; exports <code>_H</code> variable</td></tr>
+        <tr><td>.avr</td><td>Magnitude only</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── WAV Viewer ─────────────────────────────────────────────────────── -->
+  <section class="tool-section" id="wavview">
+    <div class="tool-header">
+      <span class="icon">🔊</span>
+      <h2>WAV Viewer</h2>
+      <span class="tag">Experimental</span>
+    </div>
+
+    <a class="tool-link" href="../tools/wavview/" target="_blank">Open WAV Viewer →</a>
+
+    <p>Lets you browse the raw WAV captures saved by Acquire and inspect the time-domain waveforms and computed FRF for any individual hit. Useful for diagnosing trigger problems, checking for double-hits, and verifying channel assignment.</p>
+
+    <h3>Quick start</h3>
+    <ol class="steps">
+      <li>Click <strong>📁 Data Folder</strong> to select your Acquire data folder.</li>
+      <li>Select a <code>.wav</code> file from the list on the left.</li>
+      <li>The hammer and microphone time-domain plots update immediately.</li>
+      <li>The FRF computed from that single hit is shown in the lower plot.</li>
+    </ol>
+
+    <h3>Plots</h3>
+    <table class="key-table">
+      <thead><tr><th>Plot</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>Hammer</td><td>Time-domain signal from the impact channel. The trigger threshold is shown as a dotted line; the hammer cutoff as a vertical green line.</td></tr>
+        <tr><td>Microphone</td><td>Time-domain signal from the mic channel with its cutoff line.</td></tr>
+        <tr><td>FRF</td><td>H1 estimate computed from this single hit, overlaid with coherence.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Settings</h3>
+    <p>Click <strong>Settings</strong> in the toolbar to adjust the trigger threshold, pre/post trigger window lengths, and channel swap (hammer on left vs. right input). These settings are shared with Acquire.</p>
+
+    <div class="callout">
+      <strong>WAV file format</strong>
+      WAV files saved by Acquire are two-channel (stereo): channel 1 is the hammer, channel 2 is the microphone, unless Swap inputs is enabled in which case the channels are reversed. The WAV Viewer reads the same channel mapping setting.
+    </div>
+  </section>
+
+</main>
+</body>
+</html>

@@ -37,6 +37,8 @@ let audioCtx    = null;
 let sourceNode  = null;
 let workletNode = null;
 let mediaStream = null;
+let _appliedPrefix   = 'H';   // prefix actually sent to Python (may differ from saved prefs)
+let _appliedPerGroup = 12;    // positions-per-group actually sent to Python
 let _simInterval = null;   // non-null when running in simulated-input mode
 let _simSample   = 0;      // running sample counter for simulation
 let _simNextHit  = 0;      // sample index of the next synthetic hit
@@ -288,6 +290,7 @@ window.onPositionComplete = function(label, isLast) {
 
 window.acqRepeatPosition = function() {
   document.getElementById('pos-complete-modal')?.classList.remove('open');
+  _clearTrigPlots();
   window.pyRepeatPosition?.();
 };
 
@@ -639,6 +642,7 @@ window.acqStartOver = async function() {
   frfCache = {};
   tapCache = {};
   renderFRF();
+  _clearTrigPlots();
   if (window.pyResetAll) window.pyResetAll();
   acqToggleAcquire();
 };
@@ -663,6 +667,8 @@ function _updateEditBtns(s) {
   function sd(id, v) { const el = document.getElementById(id); if (el) el.disabled = v; }
   sd('delete-btn', !s || s.hit_n <= 0);
   sd('clear-btn',  !s || s.hit_n <= 0);
+  const clrBtn = document.getElementById('clear-btn');
+  if (clrBtn) clrBtn.textContent = s?.label ? `🗑 Clear ${s.label}` : '🗑 Clear';
 }
 
 
@@ -879,8 +885,7 @@ window.acqSavePrefs = function() {
   _saveAcqSettings();
   _pushSettingsFromPrefs(prefs);
   _updateSoundcardDisplay();
-  const st = document.getElementById('prefs-save-msg');
-  if (st) { st.textContent = '✓ Saved'; setTimeout(() => st.textContent = '', 2500); }
+  acqClosePrefs();
 };
 
 window.acqResetPrefs = async function() {
@@ -916,6 +921,8 @@ function _pushSettingsFromPrefs(prefs) {
   if (yDbEl) yDbEl.value = _S.yDbRange;
   renderFRF();
   if (!window.pyApplySettings) return;
+  _appliedPrefix   = (prefs.prefix || 'H').trim();
+  _appliedPerGroup = Math.max(1, parseInt(prefs.positions) || 12);
   const sr = audioCtx?.sampleRate || 44100;
   window.pyApplySettings(
     prefs.threshold, prefs.pre_trig_s, prefs.post_trig_s,
@@ -941,10 +948,10 @@ function _updateInfoPanel() {
     ['Device',     p.deviceLabel || '—'],
     ['Sample rate', `${p.sample_rate ?? 48000} Hz`],
     ['Bit depth',  `${p.bit_depth ?? 24} bit`],
-    ['Threshold',  `${p.threshold} V`],
+    ['Ham trigger', p.threshold],
     ['Hits/pos',   p.taps],
-    ['Positions',  p.positions],
-    ['Prefix',     p.prefix || 'H'],
+    ['Prefix',     _appliedPrefix || 'H'],
+    ['Positions',  (function(){ const g = _appliedPrefix.split(',').filter(s=>s.trim()).length; return g > 1 ? `${_appliedPerGroup} × ${g} = ${_appliedPerGroup * g}` : _appliedPerGroup; })()],
     ['Ham cal',    `${p.ham_cal} N/V`],
     ['Mic cal',    `${p.mic_cal} Pa/V`],
     ['Pre-trig',   `${p.pre_trig_s} s`],
@@ -1012,8 +1019,7 @@ window.acqCloseNotes = function() {
 window.acqSaveNotes = function() {
   const val = document.getElementById('notes-textarea')?.value || '';
   localStorage.setItem(_notesKey(), val);
-  const st = document.getElementById('notes-save-msg');
-  if (st) { st.textContent = '✓ Saved'; setTimeout(() => st.textContent = '', 2500); }
+  acqCloseNotes();
 };
 
 
@@ -1333,7 +1339,7 @@ let _currentTemplateName = '';  // template last applied
 window.acqRenameTest = async function() {
   if (!_rootDirHandle) { alert('Set a Data Folder first.'); return; }
   const instrument = (document.getElementById('inp-instrument-banner')?.textContent || '').trim() || 'scratch';
-  if (instrument === 'scratch') { alert('Switch to a real instrument first.'); return; }
+  if (instrument === 'scratch') { alert('Please name your instrument first — click the 🎻 Instrument button in the toolbar.'); return; }
   const current = _runName || _pendingTestName || '';
   const newName = prompt('Rename this test:', current);
   if (!newName || !newName.trim() || newName.trim() === current) return;
@@ -1422,6 +1428,10 @@ async function _refreshInstrumentFolder(instrumentName) {
     _runName    = _pendingTestName;
 
     // Reset Python acquisition state so hit/position counters start from zero
+    frfCache = {};
+    tapCache = {};
+    renderFRF();
+    _clearTrigPlots();
     if (window.pyResetAll) window.pyResetAll();
 
     // Write settings snapshot into the test folder
@@ -1440,6 +1450,7 @@ async function _refreshInstrumentFolder(instrumentName) {
 
     const instrDisp = document.getElementById('inp-instrument-banner');
     if (instrDisp) instrDisp.textContent = instrumentName;
+    _patchPrefs({ instrument: instrumentName });
     const testDisp = document.getElementById('inp-test-banner');
     if (testDisp) testDisp.textContent = _pendingTestName;
     const ind = document.getElementById('folder-name-ind');
@@ -1663,8 +1674,8 @@ function _lvReallocRing(sr) {
 }
 function _lvPushRing(L, R) {
   for (let i = 0; i < L.length; i++) {
-    _lvRingH[_lvRingWr] = R[i];
-    _lvRingM[_lvRingWr] = L[i];
+    _lvRingH[_lvRingWr] = _lvSwap ? R[i] : L[i];
+    _lvRingM[_lvRingWr] = _lvSwap ? L[i] : R[i];
     _lvRingWr = (_lvRingWr + 1) % _lvRingSz;
   }
 }
@@ -1704,6 +1715,7 @@ window.lvSetMode = function(m) {
   _lvCapturedH = null; _lvCapturedM = null; _lvCapturedFRF = null;
 };
 
+let _lvSwap         = false;
 let _lvTrigState    = 'armed';
 let _lvTrigRingPos  = 0;
 let _lvPostLeft     = 0;
@@ -1917,6 +1929,7 @@ window.lvToggleCapture = async function() {
       }
     });
     _lvAudioCtx = new AudioContext();
+    _lvSwap = prefs.swap_channels ?? false;
     _lvReallocRing(_lvAudioCtx.sampleRate);
     const blob = new Blob([LV_WORKLET_SRC], { type: 'application/javascript' });
     const blobURL = URL.createObjectURL(blob);
@@ -1929,7 +1942,7 @@ window.lvToggleCapture = async function() {
     });
     _lvWorkletNode.port.onmessage = ({ data }) => {
       _lvPushRing(data.l, data.r);
-      if (_lvMode === 'trigger') _lvCheckTrigger(data.r);
+      if (_lvMode === 'trigger') _lvCheckTrigger(_lvSwap ? data.r : data.l);
     };
     _lvSource.connect(_lvWorkletNode);
     _lvRunning = true; _lvTrigState = 'armed';
@@ -2363,6 +2376,15 @@ function _initResizer() {
 // Initialisation
 // ════════════════════════════════════════════════════════════════════════════
 
+function _clearTrigPlots() {
+  const empty = [{ x: [], y: [], type: 'scatter', mode: 'lines' }];
+  Plotly.react('plot-hammer', empty, miniLayout('Hammer',      'Time (s)', 'V', { range: _hamXRange }), PCFG);
+  Plotly.react('plot-mic',    empty, miniLayout('Microphone',  'Time (s)', 'V', { range: _micXRange }), PCFG);
+  Plotly.react('plot-fft',    empty, miniLayout('Hammer FFT',  'Hz',       'dB',
+    { type: 'log', range: [Math.log10(200), Math.log10(10000)] }, { range: [-25, 0] }), PCFG);
+  _lastTrigData = null;
+}
+
 function _initPlots() {
   const empty = { x: [], y: [], type: 'scatter', mode: 'lines' };
   const fftColor  = '#7c4dbe';
@@ -2450,13 +2472,16 @@ window.onPyReady = function() {
   // Auto-start: probe with getUserMedia first (establishes permission + real device IDs),
   // release the test stream, then start acquisition with the saved specific device.
   // If no audio device is available the probe throws and we leave the button at Start.
-  setTimeout(async () => {
-    try {
-      const tmp = await navigator.mediaDevices.getUserMedia({ audio: true });
-      tmp.getTracks().forEach(t => t.stop());
-      acqToggleAcquire();
-    } catch (_) {}
-  }, 100);
+  // Simulated mode is excluded — user must press Start explicitly.
+  if (_loadPrefs().deviceId !== '__simulated__') {
+    setTimeout(async () => {
+      try {
+        const tmp = await navigator.mediaDevices.getUserMedia({ audio: true });
+        tmp.getTracks().forEach(t => t.stop());
+        acqToggleAcquire();
+      } catch (_) {}
+    }, 100);
+  }
 };
 
 window.addEventListener('load', () => {
