@@ -1,4 +1,4 @@
-"""
+""" 
 mat_fileio.py
 
 Reader for MATLAB .mat files (v4 – v7.2) in the two Obie formats.
