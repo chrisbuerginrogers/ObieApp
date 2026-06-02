@@ -2,6 +2,7 @@
 mat_fileio.py
 
 Reader for MATLAB .mat files (v4 – v7.2) in the two Obie formats.
+Works with both file paths (desktop) and raw bytes/BytesIO (browser / PyScript).
 
 Format A — time-domain  (variable 'indata' present)
 ----------------------------------------------------
@@ -39,8 +40,10 @@ Returns dict:
     kind        'frf'
     raw         dict
 
-parse_mat(path) auto-detects the format and delegates to the appropriate parser.
+parse_mat(src) auto-detects the format; src may be a file path (str/Path) or raw bytes.
+parse_mat_bytes is an alias for parse_mat — provided for browser / PyScript callers.
 """
+import io
 from pathlib import Path
 
 import numpy as np
@@ -53,15 +56,31 @@ except ImportError as _e:
     ) from _e
 
 
-def parse_mat_timedomain(path) -> dict:
-    """Load a time-domain Obie .mat file ('indata' format)."""
-    path = Path(path)
-    raw = _sio.loadmat(str(path))
+def _load(src) -> dict:
+    """Accept a file path (str/Path), raw bytes, or a file-like object."""
+    if isinstance(src, (bytes, bytearray)):
+        return _sio.loadmat(io.BytesIO(src))
+    if hasattr(src, 'read'):
+        return _sio.loadmat(src)
+    return _sio.loadmat(str(Path(src)))
+
+
+def _name(src) -> str:
+    if isinstance(src, (str, Path)):
+        return Path(src).name
+    return '<bytes>'
+
+
+def parse_mat_timedomain(src) -> dict:
+    """Load a time-domain Obie .mat file ('indata' format).
+    src: file path (str/Path), raw bytes, or file-like object."""
+    raw = _load(src)
+    name = _name(src)
 
     if "indata" not in raw:
-        raise ValueError(f"No 'indata' variable found in {path.name}")
+        raise ValueError(f"No 'indata' variable found in {name}")
     if "freq" not in raw:
-        raise ValueError(f"No 'freq' variable found in {path.name}")
+        raise ValueError(f"No 'freq' variable found in {name}")
 
     data = raw["indata"].flatten().astype(np.float64)
     sample_rate = int(raw["freq"].flat[0])
@@ -80,15 +99,16 @@ def parse_mat_timedomain(path) -> dict:
     }
 
 
-def parse_mat_frf(path) -> dict:
-    """Load an FRF/coherence Obie .mat file ('yspec' format)."""
-    path = Path(path)
-    raw = _sio.loadmat(str(path))
+def parse_mat_frf(src) -> dict:
+    """Load an FRF/coherence Obie .mat file ('yspec' format).
+    src: file path (str/Path), raw bytes, or file-like object."""
+    raw = _load(src)
+    name = _name(src)
 
     if "yspec" not in raw:
-        raise ValueError(f"No 'yspec' variable found in {path.name}")
+        raise ValueError(f"No 'yspec' variable found in {name}")
     if "freq" not in raw:
-        raise ValueError(f"No 'freq' variable found in {path.name}")
+        raise ValueError(f"No 'freq' variable found in {name}")
 
     yspec = raw["yspec"]
     if yspec.ndim != 2 or yspec.shape[1] < 2:
@@ -116,23 +136,27 @@ def parse_mat_frf(path) -> dict:
     }
 
 
-def parse_mat(path) -> dict:
+def parse_mat(src) -> dict:
     """Auto-detect format and load a MATLAB .mat file.
 
+    src: file path (str/Path), raw bytes, or file-like object.
     Returns a dict whose 'kind' key is 'timedomain' or 'frf'.
     See module docstring for the full key list for each format.
     """
-    path = Path(path)
-    raw = _sio.loadmat(str(path))
+    raw = _load(src)
+    name = _name(src)
 
     if "yspec" in raw:
-        return parse_mat_frf(path)
+        return parse_mat_frf(src)
     if "indata" in raw:
-        return parse_mat_timedomain(path)
+        return parse_mat_timedomain(src)
     raise ValueError(
-        f"Unrecognised .mat format in {path.name}: "
+        f"Unrecognised .mat format in {name}: "
         "expected 'yspec' (FRF) or 'indata' (time-domain)"
     )
 
 
-__all__ = ["parse_mat", "parse_mat_timedomain", "parse_mat_frf"]
+# Browser / PyScript alias — accepts raw bytes, same return value as parse_mat
+parse_mat_bytes = parse_mat
+
+__all__ = ["parse_mat", "parse_mat_timedomain", "parse_mat_frf", "parse_mat_bytes"]
