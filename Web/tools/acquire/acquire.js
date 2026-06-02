@@ -1227,6 +1227,9 @@ window.acqApplyTemplate = function() {
     if (ta) ta.value = t.notes;
   }
   window.acqCloseTemplate();
+  frfCache = {}; tapCache = {};
+  renderFRF(); _clearTrigPlots();
+  window.pyResetAll?.();
   document.getElementById('prefs-modal')?.classList.add('open');
 };
 
@@ -1345,14 +1348,52 @@ window.acqRenameTest = async function() {
   if (!newName || !newName.trim() || newName.trim() === current) return;
   const name = newName.trim();
   try {
-    const instrHandle = await _rootDirHandle.getDirectoryHandle(instrument, { create: true });
-    const testHandle  = await instrHandle.getDirectoryHandle(name, { create: true });
-    _rawHandle = await testHandle.getDirectoryHandle('raw', { create: true });
-    _trfHandle = await testHandle.getDirectoryHandle('TRF', { create: true });
-    _runName   = name;
+    const instrHandle = _testsHandle || await _rootDirHandle.getDirectoryHandle(instrument);
+
+    // Reject if target name already exists
+    try { await instrHandle.getDirectoryHandle(name); alert(`A test named "${name}" already exists.`); return; } catch (_) {}
+
+    // Find the old folder (may not exist yet if user renames before first Start)
+    let oldHandle = null;
+    if (current) { try { oldHandle = await instrHandle.getDirectoryHandle(current); } catch (_) {} }
+
+    if (oldHandle) {
+      // Copy all files (top-level + one level of subdirectories) to new folder, then delete old
+      const newHandle = await instrHandle.getDirectoryHandle(name, { create: true });
+      for await (const [entryName, entry] of oldHandle.entries()) {
+        if (entry.kind === 'file') {
+          const buf = await (await entry.getFile()).arrayBuffer();
+          const fw = await (await newHandle.getFileHandle(entryName, { create: true })).createWritable();
+          await fw.write(buf); await fw.close();
+        } else if (entry.kind === 'directory') {
+          const newSub = await newHandle.getDirectoryHandle(entryName, { create: true });
+          for await (const [subName, subEntry] of entry.entries()) {
+            if (subEntry.kind === 'file') {
+              const buf = await (await subEntry.getFile()).arrayBuffer();
+              const fw = await (await newSub.getFileHandle(subName, { create: true })).createWritable();
+              await fw.write(buf); await fw.close();
+            }
+          }
+        }
+      }
+      _testHandle = newHandle;
+      _rawHandle  = await newHandle.getDirectoryHandle('raw', { create: true });
+      _trfHandle  = await newHandle.getDirectoryHandle('TRF', { create: true });
+      try { await instrHandle.removeEntry(current, { recursive: true }); } catch (_) {}
+    } else {
+      // No existing folder yet — just create the new one
+      const newHandle = await instrHandle.getDirectoryHandle(name, { create: true });
+      _testHandle = newHandle;
+      _rawHandle  = await newHandle.getDirectoryHandle('raw', { create: true });
+      _trfHandle  = await newHandle.getDirectoryHandle('TRF', { create: true });
+    }
+
+    _runName = name;
     _pendingTestName = name;
     const testDisp = document.getElementById('inp-test-banner');
     if (testDisp) testDisp.textContent = name;
+    const ind = document.getElementById('folder-name-ind');
+    if (ind) ind.textContent = name;
     _setSaveStatus(true, name);
   } catch (e) {
     alert('Could not rename: ' + e.message);
@@ -1376,11 +1417,17 @@ window.acqConfirmInstrument = async function() {
   const inp  = document.getElementById('instrument-inp');
   const name = inp?.value.trim();
   if (!name) return;
+  const prev = (document.getElementById('inp-instrument-banner')?.textContent || '').trim();
   const msg = document.getElementById('instrument-modal-msg');
   if (msg) msg.textContent = 'Setting up…';
   await _refreshInstrumentFolder(name);
   if (msg) msg.textContent = '';
   document.getElementById('instrument-modal')?.classList.remove('open');
+  if (name !== prev && prev !== '—') {
+    frfCache = {}; tapCache = {};
+    renderFRF(); _clearTrigPlots();
+    window.pyResetAll?.();
+  }
 };
 
 async function _refreshInstrumentFolder(instrumentName) {
@@ -1426,13 +1473,6 @@ async function _refreshInstrumentFolder(instrumentName) {
     _rawHandle  = await testHandle.getDirectoryHandle('raw', { create: true });
     _trfHandle  = await testHandle.getDirectoryHandle('TRF', { create: true });
     _runName    = _pendingTestName;
-
-    // Reset Python acquisition state so hit/position counters start from zero
-    frfCache = {};
-    tapCache = {};
-    renderFRF();
-    _clearTrigPlots();
-    if (window.pyResetAll) window.pyResetAll();
 
     // Write settings snapshot into the test folder
     try {
@@ -2191,8 +2231,8 @@ function _startSimulation(sr, swapChannels) {
         mic = 0.2  * Math.sin(2 * Math.PI * 600 * dt) * Math.exp(-dt / 0.012);
       }
       const noise = () => (Math.random() - 0.5) * 0.002;
-      if (swapChannels) { L[i] = ham + noise(); R[i] = mic + noise(); }
-      else              { R[i] = ham + noise(); L[i] = mic + noise(); }
+      if (swapChannels) { R[i] = ham + noise(); L[i] = mic + noise(); }
+      else              { L[i] = ham + noise(); R[i] = mic + noise(); }
     }
     _simSample += BATCH_SIZE;
     if (_simSample > _simNextHit + Math.round(sr * 0.5)) _simNextHit += hitSpacing;
@@ -2467,8 +2507,7 @@ function _initPlots() {
 // Called once from Python after proxies are registered
 window.onPyReady = function() {
   const prefs = _loadPrefs();
-  _pushSettingsFromPrefs(prefs);
-  window.pyInitPositions(prefs.positions || 12);
+  _pushSettingsFromPrefs(prefs);  // calls pyApplySettings which initialises positions
   // Auto-start: probe with getUserMedia first (establishes permission + real device IDs),
   // release the test stream, then start acquisition with the saved specific device.
   // If no audio device is available the probe throws and we leave the button at Start.
