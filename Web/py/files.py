@@ -8,17 +8,20 @@ Supported formats:
   .avc      — Stoppani/MtxVec complex-averaged FRF
   .avr      — Stoppani/MtxVec real-averaged data (e.g. coherence)
   .tsv      — tab-separated (2-col real or 3-col complex)
+  .mat      — MATLAB FRF ('yspec' format only; time-domain skipped)
 
 Imports are flat (no 'py.' prefix) because the py-config maps all shared
 modules to the VFS root: "../../py/foo.py" → "./foo.py".
 """
 
 import math
+import numpy as np
 import js
 from pyscript.ffi import to_js
 from trf_fileio import parse_trf
 from avc_fileio import parse_avc, parse_avr
 from tsv_parser import parse_tsv
+from mat_fileio import parse_mat_bytes as _parse_mat
 from dom import set_status, render_header, render_fileinfo
 
 _DATA_TYPE = ['Accel', 'Mobility', 'Receptance', 'Mic', 'Unknown']
@@ -75,6 +78,33 @@ def _parse_csv(text):
     }
 
 
+def _mat_standard(raw: bytes) -> dict:
+    """Convert a .mat FRF file to the standard result dict. Time-domain returns n_rows=0."""
+    p = _parse_mat(raw)
+    if p['kind'] == 'timedomain':
+        return {'freq': [], 'mag': [], 'n_rows': 0,
+                'warnings': ['.mat time-domain files cannot be shown as FRF']}
+    # FRF format
+    freqs = p['freqs']
+    mag_db = [round(20.0 * math.log10(max(abs(complex(v)), 1e-12)), 4) for v in p['frf']]
+    hz_res = p['hz_res']
+    return {
+        'header': {
+            'Hz_Resolution': f"{hz_res:.6g} Hz",
+            'Start_Freq':    f"{float(freqs[0]):.4g} Hz",
+            'Stop_Freq':     f"{float(freqs[-1]):.4g} Hz",
+            'Sample_Rate':   f"{p['sample_rate']} Hz",
+            'N_pts':         str(p['npts']),
+            'Format':        'MATLAB FRF (.mat)',
+        },
+        'columns':  ['Frequency [Hz]', 'Magnitude [dB]'],
+        'freq':     [round(float(f), 4) for f in freqs],
+        'mag':      mag_db,
+        'n_rows':   len(freqs),
+        'warnings': [],
+    }
+
+
 def load(filename, js_uint8array):
     """Parse a file from a JS Uint8Array. Returns standard result dict."""
     ext = filename.rsplit('.', 1)[-1].lower()
@@ -91,13 +121,17 @@ def load(filename, js_uint8array):
         return _av_standard(p, p['data'])
     if ext == 'csv':
         return _parse_csv(raw.decode('utf-8', errors='replace'))
-    return parse_tsv(raw.decode('utf-8', errors='replace'))  # unknown: try text
+    if ext == 'mat':
+        return _mat_standard(raw)
+    label = f'.{ext}' if ext else '(no extension)'
+    return {'freq': [], 'mag': [], 'n_rows': 0,
+            'warnings': [f'{label} is not a supported file type — use TRF, TRV, AvC, AvR, TSV, CSV, or MAT']}
 
 
 def trace_label(filename):
     """Strip path and known extensions to get a clean trace label."""
     label = filename.rsplit('/', 1)[-1].rsplit('\\', 1)[-1]
-    for suffix in ('.trf', '.trv', '.avc', '.avr', '.tsv'):
+    for suffix in ('.trf', '.trv', '.avc', '.avr', '.tsv', '.mat'):
         if label.lower().endswith(suffix):
             return label[:-len(suffix)]
     return label

@@ -634,8 +634,7 @@
     _S.yDbRange = p.yDbRange; _S.xMin = p.xMin; _S.xMax = p.xMax; _S.lineWidth = p.lineWidth;
     _syncControls(); render();
     _saveExploreJson();   // also persist to ObieAppSettings/explore.json
-    const st = $('prefs-save-msg');
-    if (st) { st.textContent = '✓ Saved'; setTimeout(() => st.textContent = '', 2500); }
+    expClosePrefs();
   };
 
   window.expResetPrefs = function() {
@@ -672,7 +671,7 @@
   window.expHelp = () => window.open('../../Docs/index.html', '_blank');
 
   // ── Data Folder helpers ───────────────────────────────────────────────
-  const _SCAN_EXTS = new Set(['.trf','.trv','.avc','.avr','.csv']);
+  const _SCAN_EXTS = new Set(['.trf','.trv','.avc','.avr','.csv','.mat']);
 
   const _NON_INSTRUMENT_DIRS = new Set(['ObieAppSettings', 'Test_Samples']);
   async function _countTopDirs(dh) {
@@ -913,7 +912,7 @@
 
   window.expBrowse = function() {
     const inp = document.createElement('input');
-    inp.type = 'file'; inp.multiple = true; inp.accept = '.trf,.trv,.avc,.avr,.csv';
+    inp.type = 'file'; inp.multiple = true; inp.accept = '.trf,.trv,.avc,.avr,.csv,.mat';
     inp.addEventListener('change', async () => {
       if (!window.pyExploreLoadFile) { alert('Python not ready — try again.'); return; }
       for (const f of inp.files)
@@ -1306,7 +1305,7 @@
     // String mode tick marks at bottom
     STRING_MODES.forEach(m => traces.push({
       x:[m.freq,m.freq], y:[-35,-28], type:'scatter', mode:'lines+text',
-      text:['',m.label], textposition:'bottom center',
+      text:['',m.label], textposition:'top center',
       line:{color:'#c00', width:1.5, dash:'dot'},
       showlegend:false, textfont:{color:'#c00', size:11},
     }));
@@ -1423,6 +1422,11 @@
   // ── Python-side callbacks ─────────────────────────────────────────────
   window.obieExploreAddDataset = function(name, freqsJs, magsJs) {
     const n = String(name).split('/').pop().split('\\').pop();
+    if (_datasets.some(d => d.name === n)) {
+      const st = $('explore-status');
+      if (st) { st.textContent = `Already loaded: ${n}`; setTimeout(()=>st.textContent='', 3000); }
+      return;
+    }
     _saveUndo();
     const id = _nextId++;
     const color = _pendingColors[n] || _palette[_datasets.length % _palette.length];
@@ -1436,6 +1440,11 @@
   };
 
   window.obieExploreError = function(name, msg) {
+    const n = String(name).split('/').pop().split('\\').pop();
+    if (msg.includes('not a supported file type')) {
+      alert(`${n}\n\n${msg}`);
+      return;
+    }
     const st = $('explore-status');
     if (st) { st.textContent = `Error: ${msg}`; st.style.color='var(--red,#c00)'; setTimeout(()=>{st.textContent=''; st.style.color='';}, 5000); }
     console.error(`[Explore] ${name}: ${msg}`);

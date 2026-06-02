@@ -20,10 +20,11 @@ _ham_time_cutoff_s = 0.30   # hammer signal zeroed past this time post-trigger
 _mic_time_cutoff_s = 0.30   # mic signal zeroed past this time post-trigger
 _n_taps         = 5
 _n_positions    = 12
-_prefix         = "H"
+_n_per_prefix   = 12
+_prefixes       = ["H"]
 _mic_cal        = 1.0
 _ham_cal        = 1.0
-_swap_channels  = False   # True → hammer on left input, mic on right
+_swap_channels  = False   # True → hammer on right input, mic on left
 _last_ham_win   = None    # last hammer window stored for FFT re-rendering
 
 # ── Ring buffer ───────────────────────────────────────────────────────────────
@@ -61,21 +62,23 @@ def apply_settings(thr_js, pre_js, post_js, ham_time_cutoff_js,
                    swap_js=False, mic_time_cutoff_js=None):
     global _threshold, _pre_trig_s, _post_trig_s
     global _ham_time_cutoff_s, _mic_time_cutoff_s
-    global _n_taps, _prefix, _mic_cal, _ham_cal, _sr, _swap_channels
+    global _n_taps, _prefixes, _n_per_prefix, _mic_cal, _ham_cal, _sr, _swap_channels
     _threshold      = max(0.001, float(thr_js))
     _pre_trig_s        = max(0.001, float(pre_js))
     _post_trig_s       = max(0.05,  float(post_js))
     _ham_time_cutoff_s = max(0.01,  float(ham_time_cutoff_js))
     _mic_time_cutoff_s = max(0.01,  float(mic_time_cutoff_js)) if mic_time_cutoff_js is not None else _mic_time_cutoff_s
     _n_taps         = max(1,     int(taps_js))
-    _prefix         = str(prefix_js).strip()[:3].upper() or "H"
+    parts = [p.strip()[:3].upper() for p in str(prefix_js).split(',') if p.strip()]
+    _prefixes       = parts or ["H"]
     _mic_cal        = float(mic_cal_js) if float(mic_cal_js) else 1.0
     _ham_cal        = float(ham_cal_js) if float(ham_cal_js) else 1.0
     _swap_channels  = bool(swap_js)
     new_sr          = int(sr_js)
     if new_sr != _sr:
         _reallocate_ring(new_sr)
-    new_n = max(1, int(npos_js))
+    _n_per_prefix = max(1, int(npos_js))
+    new_n = _n_per_prefix * len(_prefixes)
     if new_n != _n_positions or not _pos_hits:
         _init_internal(new_n)
     else:
@@ -120,7 +123,7 @@ def process_audio(left_js, right_js):
     n = len(R)
 
     if _state == "armed":
-        trig = L if _swap_channels else R
+        trig = R if _swap_channels else L
         mask = np.abs(trig) > _threshold
         if np.any(mask):
             trig_idx = int(np.argmax(mask))
@@ -213,13 +216,21 @@ def export_trf():
     if trf_bytes is None:
         js.window.onDownload(None, None)
         return
-    label = f"{_prefix}{_cur_pos + 1:02d}"
+    label = _pos_label(_cur_pos)
     js.window.onDownload(trf_bytes, f"acq_{label}.trf")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Internal helpers
 # ═══════════════════════════════════════════════════════════════════════════════
+
+def _pos_label(i):
+    """Return the position label e.g. H03 or V07 based on prefix groups."""
+    grp = i // _n_per_prefix
+    idx = i  %  _n_per_prefix
+    pfx = _prefixes[grp] if grp < len(_prefixes) else _prefixes[-1]
+    return f"{pfx}{idx + 1:02d}"
+
 
 def _init_internal(n):
     global _n_positions, _cur_pos, _pos_hits, _frf, _state, _wav_L, _wav_R
@@ -313,9 +324,9 @@ def _do_capture():
     post = int(_post_trig_s * _sr)
     L_win, R_win = _ring_window_at(_trig_ring_pos, pre, post)
     if _swap_channels:
-        ham_win, mic_win = L_win, R_win
+        ham_win, mic_win = R_win, L_win
     else:
-        mic_win, ham_win = L_win, R_win
+        ham_win, mic_win = L_win, R_win
 
     ham_win = ham_win * _ham_cal
     mic_win = mic_win * _mic_cal
@@ -412,10 +423,10 @@ def _complete_position():
     st = _frf.get(_cur_pos, {})
     H1, H_dB, _, freq = _h1_from_st(st)
     if H1 is not None:
-        label = f"{_prefix}{_cur_pos+1:02d} ({_n_taps} hits)"
+        label = f"{_pos_label(_cur_pos)} ({_n_taps} hits)"
         js.window.onHistoryAdd(to_js(freq.tolist()), to_js(H_dB.tolist()), label)
     is_last = (_cur_pos + 1 >= _n_positions)
-    pos_label = f"{_prefix}{_cur_pos+1:02d}"
+    pos_label = _pos_label(_cur_pos)
     _state = "position_complete"
     _emit_banner()
     _emit_state()
@@ -483,15 +494,17 @@ def _emit_live():
     n    = int(_post_trig_s * _sr)
     Lw, Rw = _ring_tail(n)
     t    = np.linspace(0.0, n / _sr, len(Rw), endpoint=False)
-    js.window.onLivePlot(to_js(t.tolist()), to_js(Rw.tolist()),
-                         to_js(Lw.tolist()), float(_threshold))
+    ham_live = Rw if _swap_channels else Lw
+    mic_live = Lw if _swap_channels else Rw
+    js.window.onLivePlot(to_js(t.tolist()), to_js(ham_live.tolist()),
+                         to_js(mic_live.tolist()), float(_threshold))
 
 
 def _emit_state():
     js.window.onStateChange(json.dumps({
         "state":       _state,
         "pos":         _cur_pos,
-        "label":       f"{_prefix}{_cur_pos+1:02d}",
+        "label":       _pos_label(_cur_pos),
         "hit_n":       _pos_hits[_cur_pos] if _cur_pos < len(_pos_hits) else 0,
         "n_taps":      _n_taps,
         "n_positions": _n_positions,
@@ -501,7 +514,7 @@ def _emit_state():
 def _emit_banner():
     js.window.onBannerUpdate(json.dumps([
         {"hits": _pos_hits[i], "n_taps": _n_taps,
-         "label": f"{_prefix}{i+1:02d}", "current": i == _cur_pos}
+         "label": _pos_label(i), "current": i == _cur_pos}
         for i in range(_n_positions)
     ]))
 
