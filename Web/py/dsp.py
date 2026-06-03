@@ -1,20 +1,21 @@
 """
-dsp.py — DSP core for ObieWebApp2 (Convolve tool).
+dsp.py — Browser orchestration for the Convolve tool (PyScript / JS callbacks).
 
-Public functions
-----------------
-  load_frf(filename_js, data_js)   — parse FRF via files.load()  → onFRFResult
-  load_wav(filename_js, data_js)   — decode WAV bytes             → onWavResult
-  convolve()                        — IR convolution               → onConvolveResult
+All heavy computation delegates to canonical Python modules loaded from GitHub:
+  wavfileio.py      → WAV reading + normalisation
+  spectrogram.py    → STFT spectrogram
+  convolution.py    → frequency-domain convolution
+  bands.py          → band averaging
 """
 
-import io
 import json
 import js
 import numpy as np
 from pyscript.ffi import to_js
 from files import load as _load_file
 from bands import compute_bands
+from wavfileio import load_wav_normalised, load_wav_bytes
+from spectrogram import compute_spectrogram
 
 # ── Band presets ──────────────────────────────────────────────────────────
 BAND_PRESETS = {
@@ -93,40 +94,27 @@ def load_frf(channel_js, filename_js, data_js):
 # ── WAV loading ───────────────────────────────────────────────────────────
 
 def load_wav(filename_js, data_js):
-    import scipy.io.wavfile as _wavfile
     global _wav, _wav_sr
     try:
         raw = bytes(data_js.to_py())
-        sr, data = _wavfile.read(io.BytesIO(raw))
-        if data.dtype == np.int16:
-            data = data.astype(np.float32) / 32768.0
-        elif data.dtype == np.int32:
-            data = data.astype(np.float32) / 2147483648.0
-        elif data.dtype == np.uint8:
-            data = (data.astype(np.float32) - 128.0) / 128.0
-        else:
-            data = data.astype(np.float32)
-
-        # Compute per-channel input spectrograms before mixing down
-        stereo = data.ndim > 1
+        # Per-channel spectrograms before mix-down
+        raw_data, sr = load_wav_bytes(raw)
+        stereo = raw_data.ndim > 1
         if stereo:
-            peak = np.max(np.abs(data))
-            l_norm = (data[:, 0] / peak if peak > 0 else data[:, 0]).astype(np.float64)
-            r_norm = (data[:, 1] / peak if peak > 0 else data[:, 1]).astype(np.float64)
-            data = data.mean(axis=1)
-        peak = np.max(np.abs(data))
-        if peak > 0:
-            data /= peak
-        _wav    = data
-        _wav_sr = int(sr)
+            peak = float(np.max(np.abs(raw_data))) or 1.0
+            l_norm = (raw_data[:, 0] / peak).astype(np.float64)
+            r_norm = (raw_data[:, 1] / peak).astype(np.float64)
+        mono, sr = load_wav_normalised(raw)
+        _wav    = mono
+        _wav_sr = sr
         name = str(filename_js).rsplit('/', 1)[-1].rsplit('\\', 1)[-1]
-        info = f'✓ {name} · {len(data) / sr:.2f} s · {sr / 1000:.1f} kHz'
-        js.window.onWavResult(to_js(data), _wav_sr, info)
+        info = f'✓ {name} · {len(mono) / sr:.2f} s · {sr / 1000:.1f} kHz'
+        js.window.onWavResult(to_js(mono), sr, info)
         if stereo:
-            _spectrogram(l_norm, int(sr), 'onInLSpectrogramResult')
-            _spectrogram(r_norm, int(sr), 'onInRSpectrogramResult')
+            _send_spectrogram(l_norm, sr, 'onInLSpectrogramResult')
+            _send_spectrogram(r_norm, sr, 'onInRSpectrogramResult')
         else:
-            _spectrogram(_wav, _wav_sr, 'onInLSpectrogramResult')
+            _send_spectrogram(mono, sr, 'onInLSpectrogramResult')
     except Exception as exc:
         js.window.onWavError(str(exc)[:120])
 
@@ -156,8 +144,8 @@ def convolve():
             interleaved[0::2] = y[:, 0]
             interleaved[1::2] = y[:, 1]
             js.window.onConvolveResult(to_js(interleaved), _wav_sr, 2)
-            _spectrogram(y[:, 0], _wav_sr, 'onOutLSpectrogramResult')
-            _spectrogram(y[:, 1], _wav_sr, 'onOutRSpectrogramResult')
+            _send_spectrogram(y[:, 0], _wav_sr, 'onOutLSpectrogramResult')
+            _send_spectrogram(y[:, 1], _wav_sr, 'onOutRSpectrogramResult')
         else:
             y = convolve_it(_wav, _frf_freqs, H_l, _wav_sr)
             peak = np.max(np.abs(y))
@@ -165,7 +153,7 @@ def convolve():
                 y = y / peak * 0.95
             y = np.clip(y, -1.0, 1.0).astype(np.float32)
             js.window.onConvolveResult(to_js(y), _wav_sr, 1)
-            _spectrogram(y, _wav_sr, 'onOutLSpectrogramResult')
+            _send_spectrogram(y, _wav_sr, 'onOutLSpectrogramResult')
     except Exception as exc:
         js.window.onConvolveError(str(exc)[:120])
         raise
@@ -173,30 +161,18 @@ def convolve():
 
 # ── Spectrogram ────────────────────────────────────────────────────────────
 
-def _spectrogram(sig, sr, cb):
+def _send_spectrogram(sig, sr, cb):
+    """Compute spectrogram via canonical module and fire a JS callback."""
     try:
-        sig    = np.asarray(sig, dtype=np.float64)
-        n_fft  = 2048
-        hop    = 512
-        if len(sig) < n_fft:
+        times, freqs, S_db = compute_spectrogram(sig, sr)
+        if S_db.size == 0:
             return
-        win      = np.hanning(n_fft)
-        n_frames = max(1, (len(sig) - n_fft) // hop + 1)
-        idx    = np.arange(n_frames)[:, None] * hop + np.arange(n_fft)[None, :]
-        frames = sig[np.minimum(idx, len(sig) - 1)] * win
-        S_db = (20.0 * np.log10(
-            np.maximum(np.abs(np.fft.rfft(frames, axis=1)), 1e-10)
-        )).T.astype(np.float32)
-        freqs = np.fft.rfftfreq(n_fft, 1.0 / sr).astype(np.float32)
-        mask  = freqs <= 8000.0
-        S_db  = S_db[mask]
-        times = (np.arange(n_frames) * hop / sr).astype(np.float32)
         getattr(js.window, cb)(
             to_js(times),
-            to_js(freqs[mask]),
+            to_js(freqs),
             to_js(S_db.flatten()),
             int(S_db.shape[0]),
             int(S_db.shape[1]),
         )
     except Exception as exc:
-        print(f'[dsp._spectrogram → {cb}] {type(exc).__name__}: {exc}')
+        print(f'[dsp._send_spectrogram → {cb}] {type(exc).__name__}: {exc}')

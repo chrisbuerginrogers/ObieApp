@@ -8,10 +8,11 @@ Supported formats:
   .avc      — Stoppani/MtxVec complex-averaged FRF
   .avr      — Stoppani/MtxVec real-averaged data (e.g. coherence)
   .tsv      — tab-separated (2-col real or 3-col complex)
+  .csv      — two-column CSV (Frequency, Magnitude dB)
   .mat      — MATLAB FRF ('yspec' format only; time-domain skipped)
 
-Imports are flat (no 'py.' prefix) because the py-config maps all shared
-modules to the VFS root: "../../py/foo.py" → "./foo.py".
+All format parsers live in Python/fileio/ on GitHub and are loaded via
+pyscript.toml — this file is only the dispatch/orchestration layer.
 """
 
 import math
@@ -20,7 +21,7 @@ import js
 from pyscript.ffi import to_js
 from trf_fileio import parse_trf
 from avc_fileio import parse_avc, parse_avr
-from tsv_parser import parse_tsv
+from tsv_fileio import parse_tsv, parse_csv
 from mat_fileio import parse_mat_bytes as _parse_mat
 from dom import set_status, render_header, render_fileinfo
 
@@ -50,32 +51,6 @@ def _av_standard(parsed, values):
     }
 
 
-def _parse_csv(text):
-    """Parse two-column Frequency,dB CSV (comma-separated)."""
-    freqs, dbs = [], []
-    for ln in text.strip().split('\n'):
-        ln = ln.strip()
-        if not ln or (ln[0].isalpha() and ln[0] not in 'eE'):
-            continue
-        parts = ln.split(',')
-        if len(parts) >= 2:
-            try:
-                f, d = float(parts[0]), float(parts[1])
-                if f > 0 and math.isfinite(f) and math.isfinite(d):
-                    freqs.append(f)
-                    dbs.append(d)
-            except ValueError:
-                pass
-    if len(freqs) < 4:
-        raise ValueError('Too few valid rows — check CSV format (Frequency,dB)')
-    return {
-        'header':   {'Format': 'CSV', 'Columns': '2 (Frequency, Magnitude dB)'},
-        'columns':  ['Frequency [Hz]', 'Magnitude [dB]'],
-        'freq':     [round(f, 6) for f in freqs],
-        'mag':      [round(d, 4) for d in dbs],
-        'n_rows':   len(freqs),
-        'warnings': [],
-    }
 
 
 def _mat_standard(raw: bytes) -> dict:
@@ -114,7 +89,7 @@ def load(filename, js_uint8array):
     ext = filename.rsplit('.', 1)[-1].lower()
     raw = bytes(js_uint8array.to_py())
     if ext == 'tsv':
-        return parse_tsv(raw.decode('utf-8', errors='replace'))
+        return parse_tsv(raw)
     if ext in ('trf', 'trv'):
         return parse_trf(raw)
     if ext == 'avc':
@@ -124,7 +99,7 @@ def load(filename, js_uint8array):
         p = parse_avr(raw)
         return _av_standard(p, p['data'])
     if ext == 'csv':
-        return _parse_csv(raw.decode('utf-8', errors='replace'))
+        return parse_csv(raw)
     if ext == 'mat':
         return _mat_standard(raw)
     label = f'.{ext}' if ext else '(no extension)'

@@ -101,7 +101,16 @@ def parse_mat_timedomain(src) -> dict:
 
 def parse_mat_frf(src) -> dict:
     """Load an FRF/coherence Obie .mat file ('yspec' format).
-    src: file path (str/Path), raw bytes, or file-like object."""
+    src: file path (str/Path), raw bytes, or file-like object.
+
+    yspec layout (MATLAB saves spectral data in various shapes):
+      1-D or (N, 1) — single complex FRF channel, no coherence
+      (N, 2)        — complex FRF in col 0, coherence (real) in col 1
+      (N, k>2)      — FRF in col 0, coherence in col 1, extra cols ignored
+
+    dt2 (optional (1,3) uint8 recording flags) is read if present but not
+    required — column count is the authoritative source of channel layout.
+    """
     raw = _load(src)
     name = _name(src)
 
@@ -111,18 +120,22 @@ def parse_mat_frf(src) -> dict:
         raise ValueError(f"No 'freq' variable found in {name}")
 
     yspec = raw["yspec"]
-    if yspec.ndim != 2 or yspec.shape[1] < 2:
-        raise ValueError(
-            f"'yspec' must have at least 2 columns, got shape {yspec.shape}"
-        )
 
+    # Normalise to 2-D — MATLAB may store a single vector as 1-D or (N, 1)
+    if yspec.ndim == 1:
+        yspec = yspec.reshape(-1, 1)
+    if yspec.ndim != 2:
+        raise ValueError(f"Unexpected 'yspec' shape {yspec.shape} in {name}")
+
+    n_bins, n_cols = yspec.shape
     sample_rate = int(raw["freq"].flat[0])
-    npts = int(raw["npts"].flat[0]) if "npts" in raw else (yspec.shape[0] - 1) * 2
+    npts = int(raw["npts"].flat[0]) if "npts" in raw else (n_bins - 1) * 2
     hz_res = sample_rate / npts
-    freqs = np.arange(yspec.shape[0]) * hz_res
+    freqs = np.arange(n_bins) * hz_res
 
     frf = yspec[:, 0]
-    coherence = yspec[:, 1].real
+    # Coherence is real by definition; only present when a second column exists
+    coherence = yspec[:, 1].real if n_cols >= 2 else None
 
     return {
         "freqs":       freqs,
