@@ -26,6 +26,7 @@ _mic_cal        = 1.0
 _ham_cal        = 1.0
 _swap_channels  = False   # True → hammer on right input, mic on left
 _last_ham_win   = None    # last hammer window stored for FFT re-rendering
+_device_name    = ''      # human-readable audio device label for TRF metadata
 
 # ── Ring buffer ───────────────────────────────────────────────────────────────
 _RING_SECS = 6
@@ -59,10 +60,10 @@ _LIVE_EVERY   = 6
 
 def apply_settings(thr_js, pre_js, post_js, ham_time_cutoff_js,
                    taps_js, npos_js, prefix_js, mic_cal_js, ham_cal_js, sr_js,
-                   swap_js=False, mic_time_cutoff_js=None):
+                   swap_js=False, mic_time_cutoff_js=None, device_name_js=''):
     global _threshold, _pre_trig_s, _post_trig_s
     global _ham_time_cutoff_s, _mic_time_cutoff_s
-    global _n_taps, _prefixes, _n_per_prefix, _mic_cal, _ham_cal, _sr, _swap_channels
+    global _n_taps, _prefixes, _n_per_prefix, _mic_cal, _ham_cal, _sr, _swap_channels, _device_name
     _threshold      = max(0.001, float(thr_js))
     _pre_trig_s        = max(0.001, float(pre_js))
     _post_trig_s       = max(0.05,  float(post_js))
@@ -74,6 +75,7 @@ def apply_settings(thr_js, pre_js, post_js, ham_time_cutoff_js,
     _mic_cal        = float(mic_cal_js) if float(mic_cal_js) else 1.0
     _ham_cal        = float(ham_cal_js) if float(ham_cal_js) else 1.0
     _swap_channels  = bool(swap_js)
+    _device_name    = str(device_name_js)
     new_sr          = int(sr_js)
     if new_sr != _sr:
         _reallocate_ring(new_sr)
@@ -520,10 +522,21 @@ def _emit_banner():
 
 
 def _build_trf_bytes(st):
-    _r = _h1_from_st(st); H1, freq = _r[0], _r[3]
+    H1, _H_dB, coh, freq = _h1_from_st(st)
     if H1 is None:
         return None
-    return to_js(bytearray(build_trf(freq.tolist(), H1.tolist())))
+    n_hits = len(st.get('hits_ham', []))
+    meta = {
+        'sample_rate': str(_sr),
+        'bit_depth':   '16',
+        'n_hits':      str(n_hits),
+        'threshold':   f'{_threshold:.4g}',
+        'ham_cutoff':  f'{_ham_time_cutoff_s:.3f} s',
+        'mic_cutoff':  f'{_mic_time_cutoff_s:.3f} s',
+        'device':      _device_name,
+    }
+    coh_list = coh.tolist() if coh is not None else None
+    return to_js(bytearray(build_trf(freq.tolist(), H1.tolist(), coherence=coh_list, meta=meta)))
 
 
 def _encode_wav_bytes(L, R, sr):

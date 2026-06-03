@@ -205,13 +205,32 @@ Every desktop Python tool must perform these checks before doing any real work, 
 
 | Extension | Parser |
 |---|---|
-| `.trf` / `.trv` | `Python/fileio/trf_fileio.py` · `Web/py/files.py` |
+| `.trf` / `.trv` | `Python/fileio/trf_fileio.py` · `Web/py/trf_fileio.py` · `Web/py/files.py` |
 | `.avc` | `Python/fileio/avc_fileio.py` · `Web/py/files.py` |
 | `.avr` | `Python/fileio/avc_fileio.py` · `Web/py/files.py` |
 | `.wav` | `Python/fileio/wavfileio.py` · `Web/py/dsp.py` |
 | `.tsv` / `.csv` | `Web/py/tsv_parser.py` · `Web/py/files.py` |
+| `.mat` | `Python/fileio/mat_fileio.py` · `Web/py/files.py` |
 
 All parsers return a standard dict `{freq, mag, header, warnings}` — match that contract when adding new formats.
+
+The standard dict may also carry an optional **`coh`** field (coherence, 0–1 array, same length as `freq`). Present for `.trf` files saved by Acquire (`fComplex=2.0`) and for `.mat` FRF files. Explore plots coherence as a dotted right-axis overlay when present.
+
+### TRF format extension (Acquire-written files)
+
+`Python/fileio/trf_fileio.py` (and `Web/py/trf_fileio.py`) supports three `fComplex` values:
+
+| `fComplex` | Data layout per bin | Notes |
+|---|---|---|
+| `0.0` | 1× float64 (real magnitude) | Legacy / read-only tools |
+| `1.0` | 2× float64 (re, im) | Complex FRF, older Acquire |
+| `2.0` | 3× float64 (re, im, γ²) | **Acquire now writes this** — complex FRF + coherence |
+
+After the binary data, Acquire appends an optional metadata block starting with `b'\x00OBIE_META\n'` (UTF-8 key: value lines). Fields: `sample_rate`, `bit_depth`, `n_hits`, `threshold`, `ham_cutoff`, `mic_cutoff`, `device`. Old readers stop at the data section and ignore the block — backward compatible.
+
+### mat_fileio — browser compatible
+
+`Python/fileio/mat_fileio.py` now accepts **file paths or raw bytes** (the browser needs bytes). `parse_mat_bytes` is an alias for `parse_mat`. Both are in `__all__`. Do **not** create a separate `Web/py/mat_fileio.py` — load the canonical Python version from GitHub in `pyscript.toml`.
 
 ---
 
@@ -235,6 +254,62 @@ const handle = await loadDataFolderHandle();  // read — called on every tool s
 > "This is a new Data Folder and I moved over the default settings folder."
 
 Call `openObieAppSettings` wherever a folder is applied (home page, Explore, Acquire) so this alert fires consistently.
+
+---
+
+---
+
+## pyscript.toml — Local vs. GitHub Sources
+
+Tools load Python modules either from a local path (`../../py/module.py`) or from a GitHub raw URL. **Critical rule:**
+
+> If a Python module in `Python/fileio/` or `Python/processing/` has been **modified locally but not yet pushed to GitHub**, its `pyscript.toml` entry MUST point to a local copy in `Web/py/`, not the GitHub URL. Using a GitHub URL for an unpushed file silently loads the old version and breaks the tool with cryptic errors (e.g. `TypeError: unexpected keyword argument`).
+
+Current state of `trf_fileio.py`: **local** (`../../py/trf_fileio.py`) in all three tools — it has extensions not yet on GitHub (`fComplex=2.0`, `coherence=`, `meta=` params).
+
+When the canonical Python files are pushed to GitHub, the `pyscript.toml` entries can be switched back to GitHub URLs. Prefer GitHub URLs for stable modules so tools always get the latest without a local copy to maintain.
+
+---
+
+## Acquire — Key Implementation Details
+
+### Plot axis ranges
+
+All six plot axes are stored in `localStorage` prefs and in template JSON. The module-level variables in `acquire.js` are:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `_S.xMin / _S.xMax` | 200 / 7000 Hz | FRF x axis |
+| `_S.yMin / _S.yMax` | -10 / 30 dB | FRF y axis (null = auto via `db_spread`) |
+| `_hamXRange` | [0, 0.05] s | Hammer time-domain x |
+| `_hamYRange` | [-0.1, 1] V | Hammer time-domain y |
+| `_micXRange` | [0, 0.3] s | Mic time-domain x |
+| `_micYRange` | [-1, 1] V | Mic time-domain y |
+| `_fftXRange` | [200, 10000] Hz | Hammer FFT x |
+| `_fftYRange` | [-25, 0] dB | Hammer FFT y |
+
+`_resetAxisRanges(prefs)` resets all eight from a prefs object (or to hard-coded defaults when `prefs` is null). Call it before `_populatePrefsForm(prefs, true)` whenever resetting — this prevents stale localStorage zoom values bleeding into the new session.
+
+`_populatePrefsForm(overridePrefs, skipPlotSync)` — pass `skipPlotSync=true` when resetting to defaults or loading a template, to skip syncing the current Plotly zoom back into the module vars.
+
+### Template prefs keys for axes
+
+Templates should include: `frf_x_min/max`, `frf_y_min/max`, `ham_x_min/max`, `ham_y_min/max`, `mic_x_min/max`, `mic_y_min/max`, `fft_x_min/max`, `fft_y_min/max`.
+
+### Instrument overlay
+
+`_refreshOverlays()` shows a "name your instrument" cover over the plot area **only** when:
+1. A data folder is connected (`_rootDirHandle` set), AND
+2. No instrument folder is set up yet (`_rawHandle` is null), AND
+3. A template has been loaded (`_currentTemplateName` is non-empty)
+
+Without a loaded template the user can run in scratch/unnamed mode freely. Never gate on the banner text saying "scratch" — that would block instruments actually named "scratch".
+
+### State variables
+
+- `_currentTemplateName` — last template applied. Saved into `settings.json` per test run. Used to gate the instrument overlay.
+- `_rawHandle` / `_trfHandle` — null until `_refreshInstrumentFolder` completes. The instrument overlay uses `!_rawHandle` to detect "no instrument set up."
+- `_appliedPrefix` / `_appliedPerGroup` — tracks what Python's state machine actually has (not stale localStorage). Always read from these for the info panel, not from `_loadPrefs()`.
 
 ---
 

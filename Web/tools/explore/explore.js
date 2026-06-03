@@ -436,6 +436,20 @@
       _renderBandTable(null);
     }
 
+    // Coherence traces — right Y-axis (y2), 0–1, dotted, 60% opacity
+    const cohTraces = [];
+    const hasCoh = _datasets.some(d => d.visible && d.cohs?.length);
+    if (hasCoh) {
+      _datasets.filter(d => d.visible && d.cohs?.length).forEach(d => {
+        cohTraces.push({
+          x: d.freqs, y: d.cohs, type: 'scatter', mode: 'lines',
+          line: { color: d.color, width: 1, dash: 'dot' },
+          yaxis: 'y2', showlegend: false, opacity: 0.6,
+          hovertemplate: `<b>${_esc(d.name)}</b><br>%{x:.0f} Hz  γ²=%{y:.2f}<extra></extra>`,
+        });
+      });
+    }
+
     // Y range — autoscale in linear mode; dB window in dB mode
     let yRange;
     if (!_S.yLog) {
@@ -457,14 +471,17 @@
     const layout = {
       paper_bgcolor:'#ffffff', plot_bgcolor:'#ffffff',
       font:{color:text, family:'inherit', size:12},
-      margin:{l:65, r:16, t:12, b:50},
+      margin:{l:65, r: hasCoh ? 52 : 16, t:12, b:50},
       showlegend:false, autosize:true,
       xaxis:{title:'Frequency (Hz)', type:_S.xLog?'log':'linear', range:xRange, gridcolor:border, zerolinecolor:border, linecolor:border},
       yaxis:{title:_S.yLog?'Magnitude (linear)':'Magnitude (dB)', type:'linear', range:yRange, gridcolor:border, zerolinecolor:border, linecolor:border},
+      yaxis2: hasCoh ? {title:'Coherence γ²', overlaying:'y', side:'right', range:[0, 1.05],
+                        showgrid:false, zeroline:false, tickformat:'.1f',
+                        tickfont:{size:10}, titlefont:{size:11}} : undefined,
       shapes: bandShapes,
     };
 
-    Plotly.react('explore-plot', [...plotTraces, ...bandTraces], layout,
+    Plotly.react('explore-plot', [...plotTraces, ...bandTraces, ...cohTraces], layout,
       {responsive:true, displayModeBar:true, displaylogo:false, modeBarButtonsToRemove:['sendDataToCloud'],
        toImageButtonOptions:{format:'png', scale:2, filename:'explore-frf'}});
   }
@@ -1420,7 +1437,7 @@
   }
 
   // ── Python-side callbacks ─────────────────────────────────────────────
-  window.obieExploreAddDataset = function(name, freqsJs, magsJs) {
+  window.obieExploreAddDataset = function(name, freqsJs, magsJs, cohsJs) {
     const n = String(name).split('/').pop().split('\\').pop();
     if (_datasets.some(d => d.name === n)) {
       const st = $('explore-status');
@@ -1433,7 +1450,8 @@
     delete _pendingColors[n];
     const path  = _pendingPaths[n] || n;
     delete _pendingPaths[n];
-    _datasets.push({id, name:n, path, color, visible:true, freqs:Array.from(freqsJs), mags:Array.from(magsJs)});
+    const cohs = cohsJs ? Array.from(cohsJs) : null;
+    _datasets.push({id, name:n, path, color, visible:true, freqs:Array.from(freqsJs), mags:Array.from(magsJs), cohs});
     _renderList(); render();
     const st = $('explore-status');
     if (st) { st.textContent = `✓ ${n}`; setTimeout(()=>st.textContent='', 3000); }

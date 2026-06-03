@@ -64,9 +64,12 @@ let _S = {
 };
 
 // Per-mini-plot y-range locks (null = auto)
-let _fftYRange  = null;
-let _hamYRange  = null;
-let _micYRange  = null;
+let _fftYRange  = [-25, 0];
+let _hamYRange  = [-0.1, 1];
+let _micYRange  = [-1, 1];
+
+// Hammer FFT x-range (Hz)
+let _fftXRange  = [200, 10000];
 
 let _yTrueAutorange = false;      // true while Plotly.react is running (suppress re-entrant relayout)
 
@@ -76,7 +79,7 @@ let _showTaps   = false;
 let _tapOpacity = 0.40;
 
 // Mini-plot x-ranges (time domain)
-let _hamXRange = [0, 0.1];
+let _hamXRange = [0, 0.05];
 let _micXRange = [0, 0.3];
 
 // ── Colour palette (same as Explore) ─────────────────────────────────────────
@@ -174,7 +177,8 @@ function _drawTrigPlots(t, ham, mic, thrF) {
 window.onHammerFFT = function(freq_js, db_js) {
   const freqAll  = Array.from(freq_js).map(Number);
   const dbAll    = Array.from(db_js).map(Number);
-  const fMax     = Math.min(_S.xMax, freqAll[freqAll.length - 1] || _S.xMax);
+  const fMax     = Math.min(_fftXRange[1], freqAll[freqAll.length - 1] || _fftXRange[1]);
+  const fMin     = _fftXRange[0];
 
   // Build arrays, skip DC bin (freq=0 breaks log axis)
   const freq = [], db = [];
@@ -186,7 +190,7 @@ window.onHammerFFT = function(freq_js, db_js) {
   // Normalize by the peak within the displayed band
   let peak = -1e9;
   for (let i = 0; i < freq.length; i++) {
-    if (freq[i] >= 200 && freq[i] <= fMax && isFinite(db[i]) && db[i] > peak)
+    if (freq[i] >= fMin && freq[i] <= fMax && isFinite(db[i]) && db[i] > peak)
       peak = db[i];
   }
   if (!isFinite(peak)) {
@@ -199,8 +203,8 @@ window.onHammerFFT = function(freq_js, db_js) {
   Plotly.react('plot-fft',
     [{ x: freq, y: dbNorm, type: 'scatter', mode: 'lines', line: { color: '#7c4dbe', width: 1 } }],
     miniLayout('Hammer FFT', 'Hz', 'dB',
-      { type: 'log', range: [Math.log10(200), Math.log10(fMax)] },
-      { range: [-25, 0] }),
+      { type: 'log', range: [Math.log10(Math.max(fMin, 1)), Math.log10(fMax)] },
+      { range: _fftYRange }),
     PCFG);
 };
 
@@ -308,6 +312,10 @@ window.acqPausePosition = async function() {
 
 window.acqNextPosition = function() {
   document.getElementById('pos-complete-modal')?.classList.remove('open');
+  delete frfCache[currentPos];
+  delete tapCache[currentPos];
+  renderFRF();
+  _clearTrigPlots();
   window.pyAdvancePosition?.();
 };
 
@@ -711,20 +719,22 @@ window.acqLoadSettingsTxt = async function(input) {
   input.value = '';
 };
 
-function _populatePrefsForm(overridePrefs) {
+function _populatePrefsForm(overridePrefs, skipPlotSync) {
   const set = (id, val) => {
     const el = document.getElementById(id);
     if (el && val != null) el.value = val;
   };
   const prefs = overridePrefs || _loadPrefs();
-  // Sync _S.xMin/_S.xMax from the plot's actual displayed range — more reliable than
-  // depending on the plotly_relayout event having fired and been captured.
-  const acqDiv = document.getElementById('acq-plot');
-  if (acqDiv?._fullLayout?.xaxis?.range?.length === 2) {
-    const isLog = acqDiv._fullLayout.xaxis.type === 'log';
-    const xr = acqDiv._fullLayout.xaxis.range;
-    _S.xMin = isLog ? Math.pow(10, xr[0]) : xr[0];
-    _S.xMax = isLog ? Math.pow(10, xr[1]) : xr[1];
+  // Sync _S.xMin/_S.xMax from the plot's actual displayed range so the form shows
+  // the current zoom. Skipped when resetting to defaults (skipPlotSync=true).
+  if (!skipPlotSync) {
+    const acqDiv = document.getElementById('acq-plot');
+    if (acqDiv?._fullLayout?.xaxis?.range?.length === 2) {
+      const isLog = acqDiv._fullLayout.xaxis.type === 'log';
+      const xr = acqDiv._fullLayout.xaxis.range;
+      _S.xMin = isLog ? Math.pow(10, xr[0]) : xr[0];
+      _S.xMax = isLog ? Math.pow(10, xr[1]) : xr[1];
+    }
   }
   set('inp-threshold',   prefs.threshold);
   set('inp-thr-disp',    Number(prefs.threshold ?? 0.05).toFixed(3));
@@ -756,8 +766,20 @@ function _populatePrefsForm(overridePrefs) {
     _micXRange = [...micDiv._fullLayout.xaxis.range];
   set('inp-ham-x-min',   _hamXRange[0]);
   set('inp-ham-x-max',   _hamXRange[1]);
+  set('inp-ham-y-min',   _hamYRange ? _hamYRange[0] : (prefs.ham_y_min ?? -0.1));
+  set('inp-ham-y-max',   _hamYRange ? _hamYRange[1] : (prefs.ham_y_max ?? 1));
   set('inp-mic-x-min',   _micXRange[0]);
   set('inp-mic-x-max',   _micXRange[1]);
+  set('inp-mic-y-min',   _micYRange ? _micYRange[0] : (prefs.mic_y_min ?? -1));
+  set('inp-mic-y-max',   _micYRange ? _micYRange[1] : (prefs.mic_y_max ?? 1));
+  set('inp-fft-x-min',   _fftXRange[0]);
+  set('inp-fft-x-max',   _fftXRange[1]);
+  set('inp-fft-y-min',   _fftYRange[0]);
+  set('inp-fft-y-max',   _fftYRange[1]);
+  const frfYMinEl = document.getElementById('inp-frf-y-min');
+  const frfYMaxEl = document.getElementById('inp-frf-y-max');
+  if (frfYMinEl) frfYMinEl.value = (_S.yMin != null) ? _S.yMin : (prefs.frf_y_min != null ? prefs.frf_y_min : '');
+  if (frfYMaxEl) frfYMaxEl.value = (_S.yMax != null) ? _S.yMax : (prefs.frf_y_max != null ? prefs.frf_y_max : '');
   set('inp-db-spread',   prefs.db_spread  ?? 38);
   set('inp-db-offset',   prefs.db_offset  ?? 0);
   set('inp-bit-depth',   prefs.bit_depth  ?? 24);
@@ -785,7 +807,8 @@ function _callPyApplySettings() {
     p.taps, p.positions, p.prefix,
     p.mic_cal, p.ham_cal, sr,
     p.swap_channels ?? false,
-    p.mic_time_cutoff_s ?? p.time_cutoff_s ?? p.post_trig_s ?? 0.30
+    p.mic_time_cutoff_s ?? p.time_cutoff_s ?? p.post_trig_s ?? 0.30,
+    p.deviceLabel || ''
   );
 }
 
@@ -795,9 +818,11 @@ function _loadPrefs() {
     time_cutoff_s: 0.30, mic_time_cutoff_s: 0.30,
     taps: 5, positions: 12, prefix: 'H',
     mic_cal: 1.0, ham_cal: 1.0, swap_channels: false,
-    frf_x_min: 100, frf_x_max: 12000,
+    frf_x_min: 200, frf_x_max: 7000, frf_y_min: -10, frf_y_max: 30,
     deviceLabel: '', instrument: 'scratch', deviceId: '', line_width: 0.5,
-    ham_x_min: 0, ham_x_max: 0.1, mic_x_min: 0, mic_x_max: 0.3,
+    ham_x_min: 0, ham_x_max: 0.05, ham_y_min: -0.1, ham_y_max: 1,
+    mic_x_min: 0, mic_x_max: 0.3,  mic_y_min: -1,   mic_y_max: 1,
+    fft_x_min: 200, fft_x_max: 10000, fft_y_min: -25, fft_y_max: 0,
     db_spread: 38, db_offset: 0, bit_depth: 24, sample_rate: 48000,
   };
   try {
@@ -850,6 +875,17 @@ window.acqSavePrefs = function() {
   }
   if (!isNaN(formFrfMin) && formFrfMin > 0) _S.xMin = formFrfMin;
   if (!isNaN(formFrfMax) && formFrfMax > 0) _S.xMax = formFrfMax;
+  const formHamYMin = parseFloat(g('inp-ham-y-min')), formHamYMax = parseFloat(g('inp-ham-y-max'));
+  if (!isNaN(formHamYMin) && !isNaN(formHamYMax)) _hamYRange = [formHamYMin, formHamYMax];
+  const formMicYMin = parseFloat(g('inp-mic-y-min')), formMicYMax = parseFloat(g('inp-mic-y-max'));
+  if (!isNaN(formMicYMin) && !isNaN(formMicYMax)) _micYRange = [formMicYMin, formMicYMax];
+  const formFftXMin = parseFloat(g('inp-fft-x-min')), formFftXMax = parseFloat(g('inp-fft-x-max'));
+  if (!isNaN(formFftXMin) && !isNaN(formFftXMax) && formFftXMin > 0 && formFftXMax > formFftXMin)
+    _fftXRange = [formFftXMin, formFftXMax];
+  const formFftYMin = parseFloat(g('inp-fft-y-min')), formFftYMax = parseFloat(g('inp-fft-y-max'));
+  if (!isNaN(formFftYMin) && !isNaN(formFftYMax)) _fftYRange = [formFftYMin, formFftYMax];
+  const formFrfYMin = parseFloat(g('inp-frf-y-min')), formFrfYMax = parseFloat(g('inp-frf-y-max'));
+  if (!isNaN(formFrfYMin) && !isNaN(formFrfYMax)) { _S.yMin = formFrfYMin; _S.yMax = formFrfYMax; }
   const micCal = parseFloat(g('inp-mic-cal'));
   const hamCal = parseFloat(g('inp-ham-cal'));
   if (!isFinite(micCal) || micCal === 0) { alert('Mic calibration must be a non-zero number.'); return; }
@@ -874,8 +910,18 @@ window.acqSavePrefs = function() {
     line_width:    parseFloat(g('inp-line-width'))  || 0.5,
     ham_x_min:     _hamXRange[0],
     ham_x_max:     _hamXRange[1],
+    ham_y_min:     _hamYRange ? _hamYRange[0] : parseFloat(g('inp-ham-y-min')) ?? -0.1,
+    ham_y_max:     _hamYRange ? _hamYRange[1] : parseFloat(g('inp-ham-y-max')) ?? 1,
     mic_x_min:     _micXRange[0],
     mic_x_max:     _micXRange[1],
+    mic_y_min:     _micYRange ? _micYRange[0] : parseFloat(g('inp-mic-y-min')) ?? -1,
+    mic_y_max:     _micYRange ? _micYRange[1] : parseFloat(g('inp-mic-y-max')) ?? 1,
+    fft_x_min:     _fftXRange[0],
+    fft_x_max:     _fftXRange[1],
+    fft_y_min:     _fftYRange[0],
+    fft_y_max:     _fftYRange[1],
+    frf_y_min:     (() => { const v = parseFloat(g('inp-frf-y-min')); return isNaN(v) ? null : v; })(),
+    frf_y_max:     (() => { const v = parseFloat(g('inp-frf-y-max')); return isNaN(v) ? null : v; })(),
     db_spread:     parseFloat(g('inp-db-spread'))   || 38,
     db_offset:     parseFloat(g('inp-db-offset'))   || 0,
     bit_depth:     parseInt(g('inp-bit-depth'))     || 24,
@@ -888,6 +934,18 @@ window.acqSavePrefs = function() {
   acqClosePrefs();
 };
 
+function _resetAxisRanges(prefs) {
+  const p = prefs || {};
+  _S.xMin     = p.frf_x_min  ?? 200;   _S.xMax     = p.frf_x_max  ?? 7000;
+  _S.yMin     = p.frf_y_min  ?? -10;   _S.yMax     = p.frf_y_max  ?? 30;
+  _hamXRange  = [p.ham_x_min ?? 0,    p.ham_x_max ?? 0.05];
+  _hamYRange  = [p.ham_y_min ?? -0.1, p.ham_y_max ?? 1];
+  _micXRange  = [p.mic_x_min ?? 0,    p.mic_x_max ?? 0.3];
+  _micYRange  = [p.mic_y_min ?? -1,   p.mic_y_max ?? 1];
+  _fftXRange  = [p.fft_x_min ?? 200,  p.fft_x_max ?? 10000];
+  _fftYRange  = [p.fft_y_min ?? -25,  p.fft_y_max ?? 0];
+}
+
 window.acqResetPrefs = async function() {
   const st = document.getElementById('prefs-save-msg');
   if (_settingsHandle) {
@@ -895,14 +953,17 @@ window.acqResetPrefs = async function() {
       const file  = await (await _settingsHandle.getFileHandle('acquire.json')).getFile();
       const prefs = JSON.parse(await file.text());
       localStorage.setItem('obieAcquire_prefs', JSON.stringify(prefs));
-      _populatePrefsForm(prefs);
+      _resetAxisRanges(prefs);
+      _populatePrefsForm(prefs, true);
       _pushSettingsFromPrefs(prefs);
       if (st) { st.textContent = '✓ Restored from disk'; setTimeout(() => st.textContent = '', 2500); }
       return;
     } catch (_) {}
   }
   localStorage.removeItem('obieAcquire_prefs');
-  _populatePrefsForm();
+  _resetAxisRanges(null);
+  _populatePrefsForm(null, true);
+  _pushSettingsFromPrefs(_loadPrefs());
   if (st) { st.textContent = '✓ Reset to defaults'; setTimeout(() => st.textContent = '', 2500); }
 };
 
@@ -911,10 +972,16 @@ function _pushSettingsFromPrefs(prefs) {
   _micTimeCutoffS  = prefs.mic_time_cutoff_s ?? prefs.time_cutoff_s ?? prefs.post_trig_s ?? 0.30;
   _preTrigS        = prefs.pre_trig_s        ?? 0.01;
   _lineWidth       = prefs.line_width        ?? 0.5;
-  _S.xMin          = prefs.frf_x_min        ?? 100;
-  _S.xMax          = prefs.frf_x_max        ?? 12000;
-  _hamXRange       = [prefs.ham_x_min ?? 0,  prefs.ham_x_max ?? 0.1];
-  _micXRange       = [prefs.mic_x_min ?? 0,  prefs.mic_x_max ?? 0.3];
+  _S.xMin          = prefs.frf_x_min        ?? 200;
+  _S.xMax          = prefs.frf_x_max        ?? 7000;
+  _S.yMin          = prefs.frf_y_min        ?? -10;
+  _S.yMax          = prefs.frf_y_max        ?? 30;
+  _hamXRange       = [prefs.ham_x_min ?? 0,    prefs.ham_x_max ?? 0.05];
+  _hamYRange       = [prefs.ham_y_min ?? -0.1, prefs.ham_y_max ?? 1];
+  _micXRange       = [prefs.mic_x_min ?? 0,    prefs.mic_x_max ?? 0.3];
+  _micYRange       = [prefs.mic_y_min ?? -1,   prefs.mic_y_max ?? 1];
+  _fftXRange       = [prefs.fft_x_min ?? 200,  prefs.fft_x_max ?? 10000];
+  _fftYRange       = [prefs.fft_y_min ?? -25,  prefs.fft_y_max ?? 0];
   _S.yDbRange      = prefs.db_spread         ?? 38;
   _S.dbOffset      = prefs.db_offset         ?? 0;
   const yDbEl = document.getElementById('y-db-range');
@@ -1209,8 +1276,22 @@ window.acqApplyTemplate = function() {
   if (s.line_width  != null) set('inp-line-width',  s.line_width);
   if (s.ham_x_min   != null) set('inp-ham-x-min',   s.ham_x_min);
   if (s.ham_x_max   != null) set('inp-ham-x-max',   s.ham_x_max);
+  if (s.ham_y_min   != null) set('inp-ham-y-min',   s.ham_y_min);
+  if (s.ham_y_max   != null) set('inp-ham-y-max',   s.ham_y_max);
   if (s.mic_x_min   != null) set('inp-mic-x-min',   s.mic_x_min);
   if (s.mic_x_max   != null) set('inp-mic-x-max',   s.mic_x_max);
+  if (s.mic_y_min   != null) set('inp-mic-y-min',   s.mic_y_min);
+  if (s.mic_y_max   != null) set('inp-mic-y-max',   s.mic_y_max);
+  if (s.fft_x_min   != null) set('inp-fft-x-min',   s.fft_x_min);
+  if (s.fft_x_max   != null) set('inp-fft-x-max',   s.fft_x_max);
+  if (s.fft_y_min   != null) set('inp-fft-y-min',   s.fft_y_min);
+  if (s.fft_y_max   != null) set('inp-fft-y-max',   s.fft_y_max);
+  if (s.frf_x_min   != null) set('inp-frf-x-min',   s.frf_x_min);
+  if (s.frf_x_max   != null) set('inp-frf-x-max',   s.frf_x_max);
+  const frfYMinEl = document.getElementById('inp-frf-y-min');
+  const frfYMaxEl = document.getElementById('inp-frf-y-max');
+  if (frfYMinEl) frfYMinEl.value = s.frf_y_min != null ? s.frf_y_min : '';
+  if (frfYMaxEl) frfYMaxEl.value = s.frf_y_max != null ? s.frf_y_max : '';
   if (s.db_spread   != null) set('inp-db-spread',   s.db_spread);
   if (s.db_offset   != null) set('inp-db-offset',   s.db_offset);
   if (s.bit_depth   != null) set('inp-bit-depth',   s.bit_depth);
@@ -1230,6 +1311,7 @@ window.acqApplyTemplate = function() {
   frfCache = {}; tapCache = {};
   renderFRF(); _clearTrigPlots();
   window.pyResetAll?.();
+  _refreshOverlays();
   document.getElementById('prefs-modal')?.classList.add('open');
 };
 
@@ -1423,6 +1505,7 @@ window.acqConfirmInstrument = async function() {
   await _refreshInstrumentFolder(name);
   if (msg) msg.textContent = '';
   document.getElementById('instrument-modal')?.classList.remove('open');
+  _refreshOverlays();
   if (name !== prev && prev !== '—') {
     frfCache = {}; tapCache = {};
     renderFRF(); _clearTrigPlots();
@@ -1503,6 +1586,15 @@ async function _refreshInstrumentFolder(instrumentName) {
   }
 }
 
+// Show/hide the instrument overlay based on current state.
+// Instrument overlay only appears when a data folder IS connected but no instrument is named.
+function _refreshOverlays() {
+  // Only show the instrument overlay when a template has been loaded but no
+  // instrument folder is set up yet. Without a template, scratch/unnamed mode is fine.
+  const needsInstrument = !!_rootDirHandle && !_rawHandle && !!_currentTemplateName;
+  document.getElementById('instrument-overlay')?.classList.toggle('hidden', !needsInstrument);
+}
+
 // Core folder-setup logic, callable with any directory handle (manual pick or auto-restore)
 async function _applyDataFolder(dirHandle) {
   _rootDirHandle = dirHandle;
@@ -1526,7 +1618,13 @@ async function _applyDataFolder(dirHandle) {
     savedPrefs  = JSON.parse(await file.text());
     _populatePrefsForm(savedPrefs);
     _pushSettingsFromPrefs(savedPrefs);
-  } catch (_) {}
+  } catch (_) {
+    // No saved prefs — reset axes to clean defaults so stale localStorage zoom
+    // values from previous sessions don't bleed into this new folder.
+    _resetAxisRanges(null);
+    _populatePrefsForm(null, true);
+    _pushSettingsFromPrefs(_loadPrefs());
+  }
 
   // Determine instrument name: prefs > 'scratch'
   const instrument = (savedPrefs?.instrument || '') || 'scratch';
@@ -1549,8 +1647,9 @@ async function _applyDataFolder(dirHandle) {
     if (testDisp) testDisp.textContent = '—';
   }
 
-  // Hide the no-folder overlay
+  // Hide the no-folder overlay, then show instrument overlay if still unnamed
   document.getElementById('folder-overlay')?.classList.add('hidden');
+  _refreshOverlays();
 }
 
 let _folderApplying = false;
@@ -2418,10 +2517,11 @@ function _initResizer() {
 
 function _clearTrigPlots() {
   const empty = [{ x: [], y: [], type: 'scatter', mode: 'lines' }];
-  Plotly.react('plot-hammer', empty, miniLayout('Hammer',      'Time (s)', 'V', { range: _hamXRange }), PCFG);
-  Plotly.react('plot-mic',    empty, miniLayout('Microphone',  'Time (s)', 'V', { range: _micXRange }), PCFG);
+  Plotly.react('plot-hammer', empty, miniLayout('Hammer',      'Time (s)', 'V', { range: _hamXRange }, { range: _hamYRange }), PCFG);
+  Plotly.react('plot-mic',    empty, miniLayout('Microphone',  'Time (s)', 'V', { range: _micXRange }, { range: _micYRange }), PCFG);
   Plotly.react('plot-fft',    empty, miniLayout('Hammer FFT',  'Hz',       'dB',
-    { type: 'log', range: [Math.log10(200), Math.log10(10000)] }, { range: [-25, 0] }), PCFG);
+    { type: 'log', range: [Math.log10(Math.max(_fftXRange[0], 1)), Math.log10(_fftXRange[1])] },
+    { range: _fftYRange }), PCFG);
   _lastTrigData = null;
 }
 
@@ -2434,18 +2534,18 @@ function _initPlots() {
   Plotly.newPlot('plot-fft',
     [{ ...empty, line: { color: fftColor, width: 1 } }],
     miniLayout('Hammer FFT', 'Hz', 'dB',
-      { type: 'log', range: [Math.log10(200), Math.log10(10000)] },
-      { range: [-25, 0] }),
+      { type: 'log', range: [Math.log10(Math.max(_fftXRange[0], 1)), Math.log10(_fftXRange[1])] },
+      { range: _fftYRange }),
     PCFG);
 
   Plotly.newPlot('plot-hammer',
     [{ ...empty, line: { color: hamColor, width: 1 } }],
-    miniLayout('Hammer', 'Time (s)', 'V', { range: _hamXRange }),
+    miniLayout('Hammer', 'Time (s)', 'V', { range: _hamXRange }, { range: _hamYRange }),
     PCFG);
 
   Plotly.newPlot('plot-mic',
     [{ ...empty, line: { color: micColor, width: 1 } }],
-    miniLayout('Microphone', 'Time (s)', 'V', { range: _micXRange }),
+    miniLayout('Microphone', 'Time (s)', 'V', { range: _micXRange }, { range: _micYRange }),
     PCFG);
 
   // Persist user zoom/pan — capture both x and y changes on mini plots.
@@ -2528,8 +2628,16 @@ window.addEventListener('load', () => {
   _hamTimeCutoffS = prefs.time_cutoff_s     ?? prefs.post_trig_s ?? 0.30;
   _micTimeCutoffS = prefs.mic_time_cutoff_s ?? prefs.time_cutoff_s ?? prefs.post_trig_s ?? 0.30;
   _lineWidth      = prefs.line_width        ?? 0.5;
-  _S.xMin         = prefs.frf_x_min        ?? 100;
-  _S.xMax         = prefs.frf_x_max        ?? 12000;
+  _S.xMin         = prefs.frf_x_min ?? 200;
+  _S.xMax         = prefs.frf_x_max ?? 7000;
+  _S.yMin         = prefs.frf_y_min ?? -10;
+  _S.yMax         = prefs.frf_y_max ?? 30;
+  _hamXRange      = [prefs.ham_x_min ?? 0,    prefs.ham_x_max ?? 0.05];
+  _hamYRange      = [prefs.ham_y_min ?? -0.1, prefs.ham_y_max ?? 1];
+  _micXRange      = [prefs.mic_x_min ?? 0,    prefs.mic_x_max ?? 0.3];
+  _micYRange      = [prefs.mic_y_min ?? -1,   prefs.mic_y_max ?? 1];
+  _fftXRange      = [prefs.fft_x_min ?? 200,  prefs.fft_x_max ?? 10000];
+  _fftYRange      = [prefs.fft_y_min ?? -25,  prefs.fft_y_max ?? 0];
   _hamXRange      = [prefs.ham_x_min ?? 0,  prefs.ham_x_max ?? 0.1];
   _micXRange      = [prefs.mic_x_min ?? 0,  prefs.mic_x_max ?? 0.3];
   const instrEl = document.getElementById('inp-instrument-banner');

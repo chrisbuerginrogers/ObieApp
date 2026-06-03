@@ -40,10 +40,12 @@ def _load_frf(filename_js, data_js):
                 warns[0] if warns else 'No data in file',
             )
             return
+        coh = result.get('coh')
         js.window.obieExploreAddDataset(
             str(filename_js),
             to_js(result['freq']),
             to_js(result['mag']),
+            to_js(coh) if coh else None,
         )
     except Exception as exc:
         js.window.obieExploreError(str(filename_js), str(exc)[:120])

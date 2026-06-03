@@ -88,7 +88,7 @@ def _mat_standard(raw: bytes) -> dict:
     freqs = p['freqs']
     mag_db = [round(20.0 * math.log10(max(abs(complex(v)), 1e-12)), 4) for v in p['frf']]
     hz_res = p['hz_res']
-    return {
+    result = {
         'header': {
             'Hz_Resolution': f"{hz_res:.6g} Hz",
             'Start_Freq':    f"{float(freqs[0]):.4g} Hz",
@@ -103,6 +103,10 @@ def _mat_standard(raw: bytes) -> dict:
         'n_rows':   len(freqs),
         'warnings': [],
     }
+    coh = p.get('coherence')
+    if coh is not None and len(coh):
+        result['coh'] = [round(float(c), 5) for c in coh]
+    return result
 
 
 def load(filename, js_uint8array):
