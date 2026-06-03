@@ -1319,13 +1319,6 @@
       mags = _applyNorm(d.freqs, mags);
       return {x:d.freqs, y:mags, type:'scatter', mode:'lines', name:d.name, line:{color:d.color, width:1.5}, showlegend:true};
     });
-    // String mode tick marks at bottom
-    STRING_MODES.forEach(m => traces.push({
-      x:[m.freq,m.freq], y:[-35,-28], type:'scatter', mode:'lines+text',
-      text:['',m.label], textposition:'top center',
-      line:{color:'#c00', width:1.5, dash:'dot'},
-      showlegend:false, textfont:{color:'#c00', size:11},
-    }));
     if (!traces.length) traces.push({x:[],y:[],type:'scatter',mode:'lines',showlegend:false});
 
     const shapes = dict.regions.map(r => ({
@@ -1339,11 +1332,19 @@
     dict.rangebars.forEach((r, i) => {
       shapes.push({type:'line', xref:'x', yref:'paper', x0:r.lo, x1:r.hi, y0:0.97-i*0.015, y1:0.97-i*0.015, line:{color:'#888',width:3}});
     });
+    // String open-string markers — vertical dotted lines + labels below x-axis
+    STRING_MODES.forEach(m => {
+      shapes.push({type:'line', xref:'x', yref:'paper', x0:m.freq, x1:m.freq, y0:0, y1:1,
+                   line:{color:'#c00', width:1.5, dash:'dot'}});
+      annotations.push({x:m.freq, xref:'x', y:-0.1, yref:'paper',
+                         text:m.label, showarrow:false,
+                         font:{color:'#c00', size:11}, xanchor:'center'});
+    });
 
     Plotly.react('interpret-plot', traces, {
       paper_bgcolor:'white', plot_bgcolor:'white',
       font:{color:'#333', family:'inherit', size:12},
-      margin:{l:65, r:16, t:50, b:60},
+      margin:{l:65, r:16, t:50, b:80},
       showlegend: traces.length > 1,
       legend:{x:1, xanchor:'right', y:1, font:{size:10}},
       xaxis:{title:'Frequency (Hz)', type:'log', range:[Math.log10(200), Math.log10(10000)], gridcolor:'#ddd', zerolinecolor:'#ddd'},
