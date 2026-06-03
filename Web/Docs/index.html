@@ -125,7 +125,7 @@
   <div class="toc">
     <h3>Contents</h3>
     <ul>
-      <li><a href="#getting-started">Getting Started — Data Folder</a></li>
+      <li><a href="#getting-started">Getting Started — Data Folder &amp; file formats</a></li>
       <li><a href="#explore">Explore — Compare FRF files</a></li>
       <li><a href="#convolve">Convolve — Auralize an FRF</a></li>
       <li><a href="#acquire">Acquire — Impact-hammer FRF measurement</a></li>
@@ -166,8 +166,9 @@
       <thead><tr><th>Extension</th><th>Description</th></tr></thead>
       <tbody>
         <tr><td>.avr / .avc</td><td>Averaged FRF (real/imaginary columns) — main format for Explore and Convolve</td></tr>
-        <tr><td>.trf / .trv</td><td>Transfer-function format — also supported by Explore and Convolve</td></tr>
+        <tr><td>.trf / .trv</td><td>Transfer-function format — also supported by Explore and Convolve. Files saved by Acquire include coherence and run metadata.</td></tr>
         <tr><td>.csv</td><td>Two-column CSV (frequency, magnitude dB) — quick import for Convolve</td></tr>
+        <tr><td>.mat</td><td>MATLAB FRF file (<code>yspec</code> format) — loaded by Explore and Convolve. Coherence is shown automatically when present.</td></tr>
         <tr><td>.wav</td><td>Audio file used as the dry signal in Convolve; also storable as a sound snippet in Explore</td></tr>
       </tbody>
     </table>
@@ -194,12 +195,19 @@
     <h3>Loading files</h3>
     <p>Three ways to load FRF files:</p>
     <ol class="steps">
-      <li><strong>Browse</strong> — opens a file picker; select one or more FRF files directly.</li>
+      <li><strong>Browse</strong> — opens a file picker; select one or more FRF files directly. Accepts AvR, AvC, TRF, TRV, CSV, and MAT formats.</li>
       <li><strong>Search</strong> — opens the Search modal. Type a filename pattern
           (comma-separated for OR logic), filter by file type, and load all matching files from
           your Data Folder with one click.</li>
       <li><strong>Drag &amp; drop</strong> — drag files from your desktop onto the plot area.</li>
     </ol>
+
+    <div class="callout">
+      <strong>Coherence overlay</strong>
+      When a file contains coherence data (TRF files saved by Acquire, or MATLAB .mat FRF files),
+      Explore automatically adds a dotted coherence trace on a right-hand axis (0–1 scale).
+      The coherence line uses the same colour as the FRF and can be read against the right axis.
+    </div>
 
     <h4>Plot controls</h4>
     <table class="key-table">
@@ -368,85 +376,119 @@
     <h3>Hardware setup</h3>
     <ol class="steps">
       <li>Connect your USB audio interface (e.g. Focusrite Scarlett 2i2) before opening the page.</li>
-      <li>Plug the impact hammer into <strong>Input 1</strong> and the microphone into <strong>Input 2</strong>
-          (or swap in Settings if your hardware is wired differently).</li>
+      <li>By default, plug the impact hammer into <strong>Input 1 (left)</strong> and the microphone into <strong>Input 2 (right)</strong>. Enable <em>Swap inputs</em> in Settings if your hardware is wired the other way around.</li>
       <li>Use Chrome or Edge — Safari and Firefox do not support the required audio APIs.</li>
     </ol>
+
+    <h3>Instrument and test name</h3>
+    <p>
+      Click the <strong>🎻 Instrument</strong> button in the toolbar to name the violin or instrument
+      being measured. Acquire creates a folder named after the instrument inside your Data Folder, and
+      automatically numbers successive test runs (<code>Violin_01</code>, <code>Violin_02</code>, …).
+      The floppy-disk icon next to the test name lets you rename the current run — the folder on disk
+      is renamed to match.
+    </p>
+    <div class="callout">
+      <strong>After loading a template</strong>
+      If you load a template but haven't yet named an instrument, Acquire shows a cover asking
+      you to set one before measuring. Without a loaded template you can measure freely in
+      unnamed (scratch) mode.
+    </div>
 
     <h3>First-time setup (Settings)</h3>
     <p>Click <strong>Settings</strong> in the toolbar and configure:</p>
     <table class="key-table">
       <thead><tr><th>Setting</th><th>Notes</th></tr></thead>
       <tbody>
-        <tr><td>Input device</td><td>Choose your audio interface from the dropdown. Defaults to the system default if left blank.</td></tr>
-        <tr><td>Soundcard type</td><td>Free-text label saved into each output file for traceability.</td></tr>
-        <tr><td>Trigger threshold</td><td>Voltage level (V) that triggers a hit. Lower values catch lighter taps; raise it to ignore ambient noise.</td></tr>
+        <tr><td>Input device</td><td>Choose your audio interface from the dropdown.</td></tr>
+        <tr><td>Ham trigger threshold</td><td>Voltage level (V) that triggers a hit. Lower values catch lighter taps; raise it to ignore ambient noise.</td></tr>
         <tr><td>Time before / after hit</td><td>Pre- and post-trigger capture window in seconds.</td></tr>
         <tr><td>Hammer / Mic time cutoff</td><td>Signal is zeroed after this time — suppresses late reflections. Shown as a green line on the mini plots.</td></tr>
         <tr><td>Hammer calibration (N/V)</td><td>Converts raw voltage to Newtons. Enter the value from your hammer's calibration sheet.</td></tr>
         <tr><td>Mic calibration (Pa/V)</td><td>Converts raw voltage to Pascals. Enter the value from your microphone calibration sheet.</td></tr>
-        <tr><td>Hits per position</td><td>Number of good hits to average before advancing to the next position.</td></tr>
-        <tr><td>Number of positions</td><td>Total positions in the measurement run (e.g. 12 for a standard plate grid).</td></tr>
-        <tr><td>Position prefix</td><td>Short label prepended to position names (e.g. "H" gives H1, H2, …).</td></tr>
+        <tr><td>Hits per position</td><td>Number of good hits to average before the app considers a position complete.</td></tr>
+        <tr><td>Number of positions</td><td>Total positions per prefix group (e.g. 12 gives H01–H12).</td></tr>
+        <tr><td>Position prefix</td><td>Label prepended to position names. Enter a comma-separated list (e.g. <code>H,V</code>) to create multiple groups — <code>H,V</code> with 12 positions per group gives H01–H12 then V01–V12.</td></tr>
+        <tr><td>Swap inputs</td><td>Moves the hammer trigger to the right input channel (Input 2). Use when the hammer is physically wired to Input 2.</td></tr>
       </tbody>
     </table>
-    <p>Click <strong>Apply &amp; Save</strong>. Settings are stored locally in the browser and also saved to your Data Folder template.</p>
+
+    <h4>Plot Settings (inside Settings)</h4>
+    <p>The lower half of the Settings dialog controls the axis limits for all four plots:</p>
+    <table class="key-table">
+      <thead><tr><th>Fields</th><th>Controls</th></tr></thead>
+      <tbody>
+        <tr><td>FRF x min / max</td><td>Frequency range shown on the main FRF plot (Hz).</td></tr>
+        <tr><td>FRF y min / max</td><td>Fixed dB limits for the FRF y axis. Leave blank to use auto-scale (controlled by the dB range field).</td></tr>
+        <tr><td>Hammer x/y min/max</td><td>Time window (s) and voltage range (V) for the Hammer time plot.</td></tr>
+        <tr><td>Mic x/y min/max</td><td>Time window (s) and voltage range (V) for the Microphone time plot.</td></tr>
+        <tr><td>FFT x/y min/max</td><td>Frequency range (Hz) and dB range for the Hammer FFT plot.</td></tr>
+      </tbody>
+    </table>
+    <p>These axis limits are saved with your settings and are part of templates — loading a template restores all axis ranges.</p>
 
     <h3>Running a measurement</h3>
     <ol class="steps">
-      <li>Click <strong>📁 Data Folder</strong> and select the folder where results should be saved.
-          A new timestamped run sub-folder is created automatically on first hit.</li>
-      <li>Enter the <strong>Instrument</strong> and <strong>Test name</strong> in the banner fields.</li>
+      <li>Click <strong>📁 Data Folder</strong> and select the folder where results should be saved.</li>
+      <li>Name your instrument via the <strong>🎻 Instrument</strong> button.</li>
       <li>Click <strong>▶ Start</strong>. The app begins listening for hammer hits.</li>
       <li>Strike the instrument. The three mini plots (Hammer FFT, Hammer time, Mic time) update
           after each hit. Check that the hammer pulse is clean — a double-hit shows two bumps in the
           Hammer time plot.</li>
-      <li>After the required number of good hits the app auto-advances to the next position and
-          saves the averaged FRF to your Data Folder.</li>
-      <li>Use <strong>↩ Undo Hit</strong> to remove a bad last hit, or <strong>🗑 Clear</strong>
+      <li>After the required number of good hits the <em>Position complete</em> dialog appears.
+          Choose <strong>Next Position →</strong> to advance (the mini plots and current FRF clear
+          for a fresh start) or <strong>Repeat</strong> to re-do the current position.</li>
+      <li>Use <strong>↩ Undo Hit</strong> to remove a bad last hit, or <strong>🗑 Clear H01</strong>
           to restart the current position. <strong>↺ Start over</strong> clears all positions.</li>
-      <li>When all positions are complete, click <strong>■ Stop</strong>.</li>
+      <li>When all positions are complete the averaged AvC and AvR files are saved to your Data Folder automatically.</li>
     </ol>
+
+    <div class="callout">
+      <strong>What gets saved</strong>
+      Each position saves a <code>.trf</code> file (updated after every hit) and a <code>.wav</code>
+      raw capture per hit inside a <code>raw/</code> sub-folder. TRF files include coherence and
+      run metadata (sample rate, threshold, cutoffs, device name) readable by Explore.
+      At run completion, an AvC (complex average) and AvR (magnitude average) are written to the
+      instrument folder root.
+    </div>
 
     <h3>Reviewing the FRF plot</h3>
     <p>
-      The main plot on the right shows all completed positions overlaid in different colors.
+      The main plot shows the current position's FRF building up with each hit, along with a
+      coherence overlay (dotted line, right axis). When you advance to the next position the plot
+      clears so you start fresh — previous positions are saved on disk and can be loaded in Explore.
       Use the plot-toolbar controls to toggle log/linear X axis, rescale Y, or adjust the dB range.
-      Hover over any curve to read out the exact frequency and level.
     </p>
 
     <h3>Templates</h3>
     <p>
-      A template is a JSON file that stores your complete measurement setup
-      (soundcard, threshold, calibration factors, hit count, position count, etc.).
-      Templates are loaded automatically from <code>ObieAppSettings/Templates/</code>
-      inside your Data Folder when Acquire starts.
+      A template stores your complete measurement setup — trigger settings, calibration factors,
+      position count, and all plot axis limits. Templates live in
+      <code>ObieAppSettings/Templates/</code> inside your Data Folder.
     </p>
     <ol class="steps">
       <li>Click <strong>Template…</strong> to open the template manager.</li>
-      <li>Select a template from the list (it will preview the settings as JSON), then click <strong>Apply</strong>.</li>
-      <li>To save the current settings as a new template, click <strong>Save as Template</strong>.</li>
-      <li>Use <strong>Browse…</strong> to import a template file from outside your Data Folder.</li>
+      <li>Select a template from the list, then click <strong>Apply</strong>. All settings and axis ranges are restored.</li>
+      <li>To save current settings as a new template, click <strong>Save as Template</strong>.</li>
     </ol>
 
     <h3>Session Notes</h3>
     <p>
       Click <strong>Notes</strong> to open the Notes panel. Enter any free-text observations about
-      the measurement session. Notes are saved per run-folder name in the browser and persist across
-      reloads.
+      the session. Notes are saved per run name and persist across reloads.
     </p>
 
     <h3>LiveView</h3>
     <p>
-      Click <strong>LiveView</strong> to open a large full-screen view of the FRF plot — useful when
-      the laptop is placed away from the instrument during measurement.
+      Click <strong>LiveView</strong> to open a full-screen view of the FRF plot — useful when
+      the laptop is placed at a distance from the instrument during measurement.
     </p>
 
     <div class="callout">
       <strong>Tip — adjusting the threshold on the fly</strong>
       You can change the trigger threshold directly in the Hammer mini-plot header without
-      opening Settings. Edit the number next to <em>V</em> and press Enter to apply immediately.
-      The purple dotted threshold line on the Hammer time plot updates in real time.
+      opening Settings. Edit the number next to <em>V</em> and press Enter. The purple dotted
+      threshold line on the Hammer time plot updates in real time.
     </div>
   </section>
 

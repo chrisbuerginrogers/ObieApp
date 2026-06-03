@@ -475,9 +475,9 @@
       showlegend:false, autosize:true,
       xaxis:{title:'Frequency (Hz)', type:_S.xLog?'log':'linear', range:xRange, gridcolor:border, zerolinecolor:border, linecolor:border},
       yaxis:{title:_S.yLog?'Magnitude (linear)':'Magnitude (dB)', type:'linear', range:yRange, gridcolor:border, zerolinecolor:border, linecolor:border},
-      yaxis2: hasCoh ? {title:'Coherence γ²', overlaying:'y', side:'right', range:[0, 1.05],
-                        showgrid:false, zeroline:false, tickformat:'.1f',
-                        tickfont:{size:10}, titlefont:{size:11}} : undefined,
+      ...(hasCoh ? {yaxis2:{title:'Coherence γ²', overlaying:'y', side:'right', range:[0, 1.05],
+                            showgrid:false, zeroline:false, tickformat:'.1f',
+                            tickfont:{size:10}, titlefont:{size:11}}} : {}),
       shapes: bandShapes,
     };
 

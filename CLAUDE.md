@@ -205,7 +205,7 @@ Every desktop Python tool must perform these checks before doing any real work, 
 
 | Extension | Parser |
 |---|---|
-| `.trf` / `.trv` | `Python/fileio/trf_fileio.py` · `Web/py/trf_fileio.py` · `Web/py/files.py` |
+| `.trf` / `.trv` | `Python/fileio/trf_fileio.py` (loaded via GitHub URL) · `Web/py/files.py` |
 | `.avc` | `Python/fileio/avc_fileio.py` · `Web/py/files.py` |
 | `.avr` | `Python/fileio/avc_fileio.py` · `Web/py/files.py` |
 | `.wav` | `Python/fileio/wavfileio.py` · `Web/py/dsp.py` |
@@ -265,7 +265,7 @@ Tools load Python modules either from a local path (`../../py/module.py`) or fro
 
 > If a Python module in `Python/fileio/` or `Python/processing/` has been **modified locally but not yet pushed to GitHub**, its `pyscript.toml` entry MUST point to a local copy in `Web/py/`, not the GitHub URL. Using a GitHub URL for an unpushed file silently loads the old version and breaks the tool with cryptic errors (e.g. `TypeError: unexpected keyword argument`).
 
-Current state of `trf_fileio.py`: **local** (`../../py/trf_fileio.py`) in all three tools — it has extensions not yet on GitHub (`fComplex=2.0`, `coherence=`, `meta=` params).
+Current state of `trf_fileio.py`: loaded from **GitHub** in all three tools — the extended version (with `fComplex=2.0`, `coherence=`, `meta=` params) is the canonical version on `main`.
 
 When the canonical Python files are pushed to GitHub, the `pyscript.toml` entries can be switched back to GitHub URLs. Prefer GitHub URLs for stable modules so tools always get the latest without a local copy to maintain.
 

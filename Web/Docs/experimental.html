@@ -121,6 +121,8 @@
 
     <p>Converts FRF files from your Data Folder into a single <code>.mat</code> file that MATLAB can open directly. Supports TRF, AvC, and AvR formats. Complex FRF data is preserved for AvC files so phase information is available in MATLAB.</p>
 
+    <p>In Explore and Convolve, <code>.mat</code> FRF files can be loaded directly. Coherence data (if present in the <code>yspec</code> variable) is shown automatically as a dotted overlay in Explore.</p>
+
     <h3>Quick start</h3>
     <ol class="steps">
       <li>Click <strong>📁 Data Folder</strong> to select your measurement folder.</li>
@@ -188,7 +190,7 @@
 
     <div class="callout">
       <strong>WAV file format</strong>
-      WAV files saved by Acquire are two-channel (stereo): channel 1 is the hammer, channel 2 is the microphone, unless Swap inputs is enabled in which case the channels are reversed. The WAV Viewer reads the same channel mapping setting.
+      WAV files saved by Acquire are two-channel (stereo): by default channel 1 (left) is the hammer and channel 2 (right) is the microphone. When <em>Swap inputs</em> is enabled in Acquire's Settings, the channels are reversed. The WAV Viewer reads the same <em>Swap inputs</em> setting automatically.
     </div>
   </section>
 
