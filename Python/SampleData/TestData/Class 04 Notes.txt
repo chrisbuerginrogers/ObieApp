@@ -1,0 +1,31 @@
+
+(4) 4/27/2022 7:38 AM   Class 04
+Mine
+
+(3) 4/27/2022 7:36 AM   Class 03
+Joseph
+
+(2) 4/27/2022 7:33 AM   Class 02
+George
+
+(1) 4/27/2022 7:31 AM   Class 01
+Old Violin
+
+Instrument name: Class
+location (e.g., JC workshop, Oberlin acoustics, etc.)
+name of experiment (if applicable) 
+names of researchers
+
+Instrument Information:
+instrument (e.g., violin, viola, cello, guitar, mandolin, etc.) 
+model (e.g., Titian Strad, Guadagnini, personal, etc.) 
+maker name
+maker ID (e.g., serial number)
+year built (4 digits)
+country of origin 
+session (e.g. Oberlin 2017, VSA 2008) 
+making school (e.g. Old Italian) 
+
+Measurement Information:
+type (Radiation, admittance, modal analysis, taptones, etc.) 
+protocol (HV24, etc.)
