@@ -486,9 +486,6 @@ def _emit_averages():
     if not all_H or freq_ref is None:
         return
     H_stack = np.array(all_H)                    # (n_pos, n_freqs) complex
-    # AvC — complex mean
-    avc_bytes = build_avc(freq_ref, H_stack.mean(axis=0), n_averages=len(all_H))
-    js.window.onSaveAvC(to_js(bytearray(avc_bytes)))
     # AvR — mean of magnitudes
     avr_bytes = build_avr(freq_ref, np.abs(H_stack).mean(axis=0), n_averages=len(all_H))
     js.window.onSaveAvR(to_js(bytearray(avr_bytes)))

@@ -936,12 +936,17 @@ window.acqSavePrefs = function() {
     bit_depth:     parseInt(g('inp-bit-depth'))     || 24,
     sample_rate:   parseInt(g('inp-sample-rate'))   || 48000,
   };
+  const deviceChanged = devReady && deviceId !== existing.deviceId;
   localStorage.setItem('obieAcquire_prefs', JSON.stringify(prefs));
   _saveAcqSettings();
   _pushSettingsFromPrefs(prefs);
   _updateSoundcardDisplay();
   _clearTemplateName();
   acqClosePrefs();
+  // If the audio device changed while the stream was open, restart it immediately.
+  if (deviceChanged && audioCtx) {
+    _stopAudio().then(() => _startAudio());
+  }
 };
 
 function _resetAxisRanges(prefs) {
