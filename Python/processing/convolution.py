@@ -11,12 +11,12 @@ automatically so the impulse response is causal rather than symmetric.
 
 Core API
 --------
-convolve_it(data, freqs, H, sample_rate, ir_length=8192)
+convolve_it(data, freqs, H, sample_rate, ir_length=None)
     Low-level: convolve pre-loaded audio with a pre-loaded FRF.
     Accepts mono (N,) or stereo (N, C) data.  Ideal for the web version
     where file loading is handled separately.
 
-convolve_with_frf(wav_path, frf_paths, ir_length=8192)
+convolve_with_frf(wav_path, frf_paths, ir_length=None)
     High-level: load files then call convolve_it.
 
 Usage:
@@ -39,6 +39,14 @@ import numpy as np
 from pathlib import Path
 from scipy.signal import fftconvolve, hilbert
 import scipy.io.wavfile as _wavfile
+
+
+def _adaptive_ir_length(freqs, sample_rate):
+    """Next power of 2 >= sample_rate / FRF df, capped at 65536."""
+    df = freqs[1] - freqs[0]
+    natural = int(sample_rate / df)
+    next_pow2 = 1 << (natural - 1).bit_length()
+    return min(next_pow2, 65536)
 
 
 def _load_frf(path):
@@ -130,6 +138,8 @@ def _read_wav(path):
 
 def _convolve_one(data, freqs, H, sample_rate, ir_length):
     """Apply one FRF to mono or multi-channel data (same IR for every channel)."""
+    if ir_length is None:
+        ir_length = _adaptive_ir_length(freqs, sample_rate)
     imag_energy = np.max(np.abs(H.imag))
     real_energy = np.max(np.abs(H.real)) + 1e-30
     if imag_energy < 1e-8 * real_energy:
@@ -146,7 +156,7 @@ def _convolve_one(data, freqs, H, sample_rate, ir_length):
     return np.column_stack(channels)
 
 
-def convolve_it(data, freqs, H, sample_rate, ir_length=8192):
+def convolve_it(data, freqs, H, sample_rate, ir_length=None):
     """
     Convolve audio data with one or two FRFs.
 
@@ -161,7 +171,8 @@ def convolve_it(data, freqs, H, sample_rate, ir_length=8192):
                   When a pair is supplied, data is convolved once with H_l and
                   once with H_r; the results are stacked into an (N, 2) array.
     sample_rate : int
-    ir_length   : IR length in samples (default 8192 ≈ 170 ms @ 48 kHz)
+    ir_length   : IR length in samples, or None to compute from FRF frequency
+                  resolution (next power of 2 >= sample_rate/df, max 65536)
 
     Returns
     -------
@@ -177,7 +188,7 @@ def convolve_it(data, freqs, H, sample_rate, ir_length=8192):
     return _convolve_one(data, freqs, H, sample_rate, ir_length)
 
 
-def convolve_with_frf(wav_path, frf_paths, ir_length=8192):
+def convolve_with_frf(wav_path, frf_paths, ir_length=None):
     """
     Convolve a WAV file with one or two FRF files.
 
@@ -186,7 +197,8 @@ def convolve_with_frf(wav_path, frf_paths, ir_length=8192):
     wav_path   : str or Path  — source audio file (.wav)
     frf_paths  : str/Path           → mono output
                  (left_path, right_path) → stereo float32 (N, 2) output
-    ir_length  : impulse response length in samples
+    ir_length  : IR length in samples, or None to compute from FRF frequency
+                 resolution (next power of 2 >= sample_rate/df, max 65536)
 
     Returns
     -------

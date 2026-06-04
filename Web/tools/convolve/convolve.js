@@ -10,8 +10,8 @@
  * ───────────────────────────────────────────────────────────────────── */
 
 // ── Playback state (JS-only — needed by AudioPlayer) ─────────────────
-let wavSamples = null, wavSR = 44100;
-let outSamples = null, outSR = 44100, outChannels = 1;
+let wavSamples = null, wavSR = 48000;
+let outSamples = null, outSR = 48000, outChannels = 1;
 let frfLLoaded = false, frfRLoaded = false;
 let _frfData = { l: null, r: null };
 

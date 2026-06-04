@@ -557,6 +557,12 @@ window.acqRescaleFFT = function() {
   });
 };
 
+function _clearTemplateName() {
+  _currentTemplateName = '';
+  const tplInd = document.getElementById('tpl-ind');
+  if (tplInd) tplInd.textContent = '';
+}
+
 window.acqApplyThreshold = function(val) {
   const v = Math.max(0.001, parseFloat(val) || 0.05);
   const el = document.getElementById('inp-thr-disp');
@@ -570,6 +576,7 @@ window.acqApplyThreshold = function(val) {
   }
   _patchPrefs({ threshold: v });
   _callPyApplySettings();
+  _clearTemplateName();
 };
 
 window.acqApplyHamCutoff = function(val) {
@@ -582,6 +589,7 @@ window.acqApplyHamCutoff = function(val) {
   if (_lastTrigData) { const { t, ham, mic, thr } = _lastTrigData; _drawTrigPlots(t, ham, mic, thr); }
   _patchPrefs({ time_cutoff_s: v });
   _callPyApplySettings();
+  _clearTemplateName();
 };
 
 window.acqApplyMicCutoff = function(val) {
@@ -594,6 +602,7 @@ window.acqApplyMicCutoff = function(val) {
   if (_lastTrigData) { const { t, ham, mic, thr } = _lastTrigData; _drawTrigPlots(t, ham, mic, thr); }
   _patchPrefs({ mic_time_cutoff_s: v });
   _callPyApplySettings();
+  _clearTemplateName();
 };
 
 function _updateSoundcardDisplay() {
@@ -931,6 +940,7 @@ window.acqSavePrefs = function() {
   _saveAcqSettings();
   _pushSettingsFromPrefs(prefs);
   _updateSoundcardDisplay();
+  _clearTemplateName();
   acqClosePrefs();
 };
 
@@ -2366,6 +2376,14 @@ async function _startAudio() {
     await _refreshInstrumentFolder(_instrument);
   }
 
+  // If audio is already running (run completed naturally), reuse the existing
+  // stream and just re-arm Python — no need to reopen the device.
+  if (audioCtx) {
+    _pushSettingsFromPrefs({ ...prefs });
+    window.pyArm();
+    return;
+  }
+
   try {
     mediaStream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -2444,6 +2462,24 @@ async function _startAudio() {
       }
     };
     sourceNode.connect(workletNode);
+
+    // Detect device disconnect: the track fires 'ended' when a USB device is yanked.
+    // AudioContext.onstatechange catches broader interruptions (e.g. OS audio session loss).
+    const _activeTrack = mediaStream.getAudioTracks()[0];
+    if (_activeTrack) {
+      _activeTrack.addEventListener('ended', () => {
+        if (!audioCtx) return;   // already stopped
+        _stopAudio();
+        alert('⚠️ Audio device disconnected — acquisition stopped.');
+      }, { once: true });
+    }
+    audioCtx.onstatechange = () => {
+      if ((audioCtx?.state === 'suspended' || audioCtx?.state === 'closed') && mediaStream) {
+        _stopAudio();
+        alert('⚠️ Audio device interrupted — acquisition stopped.');
+      }
+    };
+
     window.pyArm();
   } catch (err) {
     if (err.name === 'NotAllowedError') return;

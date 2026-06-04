@@ -103,7 +103,9 @@ def stop_audio():
 
 def arm():
     global _state
-    if _state == "idle":
+    if _state in ("idle", "complete"):
+        if _state == "complete":
+            _init_internal(_n_positions)   # clear old run data for the new set
         _state = "armed"
         _emit_state()
         _emit_banner()

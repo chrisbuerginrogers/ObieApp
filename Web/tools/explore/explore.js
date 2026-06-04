@@ -94,10 +94,17 @@
     },
   };
   let _interpretDictKey = 'radiation';
-  const STRING_MODES = [
-    {label:'G0', freq:196}, {label:'D0', freq:294},
-    {label:'A0', freq:440}, {label:'E0', freq:659},
+
+  // Fundamentals in the G3–F#4 range (196–370 Hz) — one per chromatic semitone
+  const HARMONIC_NOTES = [
+    { name:'C',  freq:261.63 }, { name:'C#', freq:277.18 },
+    { name:'D',  freq:293.66 }, { name:'D#', freq:311.13 },
+    { name:'E',  freq:329.63 }, { name:'F',  freq:349.23 },
+    { name:'F#', freq:369.99 }, { name:'G',  freq:196.00 },
+    { name:'G#', freq:207.65 }, { name:'A',  freq:220.00 },
+    { name:'A#', freq:233.08 }, { name:'B',  freq:246.94 },
   ];
+  let _harmonicNote = null;
 
   // ── State ──────────────────────────────────────────────────────────────
   let _datasets  = [];
@@ -129,6 +136,7 @@
     normFLo: 200, normFHi: 7000,
     bandPreset: '',
     bandShading: true,
+    showCoh: false,
     lineWidth: 1.0,
   };
 
@@ -416,52 +424,91 @@
 
     const visDs = _datasets.filter(d => d.visible);
     if (activeBands && visDs.length > 0) {
-      // Use first visible dataset's dB mags (before any linear conversion)
-      const refDs = visDs[0];
-      let refMags = _smooth(refDs.freqs, refDs.mags, _S.smoothing);
-      refMags = _applyNorm(refDs.freqs, refMags);
-      const bd = _computeBands(refDs.freqs, refMags, activeBands);
-      window._exploreLastBandData = bd;
-      bd.forEach((b, i) => {
-        const c = BAND_COLORS[i % BAND_COLORS.length];
-        if (_S.bandShading)
-          bandShapes.push({type:'rect', xref:'x', yref:'paper', x0:b.f_lo, x1:b.f_hi, y0:0, y1:1, fillcolor:c, opacity:0.1, line:{width:0}});
-        const yVal = _S.yLog ? Math.pow(10, b.avg_db / 20) : b.avg_db;
-        bandTraces.push({x:[b.f_lo,b.f_hi], y:[yVal,yVal], type:'scatter', mode:'lines', line:{color:c,width:2.5}, showlegend:false, hovertemplate:`<b>${_esc(b.label)}</b><br>Avg: ${b.avg_db.toFixed(1)} dB<extra></extra>`});
-        bandTraces.push({x:[b.centroid], y:[yVal], type:'scatter', mode:'markers', marker:{color:c, size:7, line:{color:'#fff',width:1.5}}, showlegend:false, hovertemplate:`<b>${_esc(b.label)}</b><br>Centroid: ${b.centroid.toFixed(0)} Hz<extra></extra>`});
+      // Compute bands independently for every visible dataset
+      const allBandData = visDs.map(ds => {
+        let mags = _smooth(ds.freqs, ds.mags, _S.smoothing);
+        mags = _applyNorm(ds.freqs, mags);
+        return { name: ds.name, color: ds.color, bands: _computeBands(ds.freqs, mags, activeBands) };
       });
-      _renderBandTable(bd);
+      window._exploreLastBandData = allBandData;
+
+      // Band shading — one rect per band, drawn once regardless of dataset count
+      if (_S.bandShading) {
+        allBandData[0].bands.forEach((b, i) => {
+          const c = BAND_COLORS[i % BAND_COLORS.length];
+          bandShapes.push({type:'rect', xref:'x', yref:'paper', x0:b.f_lo, x1:b.f_hi, y0:0, y1:1, fillcolor:c, opacity:0.1, line:{width:0}});
+        });
+      }
+
+      // Band average lines and centroids — one set per dataset, colored by dataset
+      allBandData.forEach(({name, color, bands}) => {
+        bands.forEach(b => {
+          const yVal = _S.yLog ? Math.pow(10, b.avg_db / 20) : b.avg_db;
+          bandTraces.push({x:[b.f_lo,b.f_hi], y:[yVal,yVal], type:'scatter', mode:'lines', line:{color, width:2.5}, showlegend:false, hovertemplate:`<b>${_esc(b.label)}</b> · ${_esc(name)}<br>Avg: ${b.avg_db.toFixed(1)} dB<extra></extra>`});
+          bandTraces.push({x:[b.centroid], y:[yVal], type:'scatter', mode:'markers', marker:{color, size:7, line:{color:'#fff',width:1.5}}, showlegend:false, hovertemplate:`<b>${_esc(b.label)}</b> · ${_esc(name)}<br>Centroid: ${b.centroid.toFixed(0)} Hz<extra></extra>`});
+        });
+      });
+
+      _renderBandTable(allBandData);
     } else {
       window._exploreLastBandData = null;
       _renderBandTable(null);
     }
 
-    // Coherence traces — right Y-axis (y2), 0–1, dotted, 60% opacity
-    const cohTraces = [];
-    const hasCoh = _datasets.some(d => d.visible && d.cohs?.length);
-    if (hasCoh) {
-      _datasets.filter(d => d.visible && d.cohs?.length).forEach(d => {
-        cohTraces.push({
-          x: d.freqs, y: d.cohs, type: 'scatter', mode: 'lines',
-          line: { color: d.color, width: 1, dash: 'dot' },
-          yaxis: 'y2', showlegend: false, opacity: 0.6,
-          hovertemplate: `<b>${_esc(d.name)}</b><br>%{x:.0f} Hz  γ²=%{y:.2f}<extra></extra>`,
-        });
-      });
-    }
-
-    // Y range — autoscale in linear mode; dB window in dB mode
+    // Y range — computed from FRF data only (visible X range), before coherence scaling
     let yRange;
     if (!_S.yLog) {
       if (_S.yMin != null && _S.yMax != null) {
         yRange = [_S.yMin, _S.yMax];
       } else {
         let maxY = -Infinity;
-        for (const t of plotTraces) { for (const v of t.y) { if (isFinite(v) && v > maxY) maxY = v; } }
+        for (const t of plotTraces) {
+          for (let i = 0; i < t.y.length; i++) {
+            const v = t.y[i], x = t.x[i];
+            if (!isFinite(v)) continue;
+            if (_S.xMin != null && x < _S.xMin) continue;
+            if (_S.xMax != null && x > _S.xMax) continue;
+            if (v > maxY) maxY = v;
+          }
+        }
         if (isFinite(maxY)) yRange = [maxY - _S.yDbRange, maxY + 2];
       }
     }
     // _S.yLog (linear magnitude mode) → yRange undefined → Plotly autoscales
+
+    // Coherence traces — mapped into the bottom third of the FRF y-range so they
+    // act as a carpet at the base of the plot without competing with the FRF.
+    // customdata stores the true γ² (0–1) for the hover tooltip.
+    const cohTraces = [];
+    const anyCoh = _datasets.some(d => d.visible && d.cohs?.length);
+    const hasCoh = anyCoh && _S.showCoh;
+    if (hasCoh) {
+      // Derive a base scale: dB mode uses yRange; linear mode computes from FRF data
+      let baseScale = yRange;
+      if (!baseScale && _S.yLog) {
+        let minV = Infinity, maxV = -Infinity;
+        for (const t of plotTraces) {
+          for (const v of t.y) { if (isFinite(v) && v >= 0) { if (v < minV) minV = v; if (v > maxV) maxV = v; } }
+        }
+        if (isFinite(maxV)) baseScale = [Math.max(0, minV * 0.9), maxV * 1.05];
+      }
+      if (baseScale) {
+        const [lo, hi] = baseScale;
+        const cohCeil = lo + (hi - lo) / 3;   // top of coherence carpet = bottom third of plot
+        _datasets.filter(d => d.visible && d.cohs?.length).forEach(d => {
+          const scaled = d.cohs.map(c => lo + c * (cohCeil - lo));
+          cohTraces.push({
+            x: d.freqs, y: scaled, customdata: d.cohs, type: 'scatter', mode: 'lines',
+            line: { color: d.color, width: 1.5 },
+            showlegend: false, opacity: 0.4,
+            hovertemplate: `<b>${_esc(d.name)}</b><br>%{x:.0f} Hz  γ²=%{customdata:.2f}<extra></extra>`,
+          });
+        });
+      }
+    }
+    // Enable/disable the coherence checkbox based on whether any dataset carries coherence
+    const cohChk = $('coh-chk');
+    if (cohChk) { cohChk.disabled = !anyCoh; cohChk.checked = _S.showCoh && anyCoh; }
 
     const border = cssVar('--border'), text = cssVar('--text');
     const xRange = (_S.xMin != null && _S.xMax != null)
@@ -471,13 +518,10 @@
     const layout = {
       paper_bgcolor:'#ffffff', plot_bgcolor:'#ffffff',
       font:{color:text, family:'inherit', size:12},
-      margin:{l:65, r: hasCoh ? 52 : 16, t:12, b:50},
+      margin:{l:65, r:16, t:12, b:50},
       showlegend:false, autosize:true,
       xaxis:{title:'Frequency (Hz)', type:_S.xLog?'log':'linear', range:xRange, gridcolor:border, zerolinecolor:border, linecolor:border},
       yaxis:{title:_S.yLog?'Magnitude (linear)':'Magnitude (dB)', type:'linear', range:yRange, gridcolor:border, zerolinecolor:border, linecolor:border},
-      ...(hasCoh ? {yaxis2:{title:'Coherence γ²', overlaying:'y', side:'right', range:[0, 1.05],
-                            showgrid:false, zeroline:false, tickformat:'.1f',
-                            tickfont:{size:10}, titlefont:{size:11}}} : {}),
       shapes: bandShapes,
     };
 
@@ -487,14 +531,32 @@
   }
 
   // ── Band table ─────────────────────────────────────────────────────────
-  function _renderBandTable(bd) {
+  function _renderBandTable(allBandData) {
     const el = $('band-table'); if (!el) return;
-    if (!bd || !bd.length) { el.innerHTML = '<span class="muted-txt">Select a band preset</span>'; return; }
-    el.innerHTML = '<table class="band-tbl"><thead><tr><th>Band</th><th>Avg dB</th><th>Centroid</th></tr></thead><tbody>'
-      + bd.map((b, i) => {
-        const c = BAND_COLORS[i % BAND_COLORS.length];
-        return `<tr><td><span class="band-dot" style="background:${c}"></span>${_esc(b.label)}</td><td>${b.avg_db.toFixed(1)}</td><td>${b.centroid.toFixed(0)} Hz</td></tr>`;
-      }).join('') + '</tbody></table>';
+    if (!allBandData?.length || !allBandData[0].bands?.length) {
+      el.innerHTML = '<span class="muted-txt">Select a band preset</span>'; return;
+    }
+    const nBands = allBandData[0].bands.length;
+    const truncName = n => n.length > 10 ? n.slice(0, 9) + '…' : n;
+    const dsHeaders = allBandData.map(ds =>
+      `<th colspan="2"><span class="band-dot" style="background:${ds.color}"></span>${_esc(truncName(ds.name))}</th>`
+    ).join('');
+    const subHeaders = allBandData.map(() => '<th>Avg dB</th><th>Centroid</th>').join('');
+    let html = `<table class="band-tbl"><thead>
+      <tr><th>Band</th>${dsHeaders}</tr>
+      <tr><th></th>${subHeaders}</tr>
+    </thead><tbody>`;
+    for (let i = 0; i < nBands; i++) {
+      const c = BAND_COLORS[i % BAND_COLORS.length];
+      const label = allBandData[0].bands[i].label;
+      const dsCells = allBandData.map(ds => {
+        const b = ds.bands[i];
+        return `<td>${b.avg_db.toFixed(1)}</td><td>${b.centroid.toFixed(0)}</td>`;
+      }).join('');
+      html += `<tr><td><span class="band-dot" style="background:${c}"></span>${_esc(label)}</td>${dsCells}</tr>`;
+    }
+    html += '</tbody></table>';
+    el.innerHTML = html;
   }
 
   // ── Dataset list ───────────────────────────────────────────────────────
@@ -1233,6 +1295,7 @@
     render();
   };
   window.expToggleBandShading = function(v) { _S.bandShading = !!v; render(); };
+  window.expToggleCoherence  = function(v) { _S.showCoh = !!v; render(); };
   window.expSetBandPreset = function(v) {
     if (v === 'custom') { expCustomBands(); return; }
     _S.bandPreset = v; render();
@@ -1280,11 +1343,14 @@
     }
   };
   window.expExportBands = function() {
-    if (!window._exploreLastBandData?.length) { alert('Select a band preset first.'); return; }
-    const rows = ['Band,f_lo_Hz,f_hi_Hz,avg_dB,centroid_Hz'];
-    window._exploreLastBandData.forEach(b =>
-      rows.push(`${b.label},${b.f_lo},${b.f_hi},${b.avg_db.toFixed(3)},${b.centroid.toFixed(1)}`)
-    );
+    const all = window._exploreLastBandData;
+    if (!all?.length) { alert('Select a band preset first.'); return; }
+    const dsCols = all.map(ds => `${ds.name}_avg_dB,${ds.name}_centroid_Hz`).join(',');
+    const rows = [`Band,f_lo_Hz,f_hi_Hz,${dsCols}`];
+    all[0].bands.forEach((b, i) => {
+      const vals = all.map(ds => `${ds.bands[i].avg_db.toFixed(3)},${ds.bands[i].centroid.toFixed(1)}`).join(',');
+      rows.push(`${b.label},${b.f_lo},${b.f_hi},${vals}`);
+    });
     const url = URL.createObjectURL(new Blob([rows.join('\n')], {type:'text/csv'}));
     const a = document.createElement('a'); a.href=url; a.download='band_data.csv'; a.click();
     URL.revokeObjectURL(url);
@@ -1312,6 +1378,7 @@
     const modal = $('interpret-modal'); if (!modal) return;
     modal.classList.add('open');
     _renderInterpretDict();
+    _renderNoteButtons();
     const dict = INTERPRET_DICTS[_interpretDictKey];
     const vis = _datasets.filter(d => d.visible);
     const traces = vis.map(d => {
@@ -1332,14 +1399,25 @@
     dict.rangebars.forEach((r, i) => {
       shapes.push({type:'line', xref:'x', yref:'paper', x0:r.lo, x1:r.hi, y0:0.97-i*0.015, y1:0.97-i*0.015, line:{color:'#888',width:3}});
     });
-    // String open-string markers — vertical dotted lines + labels below x-axis
-    STRING_MODES.forEach(m => {
-      shapes.push({type:'line', xref:'x', yref:'paper', x0:m.freq, x1:m.freq, y0:0, y1:1,
-                   line:{color:'#c00', width:1.5, dash:'dot'}});
-      annotations.push({x:m.freq, xref:'x', y:-0.1, yref:'paper',
-                         text:m.label, showarrow:false,
-                         font:{color:'#c00', size:11}, xanchor:'center'});
-    });
+
+    // Harmonic lines for selected note
+    if (_harmonicNote) {
+      const noteInfo = HARMONIC_NOTES.find(n => n.name === _harmonicNote);
+      if (noteInfo) {
+        const f0 = noteInfo.freq;
+        for (let n = 1; n * f0 <= 10500; n++) {
+          const hf = n * f0;
+          if (hf < 190) continue;
+          shapes.push({type:'line', xref:'x', yref:'paper', x0:hf, x1:hf, y0:0, y1:1,
+                       line:{color:'#1565c0', width:1, dash:'dot'}});
+          annotations.push({
+            x:hf, xref:'x', y:1.02, yref:'paper',
+            text: String(n), showarrow:false,
+            font:{size:8, color:'#1565c0'}, xanchor:'center',
+          });
+        }
+      }
+    }
 
     Plotly.react('interpret-plot', traces, {
       paper_bgcolor:'white', plot_bgcolor:'white',
@@ -1351,6 +1429,28 @@
       yaxis:{title:'Intensity (dB)', gridcolor:'#ddd', zerolinecolor:'#ddd'},
       shapes, annotations,
     }, {responsive:true, displayModeBar:false});
+  };
+
+  function _renderNoteButtons() {
+    const container = $('note-picker');
+    if (!container) return;
+    // Chromatic order for display
+    const ordered = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    container.innerHTML = ordered.map(name => {
+      const info = HARMONIC_NOTES.find(n => n.name === name);
+      const freq = info ? Math.round(info.freq) : '';
+      const active = _harmonicNote === name ? 'background:#1565c0;color:#fff;' : 'background:#f0f4ff;color:#1565c0;';
+      return `<button onclick="expSetHarmonicNote('${name}')"
+        style="border:1px solid #1565c0;border-radius:4px;padding:3px 5px;cursor:pointer;font-size:11px;line-height:1.3;min-width:36px;${active}">
+        <div style="font-weight:600">${name}</div>
+        <div style="font-size:8px;opacity:0.85">${freq}</div>
+      </button>`;
+    }).join('');
+  }
+
+  window.expSetHarmonicNote = function(name) {
+    _harmonicNote = (_harmonicNote === name) ? null : name;  // toggle off if clicked again
+    window.expInterpret();
   };
   window.expCloseInterpret = () => $('interpret-modal')?.classList.remove('open');
 
@@ -1377,13 +1477,31 @@
   }
 
   // ── Hover readout ─────────────────────────────────────────────────────
+  const _NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  function _freqToNote(hz) {
+    if (!isFinite(hz) || hz <= 0) return null;
+    const midi  = Math.round(12 * Math.log2(hz / 440) + 69);
+    const name  = _NOTE_NAMES[((midi % 12) + 12) % 12];
+    const refHz = Math.round(440 * Math.pow(2, (midi - 69) / 12));
+    return { name, refHz };
+  }
+
   function _setupHover() {
     const el = $('explore-plot'); if (!el) return;
     el.on('plotly_hover', data => {
       if (!data.points?.length) return;
       const pt = data.points[0]; if (!isFinite(pt.y)) return;
-      const ro = $('hover-readout');
-      if (ro) ro.textContent = `Amp = ${pt.y.toFixed(1)} dB,  Freq = ${Number(pt.x).toFixed(0)} Hz`;
+      const ro = $('hover-readout'); if (!ro) return;
+      const hz = Number(pt.x);
+      const noteInfo = _freqToNote(hz);
+      const notePart = noteInfo ? `  (${noteInfo.name} = ${noteInfo.refHz} Hz)` : '';
+      // Coherence traces carry customdata (true γ²); FRF traces do not
+      if (pt.data.customdata != null) {
+        const coh = Array.isArray(pt.data.customdata) ? pt.data.customdata[pt.pointIndex] : pt.customdata;
+        ro.textContent = `γ² = ${(+coh).toFixed(2)},  Freq = ${hz.toFixed(0)} Hz${notePart}`;
+      } else {
+        ro.textContent = `Amp = ${pt.y.toFixed(1)} dB,  Freq = ${hz.toFixed(0)} Hz${notePart}`;
+      }
     });
     el.on('plotly_unhover', () => { const ro=$('hover-readout'); if(ro) ro.textContent=''; });
   }
