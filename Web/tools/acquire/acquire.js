@@ -214,6 +214,10 @@ window.onFRFUpdate = function(freq_js, H1db_js, coh_js, pos, nHits) {
   const coh  = Array.from(coh_js);
   const p = Number(pos);
   if (freq.length > 0) {
+    // First hit of a new position — clear any stale data left over from a Pause
+    if (Number(nHits) === 1) {
+      Object.keys(frfCache).forEach(k => { if (Number(k) !== p) { delete frfCache[k]; delete tapCache[k]; } });
+    }
     frfCache[p] = { freq, H1db, coh, nHits: Number(nHits) };
     // Trim tap cache if a hit was deleted
     if (tapCache[p] && tapCache[p].length > Number(nHits))
@@ -300,13 +304,13 @@ window.acqRepeatPosition = function() {
 
 window.acqPausePosition = async function() {
   document.getElementById('pos-complete-modal')?.classList.remove('open');
-  // Stop audio hardware but keep the current folder/run/position intact
-  // so the user can press Start again to continue from where they left off.
+  // Stop audio hardware — plot is intentionally left showing the completed position's data
   if (workletNode) { workletNode.disconnect(); workletNode = null; }
   if (sourceNode)  { sourceNode.disconnect();  sourceNode  = null; }
   if (audioCtx)    { await audioCtx.close();   audioCtx    = null; }
   if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
-  window.pyPausePosition?.();
+  // Advance the position in Python so Start resumes on the next position
+  window.pyAdvancePosition?.();
   _updateStopBtn();
 };
 

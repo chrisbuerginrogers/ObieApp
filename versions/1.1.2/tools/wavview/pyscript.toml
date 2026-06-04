@@ -1,4 +1,0 @@
-packages = ["numpy"]
-
-[files]
-"https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/processing/frf.py" = "./frf.py"

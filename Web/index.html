@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="./css/theme.css">
   <link rel="stylesheet" href="./css/index.css">
   <script src="./version.js"></script>
+  <script src="./versions/versions.js" onerror="window.OBIE_VERSIONS=[]"></script>
   <script src="./js/obie-settings.js"></script>
   <script src="./js/browser-check.js"></script>
 </head>
@@ -20,7 +21,14 @@
   </a>
   <span class="crumb">· Oberlin Acoustics Workshop</span>
   <div class="gap"></div>
-  <a class="btn" href="./Docs/shortcuts.html" style="font-size:0.75rem;padding:3px 9px" target="_blank">Shortcuts</a>
+  <div id="version-wrap" style="display:none;align-items:center;gap:5px">
+    <span style="font-size:0.72rem;color:var(--muted)">Version:</span>
+    <select id="version-sel" onchange="goToVersion(this.value)"
+            style="font-size:0.72rem;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg-deep);color:var(--fg);cursor:pointer">
+      <option value="">Latest</option>
+    </select>
+  </div>
+  <a class="btn" href="./Docs/shortcuts.html" style="font-size:0.75rem;padding:3px 9px" target="_blank">Tips</a>
 </header>
 
 <main class="landing">
@@ -244,6 +252,56 @@ preloadPyodide();
 <script>
   const _vEl = document.getElementById('footer-version');
   if (_vEl && typeof OBIE_VERSION !== 'undefined') _vEl.textContent = 'v' + OBIE_VERSION;
+
+  // ── Version picker ────────────────────────────────────────────────────
+  window.goToVersion = function(v) {
+    if (v) window.location.href = './versions/' + v + '/';
+  };
+
+  (async function() {
+    const wrap = document.getElementById('version-wrap');
+    const sel  = document.getElementById('version-sel');
+    if (!wrap || !sel) return;
+
+    let versions = [];
+
+    // On GitHub Pages: read the actual versions/ directory via the GitHub API
+    const host = window.location.hostname;
+    if (host.endsWith('.github.io')) {
+      try {
+        const owner = host.replace('.github.io', '');
+        const repo  = window.location.pathname.split('/').filter(Boolean)[0] || '';
+        const res   = await fetch(
+          'https://api.github.com/repos/' + owner + '/' + repo + '/contents/Web/versions',
+          { headers: { Accept: 'application/vnd.github+json' } }
+        );
+        if (res.ok) {
+          const items = await res.json();
+          versions = items
+            .filter(function(i) { return i.type === 'dir' && /^\d+\.\d+\.\d+$/.test(i.name); })
+            .map(function(i) { return i.name; })
+            .sort(function(a, b) {
+              const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
+              for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return pb[i] - pa[i];
+              return 0;
+            });
+        }
+      } catch (_) { /* fall through to manifest */ }
+    }
+
+    // Localhost / custom domain fallback: use the versions.js manifest
+    if (versions.length === 0) {
+      versions = window.OBIE_VERSIONS || [];
+    }
+
+    versions.forEach(function(v) {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = 'v' + v;
+      sel.appendChild(opt);
+    });
+    wrap.style.display = 'flex';
+  })();
 
   (function() {
     var sel = document.getElementById('ps-ver-sel');

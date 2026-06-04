@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Version Archive — ObieWebApp</title>
+  <link rel="stylesheet" href="../css/theme.css">
+  <script src="./versions.js"></script>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+
+    .obie-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+    }
+    .brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; }
+    .brand h1 { font-size: 1rem; margin: 0; font-weight: 700; }
+    .logo-icon { font-size: 1.3rem; }
+    .crumb { font-size: 0.85rem; color: var(--muted); }
+    .gap { flex: 1; }
+    .back-btn {
+      font-size: 0.75rem; padding: 3px 9px; border-radius: 4px;
+      background: var(--bg-deep); border: 1px solid var(--border);
+      color: var(--fg); text-decoration: none;
+    }
+    .back-btn:hover { background: var(--border); }
+
+    .main { max-width: 680px; margin: 0 auto; padding: 32px 20px 60px; }
+
+    h2 { font-size: 1.3rem; margin: 0 0 6px; }
+    p.lead { color: var(--muted); font-size: 0.9rem; margin: 0 0 28px; }
+
+    .version-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .version-card {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 14px 16px; text-decoration: none; color: inherit;
+      transition: border-color 0.15s;
+    }
+    .version-card:hover { border-color: var(--accent); }
+    .version-card.latest { border-color: var(--accent); }
+
+    .vc-badge {
+      font-size: 0.72rem; padding: 2px 7px; border-radius: 4px; font-weight: 600;
+      letter-spacing: 0.04em; white-space: nowrap;
+    }
+    .vc-badge.latest { background: var(--accent); color: #fff; }
+    .vc-badge.archived { background: var(--bg-deep); border: 1px solid var(--border); color: var(--muted); }
+
+    .vc-name { font-size: 1rem; font-weight: 600; }
+    .vc-sub  { font-size: 0.82rem; color: var(--muted); }
+    .vc-arrow { margin-left: auto; color: var(--muted); font-size: 1rem; }
+
+    .empty { color: var(--muted); font-size: 0.9rem; font-style: italic; margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+<header class="obie-header">
+  <a class="brand" href="../index.html">
+    <div class="logo-icon">🎻</div>
+    <h1>ObieWebApp</h1>
+  </a>
+  <span class="crumb">· Version Archive</span>
+  <div class="gap"></div>
+  <a class="back-btn" href="../index.html">← Latest</a>
+</header>
+
+<div class="main">
+  <h2>Version Archive</h2>
+  <p class="lead">All available versions of ObieWebApp. Each is a self-contained snapshot.</p>
+
+  <div class="version-list" id="version-list">
+    <!-- Latest always first -->
+    <a class="version-card latest" href="../index.html">
+      <span class="vc-badge latest">latest</span>
+      <div>
+        <div class="vc-name">Current version</div>
+        <div class="vc-sub">Always up to date</div>
+      </div>
+      <span class="vc-arrow">→</span>
+    </a>
+    <!-- Archived versions inserted here by JS -->
+  </div>
+
+  <p class="empty" id="no-versions" style="display:none">
+    No archived versions yet. Run <code>./archive-version.sh</code> from the repo root to create one.
+  </p>
+</div>
+
+<script>
+(function() {
+  const versions = window.OBIE_VERSIONS || [];
+  const list = document.getElementById('version-list');
+  const empty = document.getElementById('no-versions');
+
+  if (versions.length === 0) {
+    empty.style.display = '';
+    return;
+  }
+
+  versions.forEach(function(v) {
+    const a = document.createElement('a');
+    a.className = 'version-card';
+    a.href = './' + v + '/';
+    a.innerHTML =
+      '<span class="vc-badge archived">v' + v + '</span>' +
+      '<div>' +
+        '<div class="vc-name">Version ' + v + '</div>' +
+        '<div class="vc-sub">Archived snapshot</div>' +
+      '</div>' +
+      '<span class="vc-arrow">→</span>';
+    list.appendChild(a);
+  });
+})();
+</script>
+
+</body>
+</html>

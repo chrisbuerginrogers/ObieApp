@@ -1,5 +1,0 @@
-packages = ["numpy", "scipy"]
-
-[files]
-"https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/fileio/trf_fileio.py" = "./trf_fileio.py"
-"https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/fileio/avc_fileio.py" = "./avc_fileio.py"

@@ -1,9 +1,0 @@
-packages = ["numpy"]
-
-[files]
-"../../py/config.py"        = "./config.py"
-"../../py/acquire_logic.py" = "./acquire_logic.py"
-"https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/processing/frf.py"          = "./frf.py"
-"https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/fileio/trf_fileio.py"       = "./trf_fileio.py"
-"https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/fileio/avc_fileio.py"       = "./avc_fileio.py"
-"https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/fileio/labview_txt.py"      = "./labview_txt.py"
