@@ -364,6 +364,9 @@ function _initResizer() {
   });
 }
 
+window.ciHelp = function() { window.open('../../Docs/index.html', '_blank'); };
+window.ciTips = function() { window.open('../../Docs/shortcuts.html', '_blank'); };
+
 // ── Boot ──────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   enumerateOutputDevices();

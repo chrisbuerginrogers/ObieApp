@@ -695,6 +695,7 @@ window.acqPreferences = function() {
 };
 
 window.acqHelp = function() { window.open('../../Docs/index.html', '_blank'); };
+window.acqTips = function() { window.open('../../Docs/shortcuts.html', '_blank'); };
 
 window.acqClosePrefs = function() {
   document.getElementById('prefs-modal')?.classList.remove('open');

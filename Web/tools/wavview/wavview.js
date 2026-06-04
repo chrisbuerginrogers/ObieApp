@@ -358,7 +358,8 @@ window.wavClosePrefs = function() {
   document.getElementById('prefs-modal')?.classList.remove('open');
 };
 
-window.wavHelp = function() { window.open('../../Docs/index.html', '_blank'); };
+window.wavHelp = function() { window.open('../../Docs/experimental.html', '_blank'); };
+window.wavTips = function() { window.open('../../Docs/shortcuts.html', '_blank'); };
 
 // ── Sidebar resizer ───────────────────────────────────────────────────────────
 function _initResizer() {

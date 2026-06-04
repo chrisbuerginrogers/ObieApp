@@ -387,7 +387,8 @@ async function _applyFolder(dir) {
   setStatus(dir.name + ' — ' + _allFiles.length + ' file' + (_allFiles.length !== 1 ? 's' : '') + ' found');
 }
 
-window.matlabHelp = function() { window.open('../../Docs/index.html', '_blank'); };
+window.matlabHelp = function() { window.open('../../Docs/experimental.html', '_blank'); };
+window.matlabTips = function() { window.open('../../Docs/shortcuts.html', '_blank'); };
 
 // ── PyScript ready ────────────────────────────────────────────────────────
 window.matlabPyReady = function() {
