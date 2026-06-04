@@ -254,8 +254,23 @@ preloadPyodide();
   if (_vEl && typeof OBIE_VERSION !== 'undefined') _vEl.textContent = 'v' + OBIE_VERSION;
 
   // ── Version picker ────────────────────────────────────────────────────
+  // Detect whether we're currently inside an archived version folder
+  var _vParts = window.location.pathname.split('/').filter(Boolean);
+  var _vIdx   = _vParts.indexOf('versions');
+  var _currentArchivedVersion = (_vIdx >= 0 && _vParts[_vIdx + 1] && /^\d+\.\d+\.\d+$/.test(_vParts[_vIdx + 1]))
+                                ? _vParts[_vIdx + 1] : null;
+
   window.goToVersion = function(v) {
-    if (v) window.location.href = './versions/' + v + '/';
+    if (!v) {
+      // "Latest" selected — navigate up if we're inside a versioned folder
+      if (_currentArchivedVersion) window.location.href = '../../';
+      return;
+    }
+    if (_currentArchivedVersion) {
+      window.location.href = '../' + v + '/';   // sibling version
+    } else {
+      window.location.href = './versions/' + v + '/';  // from main page
+    }
   };
 
   (async function() {
@@ -294,12 +309,22 @@ preloadPyodide();
       versions = window.OBIE_VERSIONS || [];
     }
 
+    // When on an archived page, always ensure that version appears as an option
+    // (the manifest / API may be unavailable inside the snapshot folder)
+    if (_currentArchivedVersion && !versions.includes(_currentArchivedVersion)) {
+      versions.unshift(_currentArchivedVersion);
+    }
+
     versions.forEach(function(v) {
       const opt = document.createElement('option');
       opt.value = v;
       opt.textContent = 'v' + v;
       sel.appendChild(opt);
     });
+
+    // Show the current version as selected (when browsing an archived snapshot)
+    if (_currentArchivedVersion) sel.value = _currentArchivedVersion;
+
     wrap.style.display = 'flex';
   })();
 
