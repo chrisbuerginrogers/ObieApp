@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../coi-serviceworker.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Explore — ObieWebApp</title>
+
+  <link rel="stylesheet" href="../../css/theme.css">
+  <script src="../../version.js"></script>
+  <script>document.write('<link rel="stylesheet" href="./explore.css?v='+OBIE_VERSION+'">');</script>
+
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" crossorigin="anonymous"></script>
+
+  <!-- PyScript — version set by home-page toggle (localStorage: obiePyScriptVersion) -->
+  <script>(function(){var v=localStorage.getItem('obiePyScriptVersion')||'2026.3.1';document.write('<link rel="stylesheet" href="https://pyscript.net/releases/'+v+'/core.css">');document.write('<scr'+'ipt type="module" src="https://pyscript.net/releases/'+v+'/core.js"><\/scr'+'ipt>');})();</script>
+
+  <script src="../../js/plotly-theme.js"></script>
+  <script src="../../js/audio.js"></script>
+  <script src="../../js/obie-settings.js"></script>
+  <script src="../../js/browser-check.js"></script>
+  <script>document.write('<scr'+'ipt src="./explore.js?v='+OBIE_VERSION+'" defer><\/scr'+'ipt>');</script>
+</head>
+<body>
+
+<div id="loading" class="loading-overlay">
+  <div class="spin"></div>
+  <div class="load-title">Loading PyScript + NumPy…</div>
+  <div class="load-sub">First load may take 15–30 s</div>
+</div>
+
+<div class="explore-page">
+
+  <!-- ── Page header ──────────────────────────────────────────────── -->
+  <header class="obie-header">
+    <a class="brand" href="../../index.html">
+      <div class="logo-icon">🎻</div>
+      <h1>ObieWebApp</h1>
+    </a>
+    <span class="crumb">· Explore</span>
+    <div class="gap"></div>
+    <a class="btn" href="../../index.html" style="font-size:0.75rem;padding:3px 9px">← All tools</a>
+  </header>
+
+  <!-- ── Toolbar ──────────────────────────────────────────────────── -->
+  <div class="ex-toolbar">
+
+    <!-- Row 1: Settings / Data Folder  ···  Interpret / Help -->
+    <div class="tb-r">
+      <button class="tb-btn" onclick="expPreferences()">Settings</button>
+      <button id="data-folder-btn" class="tb-btn" onclick="expSetDataFolder()">📁 Data Folder</button>
+      <span id="folder-name-ind" class="folder-name-disp"></span>
+
+      <div class="tb-flex"></div>
+
+      <button class="tb-btn accent" onclick="expInterpret()">Interpret</button>
+      <button class="tb-btn" onclick="expHelp()">Help</button>
+      <button class="tb-btn" onclick="expTips()">Tips</button>
+    </div>
+
+    <!-- Row 2: file ops | plot controls | band controls -->
+    <div class="tb-r">
+
+      <!-- File ops -->
+      <!-- File operation buttons — grouped in their own box -->
+      <div class="files-box">
+        <button class="tb-btn" onclick="expSearch()">Search</button>
+        <button class="tb-btn" onclick="expBrowse()">Browse</button>
+        <button class="tb-btn" onclick="expLists()">Lists</button>
+        <button class="tb-btn" onclick="expShare()">Share</button>
+        <button class="tb-btn" onclick="expColors()">Colors</button>
+      </div>
+
+    </div>
+
+  </div><!-- ex-toolbar -->
+
+  <!-- ── Info row: file actions + plot hover readout ──────────────── -->
+  <div class="ex-info-row">
+    <div class="ex-actions">
+      <button class="act-btn" onclick="expSeeAll()">See All</button>
+      <button class="act-btn" onclick="expSeeNone()">See None</button>
+      <button class="act-btn" onclick="expReduce()">Reduce</button>
+      <button class="act-btn" onclick="expClearAll()">Clear All</button>
+      <button class="act-btn" id="undo-btn" onclick="expUndo()" disabled>Undo</button>
+    </div>
+    <div id="hover-readout" class="hover-readout"></div>
+    <span id="explore-status" class="ex-status-txt"></span>
+    <span id="wav-info" class="wav-info-txt"></span>
+  </div>
+
+  <!-- ── Main body: sidebar + plot ─────────────────────────────────── -->
+  <div class="ex-body">
+
+    <!-- Left: dataset list -->
+    <div class="ex-sidebar">
+      <div id="dataset-list" class="dataset-list"></div>
+      <div id="band-table" class="band-area">
+        <span class="muted-txt">Select a band preset</span>
+      </div>
+    </div>
+
+    <!-- Drag handle -->
+    <div id="ex-resizer" class="ex-resizer"></div>
+
+    <!-- Right: plot controls strip + plot -->
+    <div id="explore-drop-area" class="ex-plot-wrap">
+
+      <!-- No-folder overlay — hidden once a Data Folder is connected -->
+      <div id="folder-overlay" class="folder-overlay">
+        <div class="folder-overlay-msg">📁 Select a Data Folder above before continuing</div>
+        <button class="tb-btn start" onclick="expSetDataFolder()" style="padding:6px 18px;font-size:12px">
+          Select Data Folder…
+        </button>
+        <div class="folder-overlay-sub" id="folder-overlay-sub"></div>
+      </div>
+
+      <div class="plot-toolbar">
+        <button id="y-log-btn" class="tb-btn" onclick="expToggleYLog()" title="Toggle Y: dB / linear magnitude">Y=dB</button>
+        <button class="tb-btn" onclick="expRescaleY()" title="Rescale Y to data range">↕Y</button>
+        <input  id="y-db-range" class="tb-inp" type="number" value="38" min="5" max="120"
+                style="width:3.2ch;font-size:9px;padding:0 2px;text-align:right"
+                title="Y dB range" onchange="expSetYDbRange(this.value)">
+        <span class="tb-lbl">dB</span>
+        <button id="x-log-btn" class="tb-btn active" onclick="expToggleXLog()" title="Toggle X axis log/linear">X=log</button>
+        <select id="smooth-sel" class="tb-sel" onchange="expSetSmoothing(this.value)" title="Frequency smoothing">
+          <option value="0">No smoothing</option>
+          <option value="0.25">¼ semitone</option>
+          <option value="0.5">½ semitone</option>
+          <option value="1">1 semitone</option>
+          <option value="2">2 semitones</option>
+          <option value="3">3 semitones</option>
+          <option value="4">4 semitones</option>
+          <option value="12">Octave</option>
+        </select>
+        <select id="norm-sel" class="tb-sel" onchange="expSetNormalize(this.value)" title="Normalization">
+          <option value="as_measured">As measured</option>
+          <option value="normalize">Normalize by max</option>
+          <option value="avg_range">Normalize by avg</option>
+        </select>
+        <span id="norm-range-wrap" style="display:none;align-items:center;gap:2px">
+          <input id="norm-f-lo" class="tb-inp" type="number" value="200"  min="1"   max="22000" style="width:4ch;font-size:9px;padding:0 2px;text-align:right;-moz-appearance:textfield" title="Norm range low Hz"  onchange="expSetNormRange()">
+          <span class="tb-lbl">–</span>
+          <input id="norm-f-hi" class="tb-inp" type="number" value="7000" min="1"   max="22000" style="width:4.5ch;font-size:9px;padding:0 2px;text-align:right;-moz-appearance:textfield" title="Norm range high Hz" onchange="expSetNormRange()">
+          <span class="tb-lbl">Hz</span>
+        </span>
+        <div class="tb-vsep"></div>
+        <select id="band-sel" class="tb-sel" onchange="expSetBandPreset(this.value)" title="Band averaging — loaded from ObieAppSettings/bands/">
+          <option value="">No bands</option>
+          <option value="custom">Custom…</option>
+        </select>
+        <label class="tb-lbl" style="display:flex;align-items:center;gap:3px;cursor:pointer" title="Toggle band shading">
+          <input id="band-shade-chk" type="checkbox" checked onchange="expToggleBandShading(this.checked)">
+          shade
+        </label>
+        <button class="tb-btn" onclick="expExportBands()" title="Export band data as CSV">Excel</button>
+        <div class="tb-vsep"></div>
+        <label class="tb-lbl" style="display:flex;align-items:center;gap:3px;cursor:pointer" title="Show coherence γ² overlay (only for TRF files with coherence data)">
+          <input id="coh-chk" type="checkbox" disabled onchange="expToggleCoherence(this.checked)">
+          Coh
+        </label>
+      </div>
+
+      <div id="explore-plot"></div>
+    </div>
+
+  </div><!-- ex-body -->
+
+</div><!-- explore-page -->
+
+
+<!-- ── Search modal ─────────────────────────────────────────────────── -->
+<div id="search-modal" class="modal-overlay">
+  <div class="modal-box search-modal-box">
+    <div class="modal-header">
+      <span class="modal-title">Search Data Folder</span>
+      <button class="modal-close" onclick="expCloseSearch()">✕</button>
+    </div>
+    <div class="modal-body search-modal-body">
+
+      <!-- Left: filters -->
+      <div class="search-filters">
+        <div class="sf-section">Pattern</div>
+        <input id="search-pattern" class="tb-inp" type="text" placeholder="e.g. violin, strad" style="width:100%;box-sizing:border-box">
+        <div class="sf-hint">Comma-separated, OR logic</div>
+
+        <div class="sf-section" style="margin-top:12px">File Type</div>
+        <label class="sf-chk"><input type="checkbox" id="ft-all" checked> All types</label>
+        <label class="sf-chk"><input type="checkbox" id="ft-avr"> AvR</label>
+        <label class="sf-chk"><input type="checkbox" id="ft-avc"> AvC</label>
+        <label class="sf-chk"><input type="checkbox" id="ft-trf"> TRF / TRV</label>
+
+        <div class="sf-section" style="margin-top:12px">Keywords <span style="font-weight:400;text-transform:none;letter-spacing:0">(OR)</span></div>
+        <input id="search-kw1" class="tb-inp" type="text" placeholder="keyword 1" style="width:100%;box-sizing:border-box;margin-bottom:4px">
+        <input id="search-kw2" class="tb-inp" type="text" placeholder="keyword 2" style="width:100%;box-sizing:border-box;margin-bottom:4px">
+        <input id="search-kw3" class="tb-inp" type="text" placeholder="keyword 3" style="width:100%;box-sizing:border-box">
+      </div>
+
+      <!-- Right: results -->
+      <div class="search-results-panel">
+        <div class="sr-header">
+          <span class="sr-count-lbl">Files found: <strong id="search-count">0</strong></span>
+          <div style="display:flex;gap:4px">
+            <button class="act-btn" onclick="expSelectAllSearch()">Select All</button>
+            <button class="act-btn" onclick="expSelectNoneSearch()">Select None</button>
+          </div>
+        </div>
+        <div id="search-results-list" class="search-results-list">
+          <div class="sr-empty">Set a Data Folder and click Search</div>
+        </div>
+        <div class="sr-footer">
+          <button class="tb-btn accent" onclick="expLoadSelected()">Load Selected</button>
+          <button class="tb-btn" onclick="expCloseSearch()">Cancel</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── Interpret modal ──────────────────────────────────────────────── -->
+<div id="interpret-modal" class="modal-overlay interpret-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">Interpreting the FRF using Oberlin Terminology</span>
+      <button class="modal-close" onclick="expCloseInterpret()">✕</button>
+    </div>
+    <div class="modal-body" style="flex:1;overflow:hidden;padding:12px">
+      <div class="interpret-layout">
+        <div class="interpret-info">
+          <div>
+            <h3>Web Links</h3>
+            <p style="font-size:10px;color:var(--muted);margin-top:3px">Talks:</p>
+            <a href="https://www.youtube.com/channel/UCb8nC_6JQtlqal0-bVQZMeg" target="_blank" rel="noopener">YouTube Channel</a>
+            <p style="font-size:10px;color:var(--muted);margin-top:5px">Books &amp; Sites:</p>
+            <a href="https://euphonics.org/homepage/" target="_blank" rel="noopener">euphonics.org</a>
+          </div>
+          <div>
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+              <h3 style="margin:0">Typical Ranges</h3>
+              <select id="interpret-dict-sel" style="font-size:10px;padding:1px 4px;border:1px solid var(--border);border-radius:3px;background:var(--bg-deep)"
+                      onchange="expInterpretSetDict(this.value)">
+                <option value="radiation">Radiation (Mic)</option>
+                <option value="accelerance">Accelerance</option>
+                <option value="vibrometer">Mobility (Vibrometer)</option>
+              </select>
+            </div>
+            <table class="typical-ranges">
+              <thead><tr><th>Mode</th><th>Range</th><th>Avg</th></tr></thead>
+              <tbody id="interpret-ranges-body"></tbody>
+            </table>
+          </div>
+          <div style="font-size:10px;color:var(--muted);font-style:italic;line-height:1.5">
+            <span id="interpret-dict-note"></span>
+          </div>
+          <div>
+            <h3 style="margin:0 0 5px">Note Harmonics</h3>
+            <div id="note-picker" style="display:flex;flex-wrap:wrap;gap:3px;max-width:220px"></div>
+            <p style="font-size:9px;color:var(--muted);margin:4px 0 0">Click a note to show its fundamental and overtones. Click again to clear.</p>
+          </div>
+        </div>
+        <div class="interpret-plot-wrap">
+          <div id="interpret-plot"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Lists modal ──────────────────────────────────────────────────── -->
+<div id="lists-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(90vw,480px);height:min(80vh,520px)">
+    <div class="modal-header">
+      <span class="modal-title">Lists</span>
+      <button class="modal-close" onclick="expCloseLists()">✕</button>
+    </div>
+    <div class="modal-body lists-modal-body">
+      <div class="lists-content"><!-- filled by explore.js --></div>
+    </div>
+    <div class="lists-modal-footer">
+      <button class="act-btn" onclick="expSaveCurrentList()">💾 Make current datasets a list</button>
+      <div style="flex:1"></div>
+      <button class="act-btn" onclick="expCloseLists()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Colors modal ─────────────────────────────────────────────────── -->
+<div id="colors-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(90vw,420px);max-height:90vh">
+    <div class="modal-header">
+      <span class="modal-title">Color Palette</span>
+      <button class="modal-close" onclick="expCloseColors()">✕</button>
+    </div>
+    <div class="modal-body" style="overflow-y:auto">
+
+      <div class="cp-section">Built-in</div>
+      <div class="palette-grid">
+        <button class="palette-btn" onclick="expPickPalette('default')">
+          <div class="palette-name">Default</div>
+          <div class="palette-swatches">
+            <div class="palette-sw" style="background:#ff6f00"></div>
+            <div class="palette-sw" style="background:#2196f3"></div>
+            <div class="palette-sw" style="background:#4caf50"></div>
+            <div class="palette-sw" style="background:#e91e63"></div>
+            <div class="palette-sw" style="background:#9c27b0"></div>
+          </div>
+        </button>
+        <button class="palette-btn" onclick="expPickPalette('warm')">
+          <div class="palette-name">Warm</div>
+          <div class="palette-swatches">
+            <div class="palette-sw" style="background:#b71c1c"></div>
+            <div class="palette-sw" style="background:#d32f2f"></div>
+            <div class="palette-sw" style="background:#e64a19"></div>
+            <div class="palette-sw" style="background:#f57c00"></div>
+            <div class="palette-sw" style="background:#f9a825"></div>
+          </div>
+        </button>
+        <button class="palette-btn" onclick="expPickPalette('cool')">
+          <div class="palette-name">Cool</div>
+          <div class="palette-swatches">
+            <div class="palette-sw" style="background:#0d47a1"></div>
+            <div class="palette-sw" style="background:#0277bd"></div>
+            <div class="palette-sw" style="background:#00838f"></div>
+            <div class="palette-sw" style="background:#1b5e20"></div>
+            <div class="palette-sw" style="background:#33691e"></div>
+          </div>
+        </button>
+        <button class="palette-btn" onclick="expPickPalette('contrast')">
+          <div class="palette-name">High Contrast</div>
+          <div class="palette-swatches">
+            <div class="palette-sw" style="background:#000000"></div>
+            <div class="palette-sw" style="background:#e53935"></div>
+            <div class="palette-sw" style="background:#1e88e5"></div>
+            <div class="palette-sw" style="background:#43a047"></div>
+            <div class="palette-sw" style="background:#8e24aa"></div>
+          </div>
+        </button>
+      </div>
+
+      <div class="cp-section" style="margin-top:16px">Saved Custom</div>
+      <div id="custom-palettes-list"></div>
+
+      <div class="cp-section" style="margin-top:16px">Create New</div>
+      <div class="cp-name-row">
+        <label style="font-size:11px;color:var(--muted);white-space:nowrap">Name</label>
+        <input id="custom-palette-name" class="tb-inp" type="text" placeholder="My palette" style="flex:1">
+      </div>
+      <div class="cp-builder-row">
+        <div id="custom-palette-swatches" class="cp-swatches"></div>
+        <button class="act-btn" onclick="expCustomPaletteAdd()" title="Add color">+</button>
+        <button class="act-btn" onclick="expCustomPaletteRemove()" title="Remove last color">−</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="act-btn" onclick="expApplyCustomPalette()">Apply</button>
+        <button class="act-btn accent" onclick="expSaveCustomPalette()">Save &amp; Apply</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── Preferences modal ─────────────────────────────────────────────── -->
+<div id="prefs-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(92vw,480px);max-height:90vh">
+    <div class="modal-header">
+      <span class="modal-title">Explore Preferences</span>
+      <button class="modal-close" onclick="expClosePrefs()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="pref-section">Audio</div>
+      <div class="pref-row">
+        <label>Sound snippet (WAV)</label>
+        <div style="display:flex;gap:5px;flex:1;min-width:0">
+          <input id="pref-wav-url" type="text" placeholder="Name or URL" style="flex:1;min-width:0;max-width:none">
+          <button class="act-btn" onclick="expBrowseWav()" style="flex-shrink:0">Browse…</button>
+        </div>
+      </div>
+      <p class="pref-hint">The WAV file played when ▶ is pressed. Browse stores it locally in the browser.</p>
+      <div class="pref-row">
+        <label for="pref-device">Output device</label>
+        <select id="pref-device" style="flex:1;max-width:200px">
+          <option value="">Default output</option>
+        </select>
+      </div>
+
+      <div class="pref-section">Plot Defaults</div>
+      <div class="pref-row">
+        <label for="pref-yrange">Y range</label>
+        <input id="pref-yrange" type="number" min="10" max="120" value="38" style="max-width:70px">
+        <span class="pref-unit">dB</span>
+      </div>
+      <div class="pref-row">
+        <label for="pref-xmin">X min</label>
+        <input id="pref-xmin" type="number" value="200" style="max-width:70px">
+        <span class="pref-unit">Hz</span>
+      </div>
+      <div class="pref-row">
+        <label for="pref-xmax">X max</label>
+        <input id="pref-xmax" type="number" value="7000" style="max-width:70px">
+        <span class="pref-unit">Hz</span>
+      </div>
+      <div class="pref-row">
+        <label for="pref-linewidth">Line width</label>
+        <input id="pref-linewidth" type="number" value="1.0" min="0.5" max="4" step="0.25" style="max-width:70px">
+        <span class="pref-unit">px</span>
+      </div>
+
+      <div class="save-row">
+        <button class="act-btn accent" onclick="expSavePrefs()">Save</button>
+        <button class="act-btn" onclick="expResetPrefs()">Reset defaults</button>
+        <button class="act-btn" onclick="expClosePrefs()">Close</button>
+        <span id="prefs-save-msg" class="save-msg"></span>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="py" src="./main.py" config="./pyscript.toml" async></script>
+
+</body>
+</html>
