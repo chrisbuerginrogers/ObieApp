@@ -7,17 +7,17 @@
   <title>Acquire — ObieWebApp</title>
 
   <link rel="stylesheet" href="../../css/theme.css">
-  <link rel="stylesheet" href="./acquire.css?v=1.1.2">
+  <script src="../../version.js"></script>
+  <script>document.write('<link rel="stylesheet" href="./acquire.css?v='+OBIE_VERSION+'">');</script>
 
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" crossorigin="anonymous"></script>
 
   <!-- PyScript — version set by home-page toggle (localStorage: obiePyScriptVersion) -->
   <script>(function(){var v=localStorage.getItem('obiePyScriptVersion')||'2026.3.1';document.write('<link rel="stylesheet" href="https://pyscript.net/releases/'+v+'/core.css">');document.write('<scr'+'ipt type="module" src="https://pyscript.net/releases/'+v+'/core.js"><\/scr'+'ipt>');})();</script>
 
-  <script src="../../version.js"></script>
   <script src="../../js/obie-settings.js"></script>
   <script src="../../js/browser-check.js"></script>
-  <script src="./acquire.js?v=1.1.2" defer></script>
+  <script>document.write('<scr'+'ipt src="./acquire.js?v='+OBIE_VERSION+'" defer><\/scr'+'ipt>');</script>
 </head>
 <body>
 

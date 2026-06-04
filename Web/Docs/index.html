@@ -205,18 +205,28 @@
     <div class="callout">
       <strong>Coherence overlay</strong>
       When a file contains coherence data (TRF files saved by Acquire, or MATLAB .mat FRF files),
-      Explore automatically adds a dotted coherence trace on a right-hand axis (0–1 scale).
-      The coherence line uses the same colour as the FRF and can be read against the right axis.
+      a <strong>γ²</strong> checkbox appears in the plot toolbar. Check it to show the coherence
+      trace for all visible datasets. The trace is drawn in the same colour as the FRF, scaled to
+      occupy the bottom third of the current Y range — so it never pushes the FRF out of view.
+      The checkbox is off by default.
     </div>
+
+    <h4>Hover tooltip</h4>
+    <p>
+      Hovering over any point on the plot shows: <em>Amp = 18.4 dB &nbsp; Freq = 443 Hz &nbsp;(A = 440 Hz)</em>.
+      The note name and its exact reference frequency (nearest equal-temperament pitch) are shown
+      automatically whenever the cursor is over an FRF trace.
+    </p>
 
     <h4>Plot controls</h4>
     <table class="key-table">
       <thead><tr><th>Control</th><th>What it does</th></tr></thead>
       <tbody>
         <tr><td>Y = lin / log</td><td>Toggles the Y axis between linear and dB (log) scale.</td></tr>
-        <tr><td>↕Y</td><td>Auto-scales the Y axis to the current data range.</td></tr>
+        <tr><td>↕Y</td><td>Auto-scales the Y axis to the visible X range — ignores data outside the current frequency window.</td></tr>
         <tr><td>dB range field</td><td>Sets the displayed Y range in dB (e.g. 38 dB).</td></tr>
         <tr><td>X = log / lin</td><td>Toggles the X (frequency) axis between log and linear.</td></tr>
+        <tr><td>γ² checkbox</td><td>Show or hide coherence traces for all datasets that carry coherence data.</td></tr>
         <tr><td>Smoothing</td><td>Applies fractional-octave smoothing from ¼ semitone to one full octave.</td></tr>
         <tr><td>Normalization</td><td>As measured, normalize by peak, or normalize by average over a custom Hz range.</td></tr>
       </tbody>
@@ -239,18 +249,29 @@
     <h4>Band averaging</h4>
     <p>
       Select a band preset from the <strong>Bands</strong> dropdown (presets are loaded from
-      <code>ObieAppSettings/bands/</code> in your Data Folder). The band table below the dataset list
-      shows the average dB level for each dataset in each frequency band. Toggle <strong>shade</strong>
-      to highlight the band regions on the plot. Click <strong>Excel</strong> to export the band data
-      as a CSV file.
+      <code>ObieAppSettings/bands/</code> in your Data Folder). The band table shows one column
+      of results <em>per visible dataset</em> — average dB level and spectral centroid for each
+      band, in each dataset's colour. Toggle <strong>shade</strong> to highlight the band regions
+      on the plot. Click <strong>Excel</strong> to export all datasets' band data as a CSV file.
     </p>
 
     <h4>Interpret</h4>
     <p>
-      Click <strong>Interpret</strong> to open a reference overlay showing the standard Oberlin mode
-      labels (A0, CBR, B1−, B1+, Bridge Hill, etc.) with their typical frequency ranges drawn on a
-      copy of the current plot. Includes links to violinacoustics.com and euphonics.org.
+      Click <strong>Interpret</strong> to open a reference overlay with two sections:
     </p>
+    <ul class="steps">
+      <li>
+        <strong>Mode labels</strong> — the standard Oberlin mode labels (A0, CBR, B1−, B1+,
+        Bridge Hill, etc.) drawn as shaded regions on the current plot. Includes links to
+        violinacoustics.com and euphonics.org.
+      </li>
+      <li>
+        <strong>Note Harmonics</strong> — click any of the 12 chromatic note buttons (G3 – F♯4)
+        to overlay blue dotted vertical lines at the fundamental frequency of that note and all
+        of its overtones up to 10,500 Hz. Click the same note again to remove the lines. Useful
+        for checking whether a resonance peak lines up with a specific played note.
+      </li>
+    </ul>
 
     <h4>Other toolbar buttons</h4>
     <table class="key-table">
@@ -440,7 +461,8 @@
           for a fresh start) or <strong>Repeat</strong> to re-do the current position.</li>
       <li>Use <strong>↩ Undo Hit</strong> to remove a bad last hit, or <strong>🗑 Clear H01</strong>
           to restart the current position. <strong>↺ Start over</strong> clears all positions.</li>
-      <li>When all positions are complete the averaged AvC and AvR files are saved to your Data Folder automatically.</li>
+      <li>When all positions are complete, an AvR file is saved automatically and a <em>Run complete</em> banner appears.</li>
+      <li>To start the next run on the same instrument, click <strong>▶ Start</strong> again — the test name increments automatically (e.g. <code>Violin_01</code> → <code>Violin_02</code>) and all positions reset.</li>
     </ol>
 
     <div class="callout">
@@ -448,16 +470,17 @@
       Each position saves a <code>.trf</code> file (updated after every hit) and a <code>.wav</code>
       raw capture per hit inside a <code>raw/</code> sub-folder. TRF files include coherence and
       run metadata (sample rate, threshold, cutoffs, device name) readable by Explore.
-      At run completion, an AvC (complex average) and AvR (magnitude average) are written to the
-      instrument folder root.
+      At run completion, an <strong>AvR</strong> (magnitude average) is written to the instrument
+      folder root.
     </div>
 
     <h3>Reviewing the FRF plot</h3>
     <p>
       The main plot shows the current position's FRF building up with each hit, along with a
-      coherence overlay (dotted line, right axis). When you advance to the next position the plot
-      clears so you start fresh — previous positions are saved on disk and can be loaded in Explore.
-      Use the plot-toolbar controls to toggle log/linear X axis, rescale Y, or adjust the dB range.
+      coherence overlay (γ², scaled to the bottom third of the Y range). When you advance to the
+      next position the plot clears so you start fresh — previous positions are saved on disk and
+      can be loaded in Explore. Use the plot-toolbar controls to toggle log/linear X axis, rescale
+      Y, or adjust the dB range.
     </p>
 
     <h3>Templates</h3>
@@ -468,9 +491,23 @@
     </p>
     <ol class="steps">
       <li>Click <strong>Template…</strong> to open the template manager.</li>
-      <li>Select a template from the list, then click <strong>Apply</strong>. All settings and axis ranges are restored.</li>
+      <li>Select a template from the list, then click <strong>Apply</strong>. All settings and axis ranges are restored. The applied template name is shown below the Start button.</li>
       <li>To save current settings as a new template, click <strong>Save as Template</strong>.</li>
     </ol>
+    <div class="callout">
+      <strong>Template name is cleared on manual changes</strong>
+      If you edit any setting (threshold, cutoffs, axis ranges, etc.) after loading a template,
+      the template name indicator is cleared. This signals that the current settings no longer
+      match any saved template.
+    </div>
+
+    <h3>Audio device disconnect</h3>
+    <p>
+      If the USB audio interface is unplugged or interrupted while acquisition is running, Acquire
+      stops immediately and shows an alert. Re-plug the device and click <strong>▶ Start</strong>
+      again. If you change the selected input device in Settings while audio is active, the audio
+      stream restarts automatically on the new device.
+    </p>
 
     <h3>Session Notes</h3>
     <p>
@@ -496,13 +533,15 @@
 
   <!-- PDF reference -->
   <div class="pdf-ref">
-    <div class="pdf-icon">📄</div>
+    <div class="pdf-icon">🔢</div>
     <div>
-      <p><strong>Full technical reference</strong></p>
+      <p><strong>Technical reference — signal processing &amp; file formats</strong></p>
       <p>
-        For detailed signal-processing documentation, file format specifications, and
-        background on the Oberlin acoustic analysis framework, see the
-        <a href="./ObieDocs.pdf" target="_blank" rel="noopener">ObieDocs PDF</a>.
+        Detailed derivations of the H1/H2 estimators, coherence, band averaging, convolution,
+        and the acoustic wave equation, plus full binary file format specifications:
+        <a href="./math.html">Technical Reference (HTML)</a>
+        &nbsp;·&nbsp;
+        <a href="./ObieDocs.pdf" target="_blank" rel="noopener">ObieDocs (original PDF)</a>.
       </p>
     </div>
   </div>

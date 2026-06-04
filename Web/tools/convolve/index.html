@@ -7,7 +7,8 @@
   <title>Convolve — ObieWebApp</title>
 
   <link rel="stylesheet" href="../../css/theme.css">
-  <link rel="stylesheet" href="./convolve.css">
+  <script src="../../version.js"></script>
+  <script>document.write('<link rel="stylesheet" href="./convolve.css?v='+OBIE_VERSION+'">');</script>
 
   <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" crossorigin="anonymous"></script>
 
@@ -17,9 +18,8 @@
   <!-- Shared JS — order matters -->
   <script src="../../js/plotly-theme.js"></script>
   <script src="../../js/audio.js"></script>
-  <script src="../../version.js"></script>
   <script src="../../js/obie-settings.js"></script>
-  <script src="./convolve.js" defer></script>
+  <script>document.write('<scr'+'ipt src="./convolve.js?v='+OBIE_VERSION+'" defer><\/scr'+'ipt>');</script>
 </head>
 <body>
 
