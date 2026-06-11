@@ -36,11 +36,12 @@ _ring_size = 0
 _ring_head = 0
 
 # ── State machine ─────────────────────────────────────────────────────────────
-_state          = "idle"   # idle | armed | triggered | complete
-_cur_pos        = 0
-_pos_hits       = []
-_trig_ring_pos  = 0
-_post_trig_left = 0
+_state               = "idle"   # idle | armed | triggered | complete
+_cur_pos             = 0
+_pos_hits            = []
+_trig_ring_pos       = 0
+_post_trig_left      = 0
+_post_capture_lockout = 0   # samples remaining in dead-time after a capture
 
 # ── FRF per position — stores raw time windows so cutoff can be moved later ──
 _frf = {}   # pos → { hits_ham, hits_mic, n_fft, sr }
@@ -102,17 +103,18 @@ def stop_audio():
 
 
 def arm():
-    global _state
+    global _state, _post_capture_lockout
     if _state in ("idle", "complete"):
         if _state == "complete":
             _init_internal(_n_positions)   # clear old run data for the new set
+        _post_capture_lockout = 0
         _state = "armed"
         _emit_state()
         _emit_banner()
 
 
 def process_audio(left_js, right_js):
-    global _state, _trig_ring_pos, _post_trig_left, _live_counter
+    global _state, _trig_ring_pos, _post_trig_left, _live_counter, _post_capture_lockout
 
     if _state not in ("armed", "triggered") or _ring_L is None:
         return
@@ -127,21 +129,26 @@ def process_audio(left_js, right_js):
     n = len(R)
 
     if _state == "armed":
-        trig = R if _swap_channels else L
-        mask = np.abs(trig) > _threshold
-        if np.any(mask):
-            trig_idx = int(np.argmax(mask))
-            _push_ring(L[:trig_idx + 1], R[:trig_idx + 1])
-            _trig_ring_pos  = (_ring_head - 1) % _ring_size
-            _push_ring(L[trig_idx + 1:], R[trig_idx + 1:])
-            _post_trig_left = int(_post_trig_s * _sr) - (n - trig_idx - 1)
-            if _post_trig_left <= 0:
-                _do_capture()
-                return
-            _state = "triggered"
-            _emit_state()
-        else:
+        if _post_capture_lockout > 0:
+            # Dead-time after a capture: keep ring current but ignore triggers
+            _post_capture_lockout = max(0, _post_capture_lockout - n)
             _push_ring(L, R)
+        else:
+            trig = R if _swap_channels else L
+            mask = np.abs(trig) > _threshold
+            if np.any(mask):
+                trig_idx = int(np.argmax(mask))
+                _push_ring(L[:trig_idx + 1], R[:trig_idx + 1])
+                _trig_ring_pos  = (_ring_head - 1) % _ring_size
+                _push_ring(L[trig_idx + 1:], R[trig_idx + 1:])
+                _post_trig_left = int(_post_trig_s * _sr) - (n - trig_idx - 1)
+                if _post_trig_left <= 0:
+                    _do_capture()
+                    return
+                _state = "triggered"
+                _emit_state()
+            else:
+                _push_ring(L, R)
 
     elif _state == "triggered":
         _push_ring(L, R)
@@ -237,13 +244,14 @@ def _pos_label(i):
 
 
 def _init_internal(n):
-    global _n_positions, _cur_pos, _pos_hits, _frf, _state, _wav_L, _wav_R
+    global _n_positions, _cur_pos, _pos_hits, _frf, _state, _wav_L, _wav_R, _post_capture_lockout
     _n_positions = n
     _cur_pos     = 0
     _pos_hits    = [0] * n
     _frf         = {i: {"hits_ham": [], "hits_mic": [], "n_fft": None, "sr": None}
                     for i in range(n)}
     _wav_L = []; _wav_R = []
+    _post_capture_lockout = 0
     if _state == "complete":
         _state = "idle"
     _emit_banner()
@@ -323,7 +331,7 @@ def _h1_from_st(st):
 
 def _do_capture():
     """Extract triggered window, apply calibration, auto-accept hit."""
-    global _state
+    global _state, _post_capture_lockout
     pre  = int(_pre_trig_s  * _sr)
     post = int(_post_trig_s * _sr)
     L_win, R_win = _ring_window_at(_trig_ring_pos, pre, post)
@@ -342,6 +350,7 @@ def _do_capture():
     _wav_L.append(mic_win.copy())
     _wav_R.append(ham_win.copy())
     _pos_hits[_cur_pos] += 1
+    _post_capture_lockout = int(0.5 * _sr)   # 500 ms dead-time before next trigger
 
     js.window.onSaveHit(_encode_wav_bytes(mic_win, ham_win, _sr), _cur_pos, _pos_hits[_cur_pos])
 
@@ -439,12 +448,13 @@ def _complete_position():
 
 def repeat_position():
     """Clear all hits for the current position and re-arm."""
-    global _state
+    global _state, _post_capture_lockout
     _pos_hits[_cur_pos] = 0
     st = _frf[_cur_pos]
     st["hits_ham"] = []
     st["hits_mic"] = []
     _recompute_frf(_cur_pos)
+    _post_capture_lockout = 0
     _state = "armed"
     _emit_banner()
     _emit_state()
@@ -460,7 +470,7 @@ def pause_after_position():
 
 def advance_position():
     """Advance to the next position (or finish the run)."""
-    global _cur_pos, _state
+    global _cur_pos, _state, _post_capture_lockout
     _cur_pos += 1
     if _cur_pos >= _n_positions:
         _state = "complete"
@@ -468,6 +478,7 @@ def advance_position():
         _emit_banner()
         _emit_state()
     else:
+        _post_capture_lockout = 0
         _state = "armed"
         _emit_banner()
         _emit_state()

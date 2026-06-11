@@ -5,7 +5,7 @@ py_get_complex_frfs() for mode shape animation.
 """
 
 import js, json
-from pyscript.ffi import create_proxy
+from pyscript.ffi import create_proxy, to_js
 from config import configure, load, save
 import acquire_logic as _al
 
@@ -79,6 +79,37 @@ def py_apply_settings(thr, pre, post, ham_cut, taps, n_nodes,
 
 
 _node_coords = {}   # {str(pos): {'x':float, 'y':float, 'z':float, 'label':str}}
+
+
+def _modeshape_save_trf(pos):
+    """Override of acquire_logic._save_trf: builds TRF with node coordinates before passing bytes to JS."""
+    from trf_fileio import build_trf as _build_trf
+    st = _al._frf.get(pos)
+    if not st:
+        return
+    H1, _H_dB, coh, freq = _al._h1_from_st(st)
+    if H1 is None:
+        return
+    n_hits = len(st.get('hits_ham', []))
+    coords = _node_coords.get(str(pos), {})
+    meta = {
+        'sample_rate': str(_al._sr),
+        'bit_depth':   '16',
+        'n_hits':      str(n_hits),
+        'threshold':   f'{_al._threshold:.4g}',
+        'ham_cutoff':  f'{_al._ham_time_cutoff_s:.3f} s',
+        'mic_cutoff':  f'{_al._mic_time_cutoff_s:.3f} s',
+        'device':      _al._device_name,
+        'node_x':      str(coords.get('x', 0)),
+        'node_y':      str(coords.get('y', 0)),
+        'node_z':      str(coords.get('z', 0)),
+        'node_label':  str(coords.get('label', '')),
+    }
+    coh_list = coh.tolist() if coh is not None else None
+    trf_bytes = to_js(bytearray(_build_trf(freq.tolist(), H1.tolist(), coherence=coh_list, meta=meta)))
+    js.window.onSaveTRF(trf_bytes, pos)
+
+_al._save_trf = _modeshape_save_trf
 
 
 def py_set_geometry(coords_json):

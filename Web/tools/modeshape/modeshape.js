@@ -216,13 +216,12 @@ window.onSaveHit = async function(bytes, pos, hitN) {
   await _writeFile(_rawHandle, `N${label}_${n}.wav`, bytes);
 };
 
-// Intercept TRF save: rebuild with node x/y/z in metadata
-window.onSaveTRF = async function(_ignored, pos) {
-  if (!_studyHandle || !window.pyBuildTRFWithCoords) return;
+// Receive TRF bytes (already built with node coords by Python) and save to disk
+window.onSaveTRF = async function(bytes, pos) {
+  if (!_studyHandle || !bytes) return;
   try {
-    const b = window.pyBuildTRFWithCoords(pos);
-    if (b) await _writeFile(_studyHandle, `N${String(pos+1).padStart(2,'0')}.trf`, b);
-  } catch(e) { console.warn('onSaveTRF coord rebuild failed', e); }
+    await _writeFile(_studyHandle, `N${String(pos+1).padStart(2,'0')}.trf`, bytes);
+  } catch(e) { console.warn('onSaveTRF failed', e); }
 };
 
 window.onSaveAvR = async function(bytes) {
