@@ -72,6 +72,8 @@ let _micYRange  = [-1, 1];
 let _fftXRange  = [200, 10000];
 
 let _yTrueAutorange = false;      // true while Plotly.react is running (suppress re-entrant relayout)
+let _hamPlotUpdating = false;     // true while Plotly.react is updating plot-hammer (suppress spurious relayout)
+let _micPlotUpdating = false;     // true while Plotly.react is updating plot-mic (suppress spurious relayout)
 let _blockFRFUpdates = false;     // true after new-run Start — suppresses Python's history replay until first real hit
 
 // Individual tap FRF traces
@@ -159,6 +161,7 @@ function _drawTrigPlots(t, ham, mic, thrF) {
   if (micCutX >= _micXRange[0] && micCutX <= _micXRange[1])
     micShapes.push(vLine(micCutX, '#2e7d32'));
 
+  _hamPlotUpdating = true;
   Plotly.react('plot-hammer',
     [{ x: t, y: ham, type: 'scatter', mode: 'lines', line: { color: '#c62828', width: 1 } }],
     miniLayout('Hammer', 'Time (s)', 'V',
@@ -166,7 +169,9 @@ function _drawTrigPlots(t, ham, mic, thrF) {
       _hamYRange ? { range: _hamYRange } : { range: [-pkH*1.2, pkH*1.2] },
       hamShapes),
     PCFG);
+  setTimeout(() => { _hamPlotUpdating = false; }, 0);
 
+  _micPlotUpdating = true;
   Plotly.react('plot-mic',
     [{ x: t, y: mic, type: 'scatter', mode: 'lines', line: { color: '#1565c0', width: 1 } }],
     miniLayout('Microphone', 'Time (s)', 'V',
@@ -174,6 +179,7 @@ function _drawTrigPlots(t, ham, mic, thrF) {
       _micYRange ? { range: _micYRange } : { range: [-pkM*1.2, pkM*1.2] },
       micShapes),
     PCFG);
+  setTimeout(() => { _micPlotUpdating = false; }, 0);
 }
 
 
@@ -320,8 +326,15 @@ window.acqPausePosition = async function() {
   _stopSimulation();
   if (workletNode) { workletNode.disconnect(); workletNode = null; }
   if (sourceNode)  { sourceNode.disconnect();  sourceNode  = null; }
-  if (audioCtx)    { await audioCtx.close();   audioCtx    = null; }
+  // Null audioCtx BEFORE stopping media tracks. Chrome fires the track 'ended'
+  // event synchronously inside t.stop(), and the listener registered in _startAudio
+  // guards on `if (!audioCtx) return`. If audioCtx is still set when 'ended' fires,
+  // _stopAudio() is called → _resetForNextRun() → test folder increments.
+  // Removing onstatechange prevents the same problem from the AudioContext close event.
+  const ctxToClose = audioCtx;
+  if (ctxToClose) { ctxToClose.onstatechange = null; audioCtx = null; }
   if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+  if (ctxToClose) await ctxToClose.close();
   // Advance the position in Python so Start resumes on the next position
   window.pyAdvancePosition?.();
   appState = 'idle';
@@ -459,23 +472,23 @@ function renderFRF() {
     traces = [{ x: [], y: [], type: 'scatter', mode: 'lines', showlegend: false }];
   }
 
-  // Y range — fit to data using 1st/99th percentile (avoids spikes and noise-floor dips).
+  // Y range — find the peak within the visible x window, round up to nearest 5 dB,
+  // anchor the top there and drop yDbRange below it.
   let yRange;
   if (_S.yMin != null && _S.yMax != null) {
     yRange = [_S.yMin, _S.yMax];
   } else {
-    const allY = [];
-    for (const t of frfTraces)
-      for (const v of t.y)
-        if (isFinite(v) && v > -200) allY.push(v);
-    if (allY.length) {
-      allY.sort((a, b) => a - b);
-      const pMax = allY[Math.floor(allY.length * 0.99)];
-      const pMin = allY[Math.floor(allY.length * 0.01)];
-      // Bottom = whichever is higher: data-fit floor OR top-anchored span from yDbRange.
-      // This prevents showing excessive empty space below when data span < yDbRange.
-      const bottom = Math.max(pMin - 3, pMax + 3 - _S.yDbRange);
-      yRange = [bottom, pMax + 3];
+    let peak = -Infinity;
+    for (const t of frfTraces) {
+      for (let i = 0; i < t.x.length; i++) {
+        const x = t.x[i], v = t.y[i];
+        if (x >= _S.xMin && x <= _S.xMax && isFinite(v) && v > -200 && v > peak)
+          peak = v;
+      }
+    }
+    if (isFinite(peak)) {
+      const top = Math.ceil(peak / 5) * 5;
+      yRange = [top - _S.yDbRange, top];
     }
   }
 
@@ -484,13 +497,13 @@ function renderFRF() {
   if (pendingCoh.length && yRange) {
     const coBottom = yRange[0] + (yRange[1] - yRange[0]) * 0.25;
     const coTop    = yRange[0] + (yRange[1] - yRange[0]) * 0.75;
-    const cohTraces = pendingCoh.map(({ freq, coh, color }) => ({
+    const cohTraces = pendingCoh.map(({ freq, coh }) => ({
       x: freq,
       y: coh.map(c => coBottom + Math.max(0, Math.min(1, c)) * (coTop - coBottom)),
       type: 'scatter', mode: 'lines',
       yaxis: 'y',
-      line: { color, width: Math.max(_lineWidth, 0.8) },
-      opacity: 0.25,
+      line: { color: '#555555', width: Math.max(_lineWidth, 0.8) },
+      opacity: 0.6,
       showlegend: false,
       hoverinfo: 'skip',
     }));
@@ -1126,21 +1139,25 @@ window.acqResetPrefs = async function() {
   if (st) { st.textContent = '✓ Reset to defaults'; setTimeout(() => st.textContent = '', 2500); }
 };
 
-function _pushSettingsFromPrefs(prefs) {
+// skipRangeSync=true when resuming audio (Stop → Start) so that interactive
+// zoom the user applied while paused is not overwritten by saved prefs values.
+function _pushSettingsFromPrefs(prefs, skipRangeSync = false) {
   _hamTimeCutoffS  = prefs.time_cutoff_s     ?? prefs.post_trig_s ?? 0.30;
   _micTimeCutoffS  = prefs.mic_time_cutoff_s ?? prefs.time_cutoff_s ?? prefs.post_trig_s ?? 0.30;
   _preTrigS        = prefs.pre_trig_s        ?? 0.01;
   _lineWidth       = prefs.line_width        ?? 0.5;
-  _S.xMin          = prefs.frf_x_min        ?? 200;
-  _S.xMax          = prefs.frf_x_max        ?? 7000;
-  _S.yMin          = prefs.frf_y_min        ?? -10;
-  _S.yMax          = prefs.frf_y_max        ?? 30;
-  _hamXRange       = [prefs.ham_x_min ?? 0,    prefs.ham_x_max ?? 0.05];
-  _hamYRange       = [prefs.ham_y_min ?? -0.1, prefs.ham_y_max ?? 1];
-  _micXRange       = [prefs.mic_x_min ?? 0,    prefs.mic_x_max ?? 0.3];
-  _micYRange       = [prefs.mic_y_min ?? -1,   prefs.mic_y_max ?? 1];
-  _fftXRange       = [prefs.fft_x_min ?? 200,  prefs.fft_x_max ?? 10000];
-  _fftYRange       = [prefs.fft_y_min ?? -25,  prefs.fft_y_max ?? 0];
+  if (!skipRangeSync) {
+    _S.xMin        = prefs.frf_x_min        ?? 200;
+    _S.xMax        = prefs.frf_x_max        ?? 7000;
+    _S.yMin        = prefs.frf_y_min        ?? -10;
+    _S.yMax        = prefs.frf_y_max        ?? 30;
+    _hamXRange     = [prefs.ham_x_min ?? 0,    prefs.ham_x_max ?? 0.05];
+    _hamYRange     = [prefs.ham_y_min ?? -0.1, prefs.ham_y_max ?? 1];
+    _micXRange     = [prefs.mic_x_min ?? 0,    prefs.mic_x_max ?? 0.3];
+    _micYRange     = [prefs.mic_y_min ?? -1,   prefs.mic_y_max ?? 1];
+    _fftXRange     = [prefs.fft_x_min ?? 200,  prefs.fft_x_max ?? 10000];
+    _fftYRange     = [prefs.fft_y_min ?? -25,  prefs.fft_y_max ?? 0];
+  }
   _S.yDbRange      = prefs.db_spread         ?? 38;
   _S.dbOffset      = prefs.db_offset         ?? 0;
   const yDbEl = document.getElementById('y-db-range');
@@ -1190,6 +1207,8 @@ function _updateInfoPanel() {
     `<div class="info-row"><span class="info-lbl">${k}</span><span class="info-val">${v}</span></div>`
   ).join('');
 }
+
+window.acqRecheckDevices = function() { _enumeratePrefsDevices(); };
 
 async function _enumeratePrefsDevices() {
   try {
@@ -2517,7 +2536,7 @@ async function _startAudio() {
   const deviceId = prefs.deviceId;
 
   if (deviceId === '__simulated__') {
-    _pushSettingsFromPrefs({ ...prefs });
+    _pushSettingsFromPrefs({ ...prefs }, true);
     _patchPrefs({ deviceLabel: '⚡ Simulated Input' });
     _updateSoundcardDisplay();
     _startSimulation(prefs.sample_rate ?? 48000, prefs.swap_channels ?? false);
@@ -2538,7 +2557,7 @@ async function _startAudio() {
   // If audio is already running (run completed naturally), reuse the existing
   // stream and just re-arm Python — no need to reopen the device.
   if (audioCtx) {
-    _pushSettingsFromPrefs({ ...prefs });
+    _pushSettingsFromPrefs({ ...prefs }, true);
     window.pyArm();
     return;
   }
@@ -2593,7 +2612,7 @@ async function _startAudio() {
       }
     } catch (_) {}
 
-    _pushSettingsFromPrefs({ ...prefs });
+    _pushSettingsFromPrefs({ ...prefs }, true);
     const blob    = new Blob([WORKLET_SRC], { type: 'application/javascript' });
     const blobURL = URL.createObjectURL(blob);
     await audioCtx.audioWorklet.addModule(blobURL);
@@ -2656,10 +2675,16 @@ async function _stopAudio() {
   _stopSimulation();
   if (workletNode)  { workletNode.disconnect(); workletNode = null; }
   if (sourceNode)   { sourceNode.disconnect();  sourceNode  = null; }
-  if (audioCtx)     { await audioCtx.close();   audioCtx   = null; }
+  // Null audioCtx before stopping tracks — Chrome fires 'ended' synchronously
+  // during track.stop(), and the listener guards on !audioCtx.
+  const ctxToClose = audioCtx;
+  if (ctxToClose)   { ctxToClose.onstatechange = null; audioCtx = null; }
   if (mediaStream)  { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+  if (ctxToClose)   await ctxToClose.close();
   window.pyStopAudio();
-  _resetForNextRun();
+  // Do NOT call _resetForNextRun() here — a mid-run Stop should keep the current
+  // test folder so the user can resume. _resetForNextRun is called by onStateChange
+  // when a run completes naturally (state === 'complete').
 }
 
 function _resetForNextRun() {
@@ -2752,6 +2777,7 @@ function _initPlots() {
 
   // Persist user zoom/pan — capture both x and y changes on mini plots.
   document.getElementById('plot-hammer').on('plotly_relayout', e => {
+    if (_hamPlotUpdating) return;  // ignore relayout events fired by our own Plotly.react calls
     if (e['yaxis.range[0]'] != null) _hamYRange = [e['yaxis.range[0]'], e['yaxis.range[1]']];
     else if (e['yaxis.autorange'])   _hamYRange = null;
     if (e['xaxis.range[0]'] != null) {
@@ -2764,6 +2790,7 @@ function _initPlots() {
     }
   });
   document.getElementById('plot-mic').on('plotly_relayout', e => {
+    if (_micPlotUpdating) return;  // ignore relayout events fired by our own Plotly.react calls
     if (e['yaxis.range[0]'] != null) _micYRange = [e['yaxis.range[0]'], e['yaxis.range[1]']];
     else if (e['yaxis.autorange'])   _micYRange = null;
     if (e['xaxis.range[0]'] != null) {
