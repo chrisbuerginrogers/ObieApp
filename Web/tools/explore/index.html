@@ -137,6 +137,8 @@
           <option value="as_measured">As measured</option>
           <option value="normalize">Normalize by max</option>
           <option value="avg_range">Normalize by avg</option>
+          <option value="complex_avg">Complex average</option>
+          <option value="real_avg">Real average</option>
         </select>
         <span id="norm-range-wrap" style="display:none;align-items:center;gap:2px">
           <input id="norm-f-lo" class="tb-inp" type="number" value="200"  min="1"   max="22000" style="width:4ch;font-size:9px;padding:0 2px;text-align:right;-moz-appearance:textfield" title="Norm range low Hz"  onchange="expSetNormRange()">
@@ -416,6 +418,11 @@
 
     </div>
   </div>
+</div>
+
+<!-- Group Average right-click context menu -->
+<div id="avg-ctx-menu" class="ctx-menu" style="display:none">
+  <div class="ctx-item" onclick="expSaveGroupAverage()">💾 Save to Group Averages…</div>
 </div>
 
 <script type="py" src="./main.py" config="./pyscript.toml" async></script>

@@ -126,6 +126,7 @@
   let _customBands = null;
   let _lastSearchClickIdx = -1;
   let _frfOpacity = 1.0;   // ←→ arrows fade FRF lines; bands stay at full opacity
+  let _lastAvgTrace = null;  // { freqs, mags } — cached for right-click save
 
   const _S = {
     xLog: true, xMin: 200, xMax: 7000,
@@ -240,6 +241,43 @@
     if (_S.normMode === 'normalize') return _norm(mags);
     if (_S.normMode === 'avg_range') return _normByAvg(freqs, mags, _S.normFLo, _S.normFHi);
     return mags;
+  }
+
+  // ── Group averaging ────────────────────────────────────────────────────
+  function _linterp(freqs, mags, f) {
+    const n = freqs.length;
+    if (!n) return NaN;
+    if (f <= freqs[0]) return mags[0];
+    if (f >= freqs[n - 1]) return mags[n - 1];
+    let lo = 0, hi = n - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (freqs[m] <= f) lo = m; else hi = m; }
+    const t = (f - freqs[lo]) / (freqs[hi] - freqs[lo]);
+    return mags[lo] + t * (mags[hi] - mags[lo]);
+  }
+
+  function _computeAvgTrace() {
+    const vis = _datasets.filter(d => d.visible);
+    if (!vis.length) return null;
+    const refFreqs = vis[0].freqs;
+    const n = refFreqs.length;
+    const sums = new Array(n).fill(0);
+    const counts = new Array(n).fill(0);
+    const isComplex = _S.normMode === 'complex_avg';
+    for (const d of vis) {
+      const mags = _smooth(d.freqs, d.mags, _S.smoothing);
+      for (let i = 0; i < n; i++) {
+        const m = _linterp(d.freqs, mags, refFreqs[i]);
+        if (isFinite(m)) {
+          sums[i] += isComplex ? Math.pow(10, m / 20) : m;
+          counts[i]++;
+        }
+      }
+    }
+    const avgMags = sums.map((s, i) => {
+      if (!counts[i]) return NaN;
+      return isComplex ? 20 * Math.log10(s / counts[i]) : s / counts[i];
+    });
+    return { freqs: refFreqs, mags: avgMags };
   }
 
   // ── Band computation ───────────────────────────────────────────────────
@@ -399,8 +437,26 @@
     }
   }
 
+  // ── Complex-average option gating ─────────────────────────────────────
+  // Called at the top of render() — no-op if no datasets are loaded yet.
+  function _updateComplexAvgOption() {
+    const opt = document.querySelector('#norm-sel option[value="complex_avg"]');
+    if (!opt) return;
+    const anyComplex = _datasets.some(d => d.visible && d.isComplex);
+    opt.disabled = !anyComplex;
+    if (opt.disabled && _S.normMode === 'complex_avg') {
+      _S.normMode = 'as_measured';
+      const sel = $('norm-sel');
+      if (sel) sel.value = 'as_measured';
+      const wrap = $('norm-range-wrap');
+      if (wrap) wrap.style.display = 'none';
+      // Don't recurse into render() — we're already inside it
+    }
+  }
+
   // ── Render main plot ──────────────────────────────────────────────────
   function render() {
+    _updateComplexAvgOption();
     const plotTraces = [];
     const bandShapes = [], bandTraces = [];
 
@@ -416,6 +472,21 @@
     });
     if (!plotTraces.length)
       plotTraces.push({x:[], y:[], type:'scatter', mode:'lines', showlegend:false});
+
+    // Group average overlay (complex_avg = linear-amplitude mean; real_avg = dB mean)
+    _lastAvgTrace = null;
+    if (_S.normMode === 'complex_avg' || _S.normMode === 'real_avg') {
+      _lastAvgTrace = _computeAvgTrace();
+      if (_lastAvgTrace) {
+        let avgY = _lastAvgTrace.mags;
+        if (_S.yLog) avgY = avgY.map(m => isFinite(m) ? Math.pow(10, m / 20) : 0);
+        plotTraces.push({
+          x: _lastAvgTrace.freqs, y: avgY, type: 'scatter', mode: 'lines',
+          name: _S.normMode === 'complex_avg' ? 'Complex avg' : 'Real avg',
+          line: { color: '#111111', width: 2.5 }, showlegend: false, opacity: 1.0,
+        });
+      }
+    }
 
     // Bands — always computed in dB space; line position converted if in linear mode
     const activeBands = _S.bandPreset === 'custom' && _customBands
@@ -755,7 +826,7 @@
   // ── Data Folder helpers ───────────────────────────────────────────────
   const _SCAN_EXTS = new Set(['.trf','.trv','.avc','.avr','.csv','.mat']);
 
-  const _NON_INSTRUMENT_DIRS = new Set(['ObieAppSettings', 'Test_Samples']);
+  const _NON_INSTRUMENT_DIRS = new Set(['ObieAppSettings', 'Test_Samples', 'Group Averages']);
   async function _countTopDirs(dh) {
     let n = 0;
     for await (const [name, h] of dh.entries()) {
@@ -1103,6 +1174,65 @@
     a.href = url; a.download = 'explore_export_' + new Date().toISOString().slice(0,10) + '.csv';
     a.click(); URL.revokeObjectURL(url);
   };
+
+  // ── Group average save + context menu ─────────────────────────────────
+  function _buildTRF(freqs, mags) {
+    return new Promise((resolve, reject) => {
+      if (!window.pyExploreWriteTRF) { reject(new Error('Python not ready')); return; }
+      window.onExploreTRFReady = bytes => resolve(new Uint8Array(bytes));
+      window.onExploreTRFError = msg  => reject(new Error(msg));
+      window.pyExploreWriteTRF(Float64Array.from(freqs), Float64Array.from(mags));
+    });
+  }
+
+  window.expSaveGroupAverage = async function() {
+    $('avg-ctx-menu').style.display = 'none';
+    if (!_lastAvgTrace) { alert('No average computed — select Complex average or Real average first.'); return; }
+    if (!_dataDir) { alert('Set a Data Folder first.'); return; }
+
+    // Upgrade to readwrite if needed (user gesture is active from the click)
+    try {
+      const perm = await _dataDir.requestPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') { alert('Write permission is needed to save to Group Averages.'); return; }
+    } catch(_) {}
+
+    const name = prompt('Name for this average:', 'Group Average');
+    if (!name?.trim()) return;
+
+    let gaDir;
+    try { gaDir = await _dataDir.getDirectoryHandle('Group Averages', { create: true }); }
+    catch(e) { alert('Could not create "Group Averages" folder: ' + e.message); return; }
+
+    let trf;
+    try { trf = await _buildTRF(_lastAvgTrace.freqs, _lastAvgTrace.mags); }
+    catch(e) { alert('TRF build failed: ' + e.message); return; }
+
+    const filename = name.trim().replace(/[/\\?%*:|"<>]/g, '-') + '.trf';
+    try {
+      const fh = await gaDir.getFileHandle(filename, { create: true });
+      const w  = await fh.createWritable();
+      await w.write(trf);
+      await w.close();
+      _dirFiles = await _scanDir(_dataDir, '');  // refresh so file appears in search
+      const st = $('explore-status');
+      if (st) { st.textContent = `✓ Saved "${filename}" to Group Averages`; setTimeout(() => st.textContent = '', 3500); }
+    } catch(e) { alert('Save failed: ' + e.message); }
+  };
+
+  function _setupContextMenu() {
+    const plotEl = $('explore-plot');
+    const menu = $('avg-ctx-menu');
+    if (!plotEl || !menu) return;
+    plotEl.addEventListener('contextmenu', e => {
+      if (_S.normMode !== 'complex_avg' && _S.normMode !== 'real_avg') return;
+      if (!_lastAvgTrace) return;
+      e.preventDefault();
+      menu.style.left = e.clientX + 'px';
+      menu.style.top  = e.clientY + 'px';
+      menu.style.display = 'block';
+    });
+    document.addEventListener('click', () => { menu.style.display = 'none'; });
+  }
 
   // ── Custom palette persistence ────────────────────────────────────────
   // localStorage fallback (used when no data folder is set)
@@ -1559,7 +1689,7 @@
   }
 
   // ── Python-side callbacks ─────────────────────────────────────────────
-  window.obieExploreAddDataset = function(name, freqsJs, magsJs, cohsJs) {
+  window.obieExploreAddDataset = function(name, freqsJs, magsJs, cohsJs, isComplex) {
     const n = String(name).split('/').pop().split('\\').pop();
     if (_datasets.some(d => d.name === n)) {
       const st = $('explore-status');
@@ -1573,7 +1703,7 @@
     const path  = _pendingPaths[n] || n;
     delete _pendingPaths[n];
     const cohs = cohsJs ? Array.from(cohsJs) : null;
-    _datasets.push({id, name:n, path, color, visible:true, freqs:Array.from(freqsJs), mags:Array.from(magsJs), cohs});
+    _datasets.push({id, name:n, path, color, visible:true, freqs:Array.from(freqsJs), mags:Array.from(magsJs), cohs, isComplex: !!isComplex});
     _renderList(); render();
     const st = $('explore-status');
     if (st) { st.textContent = `✓ ${n}`; setTimeout(()=>st.textContent='', 3000); }
@@ -1633,6 +1763,7 @@
     _populateBandSel();  // build dropdown from _dynamicBandPresets (empty until folder loaded)
     render();
     _setupHover();
+    _setupContextMenu();
     _setupDropZone();
     _syncUndoBtn();
     _renderList();

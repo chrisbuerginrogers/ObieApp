@@ -31,24 +31,34 @@ _default_wav_sr = None
 
 # ── File loading ──────────────────────────────────────────────────────────
 def _load_frf(filename_js, data_js):
+    fname = str(filename_js)
+    ext   = fname.rsplit('.', 1)[-1].lower() if '.' in fname else ''
     try:
-        result = _load_file(str(filename_js), data_js)
+        result = _load_file(fname, data_js)
         if result['n_rows'] == 0:
             warns = result.get('warnings') or []
             js.window.obieExploreError(
-                str(filename_js),
+                fname,
                 warns[0] if warns else 'No data in file',
             )
             return
         coh = result.get('coh')
+        # Detect whether the source file carries complex FRF data
+        if ext in ('trf', 'trv'):
+            is_complex = result.get('header', {}).get('fComplex', 'no') == 'yes'
+        elif ext == 'avc':
+            is_complex = True   # AVC files are complex-averaged FRFs
+        else:
+            is_complex = False
         js.window.obieExploreAddDataset(
-            str(filename_js),
+            fname,
             to_js(result['freq']),
             to_js(result['mag']),
             to_js(coh) if coh else None,
+            is_complex,
         )
     except Exception as exc:
-        js.window.obieExploreError(str(filename_js), str(exc)[:120])
+        js.window.obieExploreError(fname, str(exc)[:120])
 
 
 js.window.pyExploreLoadFile = create_proxy(_load_frf)
@@ -107,6 +117,21 @@ def _convolve_explore(freqs_js, mags_js):
 
 
 js.window.pyExploreConvolve = create_proxy(_convolve_explore)
+
+
+# ── TRF writer (called by JS to get binary bytes for group-average save) ─────
+def _write_trf(freqs_js, mags_js):
+    from trf_fileio import build_trf
+    try:
+        freqs  = np.array(freqs_js.to_py(),  dtype=np.float64)
+        mags   = np.array(mags_js.to_py(),   dtype=np.float64)
+        linear = np.power(10.0, mags / 20.0)   # dB → linear magnitude (fComplex=0.0)
+        raw    = build_trf(freqs.tolist(), linear.tolist())
+        js.window.onExploreTRFReady(to_js(bytearray(raw)))
+    except Exception as exc:
+        js.window.onExploreTRFError(str(exc)[:120])
+
+js.window.pyExploreWriteTRF = create_proxy(_write_trf)
 
 # ── Signal ready ──────────────────────────────────────────────────────────
 js.window.obieExploreReady()
