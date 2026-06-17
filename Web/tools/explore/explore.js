@@ -1176,12 +1176,44 @@
   };
 
   // ── Group average save + context menu ─────────────────────────────────
-  function _buildTRF(freqs, mags) {
+  // ── Group average save modal ───────────────────────────────────────────
+  let _avgSaveResolve = null;
+
+  function _showAvgSaveModal() {
+    return new Promise(resolve => {
+      _avgSaveResolve = resolve;
+      const inp = $('avg-save-name');
+      if (inp) inp.value = 'Group Average';
+      $('avg-save-modal')?.classList.add('open');
+      setTimeout(() => { inp?.focus(); inp?.select(); }, 60);
+    });
+  }
+
+  window.expAvgSaveChoice = function(format) {
+    const name = ($('avg-save-name')?.value || '').trim();
+    $('avg-save-modal')?.classList.remove('open');
+    if (_avgSaveResolve) { _avgSaveResolve({ format, name }); _avgSaveResolve = null; }
+  };
+  window.expCloseAvgSave = function() {
+    $('avg-save-modal')?.classList.remove('open');
+    if (_avgSaveResolve) { _avgSaveResolve({ format: null, name: '' }); _avgSaveResolve = null; }
+  };
+
+  function _setupAvgSaveModal() {
+    const inp = $('avg-save-name');
+    if (!inp) return;
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter')  { e.preventDefault(); window.expAvgSaveChoice('avr'); }
+      if (e.key === 'Escape') { e.preventDefault(); window.expCloseAvgSave(); }
+    });
+  }
+
+  function _buildAvFile(freqs, mags, nAverages) {
     return new Promise((resolve, reject) => {
-      if (!window.pyExploreWriteTRF) { reject(new Error('Python not ready')); return; }
-      window.onExploreTRFReady = bytes => resolve(new Uint8Array(bytes));
-      window.onExploreTRFError = msg  => reject(new Error(msg));
-      window.pyExploreWriteTRF(Float64Array.from(freqs), Float64Array.from(mags));
+      if (!window.pyExploreWriteAv) { reject(new Error('Python not ready')); return; }
+      window.onExploreAvReady = bytes => resolve(new Uint8Array(bytes));
+      window.onExploreAvError = msg  => reject(new Error(msg));
+      window.pyExploreWriteAv(Float64Array.from(freqs), Float64Array.from(mags), nAverages, false);
     });
   }
 
@@ -1190,33 +1222,53 @@
     if (!_lastAvgTrace) { alert('No average computed — select Complex average or Real average first.'); return; }
     if (!_dataDir) { alert('Set a Data Folder first.'); return; }
 
-    // Upgrade to readwrite if needed (user gesture is active from the click)
+    const { format, name } = await _showAvgSaveModal();
+    if (!format || !name) return;
+
     try {
       const perm = await _dataDir.requestPermission({ mode: 'readwrite' });
       if (perm !== 'granted') { alert('Write permission is needed to save to Group Averages.'); return; }
     } catch(_) {}
 
-    const name = prompt('Name for this average:', 'Group Average');
-    if (!name?.trim()) return;
-
     let gaDir;
     try { gaDir = await _dataDir.getDirectoryHandle('Group Averages', { create: true }); }
     catch(e) { alert('Could not create "Group Averages" folder: ' + e.message); return; }
 
-    let trf;
-    try { trf = await _buildTRF(_lastAvgTrace.freqs, _lastAvgTrace.mags); }
-    catch(e) { alert('TRF build failed: ' + e.message); return; }
+    const safeName = name.replace(/[/\\?%*:|"<>]/g, '-');
 
-    const filename = name.trim().replace(/[/\\?%*:|"<>]/g, '-') + '.trf';
-    try {
-      const fh = await gaDir.getFileHandle(filename, { create: true });
-      const w  = await fh.createWritable();
-      await w.write(trf);
-      await w.close();
-      _dirFiles = await _scanDir(_dataDir, '');  // refresh so file appears in search
-      const st = $('explore-status');
-      if (st) { st.textContent = `✓ Saved "${filename}" to Group Averages`; setTimeout(() => st.textContent = '', 3500); }
-    } catch(e) { alert('Save failed: ' + e.message); }
+    if (format === 'csv') {
+      const modeLabel = _S.normMode === 'complex_avg' ? 'Complex_Average_dB' : 'Real_Average_dB';
+      const lines = [`Frequency_Hz,${modeLabel}`];
+      const { freqs, mags } = _lastAvgTrace;
+      for (let i = 0; i < freqs.length; i++) {
+        if (isFinite(mags[i])) lines.push(`${freqs[i]},${mags[i].toFixed(4)}`);
+      }
+      const filename = safeName + '.csv';
+      try {
+        const fh = await gaDir.getFileHandle(filename, { create: true });
+        const w  = await fh.createWritable();
+        await w.write(lines.join('\n'));
+        await w.close();
+        _dirFiles = await _scanDir(_dataDir, '');
+        const st = $('explore-status');
+        if (st) { st.textContent = `✓ Saved "${filename}" to Group Averages`; setTimeout(() => st.textContent = '', 3500); }
+      } catch(e) { alert('Save failed: ' + e.message); }
+    } else {
+      const nAverages = _datasets.filter(d => d.visible).length;
+      let bytes;
+      try { bytes = await _buildAvFile(_lastAvgTrace.freqs, _lastAvgTrace.mags, nAverages); }
+      catch(e) { alert('Build failed: ' + e.message); return; }
+      const filename = safeName + '.avr';
+      try {
+        const fh = await gaDir.getFileHandle(filename, { create: true });
+        const w  = await fh.createWritable();
+        await w.write(bytes);
+        await w.close();
+        _dirFiles = await _scanDir(_dataDir, '');
+        const st = $('explore-status');
+        if (st) { st.textContent = `✓ Saved "${filename}" to Group Averages`; setTimeout(() => st.textContent = '', 3500); }
+      } catch(e) { alert('Save failed: ' + e.message); }
+    }
   };
 
   function _setupContextMenu() {
@@ -1764,6 +1816,7 @@
     render();
     _setupHover();
     _setupContextMenu();
+    _setupAvgSaveModal();
     _setupDropZone();
     _syncUndoBtn();
     _renderList();
