@@ -4,7 +4,7 @@
   <script src="../../coi-serviceworker.js"></script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Template Builder — ObieWebApp</title>
+  <title>Stencil Builder — ObieWebApp</title>
 
   <link rel="stylesheet" href="../../css/theme.css">
   <script src="../../version.js"></script>
@@ -24,7 +24,7 @@
       <div class="logo-icon">🎻</div>
       <h1>ObieWebApp</h1>
     </a>
-    <span class="crumb">· Template Builder</span>
+    <span class="crumb">· Stencil Builder</span>
     <div class="gap"></div>
     <a class="btn" href="../../index.html" style="font-size:0.75rem;padding:3px 9px">← All tools</a>
   </header>
@@ -34,8 +34,8 @@
     <button class="tb-btn" onclick="tplSetDataFolder()">📁 Data Folder</button>
     <span id="tpl-folder-name" class="folder-name-disp"></span>
     <div class="tb-flex"></div>
-    <button class="tb-btn" onclick="tplOpenTemplateModal()">Open Template</button>
-    <button class="tb-btn" onclick="tplSaveTemplate()">Save Template</button>
+    <button class="tb-btn" onclick="tplOpenTemplateModal()">Open Stencil</button>
+    <button class="tb-btn" onclick="tplSaveTemplate()">Save Stencil</button>
     <span id="tpl-name-ind" class="tpl-name-ind"></span>
     <div style="width:6px"></div>
     <button class="tb-btn" id="tpl-watch-btn" onclick="tplOpenWatchModal()">Watch Run…</button>
@@ -146,7 +146,7 @@
     </div>
     <div class="modal-body">
       <p style="font-size:0.8rem;color:var(--muted);margin-bottom:12px;line-height:1.5">
-        Select a test run to monitor. Template Builder will poll its <code>TRF/</code> folder every second and advance the projection as positions are recorded in Acquire.
+        Select a test run to monitor. Stencil Builder will poll its <code>TRF/</code> folder every second and advance the projection as positions are recorded in Acquire.
       </p>
       <div id="watch-run-list">
         <div class="tpl-list-empty">Set a Data Folder to see available runs.</div>
@@ -163,12 +163,12 @@
 <div class="modal-overlay" id="tpl-modal">
   <div class="modal-box">
     <div class="modal-header">
-      <span>Node Layout Templates</span>
+      <span>Node Stencils</span>
       <button class="modal-close" onclick="tplCloseTemplateModal()">✕</button>
     </div>
     <div class="modal-body">
       <div id="tpl-modal-list">
-        <div class="tpl-list-empty">Set a Data Folder to load templates, or use Browse below.</div>
+        <div class="tpl-list-empty">Set a Data Folder to load stencils, or use Browse below.</div>
       </div>
     </div>
     <div class="modal-footer">

@@ -1,9 +1,9 @@
 'use strict';
 /* ─────────────────────────────────────────────────────────────────────
- * template.js — Template Builder
+ * template.js — Stencil Builder
  * Visual node layout editor for projector-assisted hammer testing.
  * Nodes are dragged to position, transforms calibrate the projector.
- * Physical (x,y) coordinates stored in templates and later embedded
+ * Physical (x,y) coordinates stored in stencils and later embedded
  * in TRF metadata by Acquire.
  * ──────────────────────────────────────────────────────────────────── */
 
@@ -416,7 +416,8 @@ window.tplSaveTemplate = async function() {
 
   const data = {
     name:      _currentName,
-    type:      'node-layout',
+    type:      'node-stencil',
+    settings:  { positions: _nodes.length },
     grid:      { ..._grid },
     transform: { ..._transform },
     nodes:     _nodes.map(n => ({ ...n }))
@@ -453,7 +454,7 @@ async function _refreshFolderTemplates() {
       try {
         const file = await entry.getFile();
         const data = JSON.parse(await file.text());
-        if (data.type === 'node-layout') {
+        if (data.type === 'node-stencil' || data.type === 'node-layout') {
           _folderTemplates.push({
             name:  data.name || entry.name.replace(/\.json$/i, ''),
             data,
@@ -470,8 +471,8 @@ function _renderTemplateList() {
   const list = document.getElementById('tpl-modal-list');
   if (!_folderTemplates.length) {
     const msg = _templatesHandle
-      ? 'No node layout templates found in Data Folder. Use Browse below to load a file.'
-      : 'Set a Data Folder to load saved templates, or use Browse below.';
+      ? 'No node stencils found in Data Folder. Use Browse below to load a file.'
+      : 'Set a Data Folder to load saved stencils, or use Browse below.';
     list.innerHTML = `<div class="tpl-list-empty">${msg}</div>`;
     return;
   }
@@ -479,7 +480,7 @@ function _renderTemplateList() {
     <div class="tpl-list-item">
       <div style="flex:1;cursor:pointer" onclick="tplApplyFolderTemplate(${i})">
         <div class="tpl-list-name">${t.name}</div>
-        <div class="tpl-list-meta">${t.data.grid ? `${t.data.grid.rows}×${t.data.grid.cols} nodes` : ''}</div>
+        <div class="tpl-list-meta">${t.data.settings ? `${t.data.settings.positions} nodes · ${t.data.settings.input_method || 'microphone'}` : (t.data.grid ? `${t.data.grid.rows}×${t.data.grid.cols} nodes` : '')}</div>
       </div>
       <button class="tpl-list-del" title="Delete" onclick="tplDeleteFolderTemplate(${i},event)">🗑</button>
     </div>
@@ -525,8 +526,8 @@ window.tplBrowseTemplate = function() {
 };
 
 function _applyTemplate(data) {
-  if (data.type && data.type !== 'node-layout') {
-    if (!confirm('This file was not created by Template Builder. Load anyway?')) return;
+  if (data.type && data.type !== 'node-stencil' && data.type !== 'node-layout') {
+    if (!confirm('This file was not created by Stencil Builder. Load anyway?')) return;
   }
   if (data.grid) {
     _grid = { ..._grid, ...data.grid };
@@ -719,8 +720,8 @@ async function _pollTRF() {
     _watchDoneNodes   = new Set();
     _watchCurrentNode = _nodes.length ? 0 : null;
 
-  } else if (sorted.length >= _nodes.length) {
-    // All positions recorded — mark everything done, no current node
+  } else if (sorted.length > _nodes.length) {
+    // More TRF files than positions — all done (edge case after Start Over)
     _watchDoneNodes   = new Set(sorted.map(p => p - 1));
     _watchCurrentNode = null;
 
@@ -758,8 +759,32 @@ function _updateWatchUI(active) {
 }
 
 window.tplResetWatch = async function() {
-  // Manually re-polls immediately — useful if the projector gets out of sync.
-  // After Acquire's Start Over, files are deleted so the poll auto-resets anyway.
+  // Check if the current TRF folder is still the active one.
+  // After Acquire's "Start Over", it creates a new test folder and the old one
+  // becomes empty — we auto-advance to the newest non-empty run.
+  let folderIsStale = false;
+  if (_watchHandle) {
+    try {
+      let count = 0;
+      for await (const _ of _watchHandle.values()) { count++; break; }
+      // Empty AND there's a data folder to scan means Acquire moved on
+      if (count === 0 && _rootDirHandle) folderIsStale = true;
+    } catch { folderIsStale = true; }
+  }
+
+  if (folderIsStale) {
+    // Re-scan all runs and switch to the newest (last alphabetically per instrument)
+    const runs = await _scanRuns();
+    if (runs.length > 0) {
+      // Pick the newest: last in the sorted list (sorted by instrument→run name)
+      const newest = runs[runs.length - 1];
+      _watchHandle     = newest.trfHandle;
+      _watchTestHandle = newest.testHandle;
+      _watchRunLabel   = newest.label;
+      _updateWatchUI(true);
+    }
+  }
+
   _watchDoneNodes   = new Set();
   _watchCurrentNode = _nodes.length ? 0 : null;
   _renderCanvas();

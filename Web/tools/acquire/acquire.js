@@ -169,7 +169,7 @@ function _drawTrigPlots(t, ham, mic, thrF) {
 
   Plotly.react('plot-mic',
     [{ x: t, y: mic, type: 'scatter', mode: 'lines', line: { color: '#1565c0', width: 1 } }],
-    miniLayout('Microphone', 'Time (s)', 'V',
+    miniLayout(_responseLabel(), 'Time (s)', 'V',
       { range: _micXRange },
       _micYRange ? { range: _micYRange } : { range: [-pkM*1.2, pkM*1.2] },
       micShapes),
@@ -1273,6 +1273,10 @@ window.acqCloseTemplate = function() {
 let _templates = [];
 let _selectedTpl = null;
 
+let _stencils = [];
+let _selectedStencil = null;
+let _currentStencilName = '';
+
 function _tplMeta(s) {
   const bits = [];
   if (s.positions  != null) bits.push(`${s.positions} pos`);
@@ -1788,9 +1792,11 @@ async function _applyDataFolder(dirHandle) {
   // Determine instrument name: prefs > 'scratch'
   const instrument = (savedPrefs?.instrument || '') || 'scratch';
 
-  // Load templates
+  // Load templates and stencils
   _templates = [];
+  _stencils  = [];
   await _loadTemplatesFromFolder(_templatesHandle);
+  await _loadStencilsFromFolder(_templatesHandle);
 
   const btn = document.getElementById('data-folder-btn');
   if (btn) btn.textContent = '📁 ' + dirHandle.name;
@@ -1921,7 +1927,9 @@ async function _loadTemplatesFromFolder(dir) {
         } else if (lower.endsWith('.json')) {
           const data = JSON.parse(text);
           const arr  = Array.isArray(data) ? data : [data];
-          _templates.push(...arr.map(t => ({ ...t, _file: name })));
+          // Skip node stencils — they appear in the Stencil picker instead
+          const templates = arr.filter(t => t.type !== 'node-stencil');
+          if (templates.length) _templates.push(...templates.map(t => ({ ...t, _file: name })));
         }
       } catch (_) {}
     }
@@ -1929,6 +1937,102 @@ async function _loadTemplatesFromFolder(dir) {
   _renderTemplateList();
 }
 
+async function _loadStencilsFromFolder(dir) {
+  try {
+    for await (const [name, h] of dir.entries()) {
+      if (h.kind !== 'file' || !name.toLowerCase().endsWith('.json')) continue;
+      try {
+        const data = JSON.parse(await (await h.getFile()).text());
+        const arr  = Array.isArray(data) ? data : [data];
+        arr.forEach(t => {
+          if (t.type === 'node-stencil') _stencils.push({ ...t, _file: name });
+        });
+      } catch (_) {}
+    }
+  } catch (_) {}
+  _renderStencilList();
+}
+
+function _renderStencilList() {
+  const container = document.getElementById('stencil-list');
+  if (!container) return;
+  if (!_stencils.length) {
+    container.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:4px 0">No stencils saved — build one in Stencil Builder and set a Data Folder.</div>';
+    return;
+  }
+  container.innerHTML = _stencils.map((s, i) => {
+    const pos = s.settings?.positions;
+    const meta = pos != null ? `${pos} nodes` : '';
+    return `
+      <div class="tpl-item${_selectedStencil === i ? ' selected' : ''}" onclick="acqSelectStencil(${i})">
+        <div class="tpl-name">${s.name || 'Unnamed'}</div>
+        ${meta ? `<div class="tpl-desc">${meta}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+window.acqStencil = async function() {
+  document.getElementById('stencil-modal')?.classList.add('open');
+  _stencils = [];
+  _selectedStencil = null;
+  if (_templatesHandle) await _loadStencilsFromFolder(_templatesHandle);
+  else _renderStencilList();
+};
+
+window.acqCloseStencil = function() {
+  document.getElementById('stencil-modal')?.classList.remove('open');
+};
+
+window.acqSelectStencil = function(i) {
+  _selectedStencil = i;
+  _renderStencilList();
+};
+
+window.acqApplyStencil = function() {
+  if (_selectedStencil === null || !_stencils[_selectedStencil]) {
+    alert('Select a stencil first.');
+    return;
+  }
+  const s = _stencils[_selectedStencil];
+  const positions = s.settings?.positions;
+  if (positions != null) {
+    const el = document.getElementById('inp-positions');
+    if (el) el.value = positions;
+  }
+  _currentStencilName = s.name || '';
+  const ind = document.getElementById('stencil-ind');
+  if (ind) ind.textContent = _currentStencilName ? `📐 ${_currentStencilName}` : '';
+  window.acqSavePrefs();
+  window.acqCloseStencil();
+};
+
+function _responseLabel() {
+  return localStorage.getItem('obieAcquire_inputDevice') === 'accelerometer'
+    ? 'Accelerometer' : 'Microphone';
+}
+
+function _applyInputDeviceLabels() {
+  const label = _responseLabel();
+  const titleEl = document.getElementById('mini-title-response');
+  if (titleEl) titleEl.textContent = label;
+  const calEl = document.getElementById('lbl-mic-cal');
+  if (calEl) calEl.textContent = `${label} calibration factor`;
+  const lvEl = document.getElementById('lv-mic-ch-title');
+  if (lvEl) lvEl.textContent = `${label} — Channel L`;
+  const frfEl = document.getElementById('lv-frf-title');
+  if (frfEl) frfEl.textContent = `FRF (${label === 'Accelerometer' ? 'Accel' : 'Mic'} / Hammer)`;
+  // Redraw the mic mini-plot title in-place if Plotly is already initialised
+  const micDiv = document.getElementById('plot-mic');
+  if (micDiv?._fullLayout) {
+    Plotly.relayout('plot-mic', { 'yaxis.title.text': label });
+  }
+}
+
+window.acqSyncInputDevice = function() {
+  const val = document.getElementById('inp-input-device')?.value || 'microphone';
+  localStorage.setItem('obieAcquire_inputDevice', val);
+  _applyInputDeviceLabels();
+};
 
 // ════════════════════════════════════════════════════════════════════════════
 // LiveView dialog — embedded, toggled by the LiveView toolbar button
@@ -2720,7 +2824,7 @@ function _initResizer() {
 function _clearTrigPlots() {
   const empty = [{ x: [], y: [], type: 'scatter', mode: 'lines' }];
   Plotly.react('plot-hammer', empty, miniLayout('Hammer',      'Time (s)', 'V', { range: _hamXRange }, { range: _hamYRange }), PCFG);
-  Plotly.react('plot-mic',    empty, miniLayout('Microphone',  'Time (s)', 'V', { range: _micXRange }, { range: _micYRange }), PCFG);
+  Plotly.react('plot-mic',    empty, miniLayout(_responseLabel(), 'Time (s)', 'V', { range: _micXRange }, { range: _micYRange }), PCFG);
   Plotly.react('plot-fft',    empty, miniLayout('Hammer FFT',  'Hz',       'dB',
     { type: 'log', range: [Math.log10(Math.max(_fftXRange[0], 1)), Math.log10(_fftXRange[1])] },
     { range: _fftYRange }), PCFG);
@@ -2747,7 +2851,7 @@ function _initPlots() {
 
   Plotly.newPlot('plot-mic',
     [{ ...empty, line: { color: micColor, width: 1 } }],
-    miniLayout('Microphone', 'Time (s)', 'V', { range: _micXRange }, { range: _micYRange }),
+    miniLayout(_responseLabel(), 'Time (s)', 'V', { range: _micXRange }, { range: _micYRange }),
     PCFG);
 
   // Persist user zoom/pan — capture both x and y changes on mini plots.
@@ -2850,6 +2954,12 @@ window.addEventListener('load', () => {
   _updateEditBtns({ hit_n: 0 });
   _updateSoundcardDisplay();
   _updateInfoPanel();
+
+  // Restore input device selector and apply labels
+  const savedInputDevice = localStorage.getItem('obieAcquire_inputDevice') || 'microphone';
+  const inputDevSel = document.getElementById('inp-input-device');
+  if (inputDevSel) inputDevSel.value = savedInputDevice;
+  _applyInputDeviceLabels();
 
   // Try to auto-restore a previously selected data folder (no user gesture needed
   // if the browser already granted permission in this origin).
