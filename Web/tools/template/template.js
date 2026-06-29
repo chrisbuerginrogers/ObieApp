@@ -103,6 +103,7 @@ function _buildGridNodes() {
 // ─── Canvas rendering ─────────────────────────────────────────────────────────
 const _NODE_R = 9; // base node circle radius (px)
 
+// ─── Violin outline ───────────────────────────────────────────────────────────
 function _renderCanvas() {
   const W = _canvas.width, H = _canvas.height;
   _ctx.clearRect(0, 0, W, H);

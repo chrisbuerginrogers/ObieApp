@@ -69,7 +69,6 @@
       <div class="tb-flex"></div>
 
       <button class="tb-btn" onclick="acqTemplate()">Template…</button>
-      <button class="tb-btn" onclick="acqStencil()">Stencil…</button>
       <select id="inp-input-device" onchange="acqSyncInputDevice()"
               title="Input device type" style="font-size:0.78rem;padding:2px 5px;height:28px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer">
         <option value="microphone">🎙 Mic</option>
@@ -472,66 +471,54 @@
 </div>
 
 
-<!-- ═══════════════════════════════════════════════════════════════════════
-     Template modal
-     ═══════════════════════════════════════════════════════════════════════ -->
-<div id="template-modal" class="modal-overlay">
-  <div class="modal-box" style="width:min(92vw,480px)">
+<!-- ══════════════════════════════════════════════════════════════════════
+     Setup modal — Measurement Template + Node Stencil
+     ══════════════════════════════════════════════════════════════════════ -->
+<div id="setup-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(92vw,520px)">
     <div class="modal-header">
-      <span class="modal-title">Import Template</span>
-      <button class="modal-close" onclick="acqCloseTemplate()">✕</button>
+      <span class="modal-title">Setup</span>
+      <button class="modal-close" onclick="acqCloseSetup()">✕</button>
     </div>
     <div class="modal-body">
-      <p style="font-size:11px;color:var(--muted);margin-bottom:10px">
-        Templates store your measurement setup (soundcard, threshold, calibration
-        factors, etc.). When a Data Folder is set, templates load automatically from
-        <code>ObieAppSettings/Templates/</code> inside it. Use Browse to import a
-        standalone file, or Save as Template to write the current settings back to
-        the folder.
-      </p>
-      <div id="tpl-list" class="tpl-list">
-        <div style="font-size:11px;color:var(--muted)">No templates loaded.</div>
-      </div>
 
-      <div style="margin-bottom:12px">
-        <p id="tpl-json-lbl" style="font-size:10px;color:var(--muted);margin-bottom:6px;font-style:italic">
+      <!-- ── Section: Measurement Template ───────────────────────────── -->
+      <div class="setup-section-hdr">Measurement Template</div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5">
+        Templates store your measurement setup (soundcard, threshold, calibration
+        factors, etc.). Loaded from <code>ObieAppSettings/Templates/</code>.
+      </p>
+      <div id="tpl-list" class="tpl-list" style="max-height:140px"></div>
+
+      <div style="margin-bottom:10px">
+        <p id="tpl-json-lbl" style="font-size:10px;color:var(--muted);margin-bottom:4px;font-style:italic">
           Select a template above to preview its settings
         </p>
-        <pre id="tpl-json" style="font-size:9px;background:var(--bg-deep);padding:8px;border-radius:4px;color:var(--muted);overflow:auto;max-height:220px;margin:0"></pre>
+        <pre id="tpl-json" style="font-size:9px;background:var(--bg-deep);padding:6px;border-radius:4px;color:var(--muted);overflow:auto;max-height:120px;margin:0"></pre>
       </div>
 
-      <div class="save-row">
+      <div class="save-row" style="margin-bottom:16px">
         <button class="act-btn" onclick="acqBrowseTemplate()">Browse…</button>
-        <button class="act-btn accent" onclick="acqApplyTemplate()">Apply</button>
+        <button class="act-btn accent" onclick="acqApplyTemplate()">Apply Template</button>
         <button class="act-btn" onclick="acqSaveAsTemplate()">Save as Template</button>
         <button class="act-btn" onclick="acqExportLVTemplate()">Export LabVIEW…</button>
-        <button class="act-btn" onclick="acqCloseTemplate()">Cancel</button>
       </div>
-    </div>
-  </div>
-</div>
 
-
-<!-- ── Stencil modal ────────────────────────────────────────────────────── -->
-<div id="stencil-modal" class="modal-overlay">
-  <div class="modal-box" style="width:min(92vw,420px)">
-    <div class="modal-header">
-      <span class="modal-title">Node Stencil</span>
-      <button class="modal-close" onclick="acqCloseStencil()">✕</button>
-    </div>
-    <div class="modal-body">
-      <p style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5">
-        Stencils define the node layout and set the number of measurement positions.
-        Build stencils in <strong>Stencil Builder</strong> — they save to
-        <code>ObieAppSettings/Templates/</code> automatically.
+      <!-- ── Section: Node Stencil ────────────────────────────────────── -->
+      <div class="setup-section-hdr">Node Stencil</div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5">
+        Stencils define the node layout and auto-set measurement positions.
+        Build stencils in <strong>Stencil Builder</strong>. The applied stencil
+        is saved with each run so Modal Analysis loads it automatically.
       </p>
-      <div id="stencil-list" class="tpl-list">
+      <div id="stencil-list" class="tpl-list" style="max-height:140px">
         <div style="font-size:11px;color:var(--muted)">No stencils loaded — set a Data Folder.</div>
       </div>
-      <div class="save-row" style="margin-top:12px">
-        <button class="act-btn accent" onclick="acqApplyStencil()">Apply</button>
-        <button class="act-btn" onclick="acqCloseStencil()">Cancel</button>
+      <div class="save-row" style="margin-top:10px">
+        <button class="act-btn accent" onclick="acqApplyStencil()">Apply Stencil</button>
+        <span id="stencil-applied-msg" class="save-msg"></span>
       </div>
+
     </div>
   </div>
 </div>

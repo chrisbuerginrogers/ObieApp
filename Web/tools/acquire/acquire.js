@@ -671,7 +671,7 @@ window.acqDeleteLastHit = function() {
 window.acqStartOver = async function() {
   if (!confirm('Are you sure you want to start over?\n\nThis will permanently delete all saved WAV and TRF files for this session from your Data Folder and clear all hit data. This cannot be undone.')) return;
 
-  // Capture handles before _stopAudio resets them
+  // Capture handles before they are cleared below
   const rawDir = _rawHandle;
   const trfDir = _trfHandle;
 
@@ -693,6 +693,18 @@ window.acqStartOver = async function() {
   renderFRF();
   _clearTrigPlots();
   if (window.pyResetAll) window.pyResetAll();
+
+  // Explicit reset: clear handles so _startAudio creates a new run folder,
+  // and grey out the position banner.
+  _rawHandle = null;
+  _trfHandle = null;
+  _runName   = '';
+  document.querySelectorAll('#pos-banner .pos-tab').forEach(tab => {
+    tab.classList.remove('current', 'partial', 'complete');
+    const dots = tab.querySelector('.pos-dots');
+    if (dots) dots.textContent = dots.textContent.replace(/●/g, '○');
+  });
+
   acqToggleAcquire();
 };
 
@@ -1253,22 +1265,31 @@ window.acqSaveNotes = function() {
 // Template modal
 // ════════════════════════════════════════════════════════════════════════════
 
-window.acqTemplate = async function() {
-  document.getElementById('template-modal')?.classList.add('open');
+window.acqSetup = async function() {
+  document.getElementById('setup-modal')?.classList.add('open');
   _selectedTpl = null;
   const pre = document.getElementById('tpl-json');
   const lbl = document.getElementById('tpl-json-lbl');
   if (pre) pre.textContent = '';
   if (lbl) lbl.textContent = 'Select a template above to preview its settings';
-  // Reload from disk every time the modal opens so newly saved files appear immediately
   _templates = [];
-  if (_templatesHandle) await _loadTemplatesFromFolder(_templatesHandle);
-  else _renderTemplateList();
+  _stencils  = [];
+  _selectedStencil = null;
+  if (_templatesHandle) {
+    await _loadTemplatesFromFolder(_templatesHandle);
+    await _loadStencilsFromFolder(_templatesHandle);
+  } else {
+    _renderTemplateList();
+    _renderStencilList();
+  }
 };
+// Keep old name as alias so any existing callers still work
+window.acqTemplate = window.acqSetup;
 
 window.acqCloseTemplate = function() {
-  document.getElementById('template-modal')?.classList.remove('open');
+  document.getElementById('setup-modal')?.classList.remove('open');
 };
+window.acqCloseSetup = window.acqCloseTemplate;
 
 let _templates = [];
 let _selectedTpl = null;
@@ -1276,6 +1297,7 @@ let _selectedTpl = null;
 let _stencils = [];
 let _selectedStencil = null;
 let _currentStencilName = '';
+let _currentStencilData = null;   // full stencil JSON saved to each run folder
 
 function _tplMeta(s) {
   const bits = [];
@@ -1734,6 +1756,16 @@ async function _refreshInstrumentFolder(instrumentName) {
       await w.close();
     } catch (_) {}
 
+    // Write stencil snapshot so Modal Analysis can auto-load it
+    if (_currentStencilData) {
+      try {
+        const sfh = await testHandle.getFileHandle('stencil.json', { create: true });
+        const sw  = await sfh.createWritable();
+        await sw.write(JSON.stringify(_currentStencilData, null, 2));
+        await sw.close();
+      } catch (_) {}
+    }
+
     const instrDisp = document.getElementById('inp-instrument-banner');
     if (instrDisp) instrDisp.textContent = instrumentName;
     _patchPrefs({ instrument: instrumentName });
@@ -1971,16 +2003,10 @@ function _renderStencilList() {
   }).join('');
 }
 
-window.acqStencil = async function() {
-  document.getElementById('stencil-modal')?.classList.add('open');
-  _stencils = [];
-  _selectedStencil = null;
-  if (_templatesHandle) await _loadStencilsFromFolder(_templatesHandle);
-  else _renderStencilList();
-};
+window.acqStencil = window.acqSetup;
 
 window.acqCloseStencil = function() {
-  document.getElementById('stencil-modal')?.classList.remove('open');
+  document.getElementById('setup-modal')?.classList.remove('open');
 };
 
 window.acqSelectStencil = function(i) {
@@ -1988,7 +2014,7 @@ window.acqSelectStencil = function(i) {
   _renderStencilList();
 };
 
-window.acqApplyStencil = function() {
+window.acqApplyStencil = async function() {
   if (_selectedStencil === null || !_stencils[_selectedStencil]) {
     alert('Select a stencil first.');
     return;
@@ -2000,11 +2026,30 @@ window.acqApplyStencil = function() {
     if (el) el.value = positions;
   }
   _currentStencilName = s.name || '';
+  // Store a clean copy without the internal _file key
+  const { _file, ...stencilData } = s;
+  _currentStencilData = stencilData;
   const ind = document.getElementById('stencil-ind');
   if (ind) ind.textContent = _currentStencilName ? `📐 ${_currentStencilName}` : '';
   window.acqSavePrefs();
-  window.acqCloseStencil();
+  // Persist stencil to current run folder so Modal Analysis can find it
+  await _saveStencilToRun();
+  // Show confirmation
+  const msg = document.getElementById('stencil-applied-msg');
+  if (msg) { msg.textContent = `✓ ${_currentStencilName} applied`; setTimeout(() => { msg.textContent = ''; }, 2500); }
 };
+
+async function _saveStencilToRun() {
+  if (!_currentStencilData || !_testHandle) return;
+  try {
+    const fh = await _testHandle.getFileHandle('stencil.json', { create: true });
+    const w  = await fh.createWritable();
+    await w.write(JSON.stringify(_currentStencilData, null, 2));
+    await w.close();
+  } catch (e) {
+    console.warn('Could not save stencil.json to run folder:', e.message);
+  }
+}
 
 function _responseLabel() {
   return localStorage.getItem('obieAcquire_inputDevice') === 'accelerometer'
@@ -2763,7 +2808,9 @@ async function _stopAudio() {
   if (audioCtx)     { await audioCtx.close();   audioCtx   = null; }
   if (mediaStream)  { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
   window.pyStopAudio();
-  _resetForNextRun();
+  // Do NOT call _resetForNextRun() here — Stop is a pause, not a run reset.
+  // _resetForNextRun() fires from onStatusUpdate(state='complete') when a run
+  // finishes naturally, and explicitly from acqStartOver().
 }
 
 function _resetForNextRun() {

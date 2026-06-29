@@ -219,7 +219,7 @@ async function _refreshRunList(showModal = true) {
     // Direct: root/RunName/TRF/
     try {
       const trfH = await fh.getDirectoryHandle('TRF', { create: false });
-      _runs.push({ name, trfHandle: trfH, path: name });
+      _runs.push({ name, trfHandle: trfH, testHandle: fh, path: name });
       continue;
     } catch { /* not here */ }
     // One level deeper: root/Instrument/RunName/TRF/
@@ -228,7 +228,7 @@ async function _refreshRunList(showModal = true) {
         if (rFh.kind !== 'directory') continue;
         try {
           const trfH = await rFh.getDirectoryHandle('TRF', { create: false });
-          _runs.push({ name: name + '/' + rName, trfHandle: trfH, path: name + '/' + rName });
+          _runs.push({ name: name + '/' + rName, trfHandle: trfH, testHandle: rFh, path: name + '/' + rName });
         } catch { /* no TRF */ }
       }
     } catch { /* not iterable */ }
@@ -304,6 +304,17 @@ async function _loadAllTRFs(run) {
   if (files.length === 0) {
     _setStatus('No TRF files found in ' + run.name + '/TRF/');
     return;
+  }
+
+  // Auto-apply stencil.json from the run folder if present
+  if (run.testHandle) {
+    try {
+      const sfh  = await run.testHandle.getFileHandle('stencil.json');
+      const data = JSON.parse(await (await sfh.getFile()).text());
+      if (data && (data.type === 'node-stencil' || data.type === 'node-layout' || data.nodes)) {
+        _applyStencil(data);
+      }
+    } catch { /* no stencil.json — user can pick one manually */ }
   }
 
   _trfPending = files.length;
