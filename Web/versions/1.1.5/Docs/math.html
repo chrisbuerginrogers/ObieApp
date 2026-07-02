@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Technical Reference — ObieWebApp</title>
+  <link rel="stylesheet" href="../css/theme.css">
+
+  <!-- KaTeX -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" crossorigin="anonymous">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js" crossorigin="anonymous"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" crossorigin="anonymous"
+          onload="renderMathInElement(document.body, {
+            delimiters: [
+              {left: '$$', right: '$$', display: true},
+              {left: '\\(', right: '\\)', display: false}
+            ],
+            throwOnError: false
+          });"></script>
+
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+
+    .obie-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; background: var(--bg-card);
+      border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; }
+    .brand h1 { font-size: 1rem; margin: 0; font-weight: 700; }
+    .logo-icon { font-size: 1.3rem; }
+    .crumb { font-size: 0.85rem; color: var(--muted); }
+    .gap { flex: 1; }
+    .back-btn {
+      font-size: 0.75rem; padding: 3px 9px; border-radius: 4px;
+      background: var(--bg-deep); border: 1px solid var(--border);
+      color: var(--fg); text-decoration: none; cursor: pointer;
+    }
+    .back-btn:hover { background: var(--border); }
+
+    .doc-main { max-width: 860px; margin: 0 auto; padding: 32px 20px 60px; }
+
+    h2.doc-title { font-size: 1.5rem; margin: 0 0 6px; }
+    p.doc-lead { color: var(--muted); margin: 0 0 32px; font-size: 0.95rem; }
+
+    .toc { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+           padding: 16px 20px; margin-bottom: 36px; }
+    .toc h3 { margin: 0 0 10px; font-size: 0.85rem; text-transform: uppercase;
+              letter-spacing: 0.06em; color: var(--muted); }
+    .toc ul { margin: 0; padding: 0 0 0 18px; }
+    .toc li { margin: 4px 0; font-size: 0.9rem; }
+    .toc a { color: var(--accent); text-decoration: none; }
+    .toc a:hover { text-decoration: underline; }
+
+    .math-section { margin-bottom: 52px; }
+    .section-header {
+      display: flex; align-items: center; gap: 10px;
+      border-bottom: 2px solid var(--accent); padding-bottom: 8px; margin-bottom: 20px;
+    }
+    .section-header h2 { font-size: 1.25rem; margin: 0; }
+
+    p { font-size: 0.9rem; line-height: 1.7; margin: 0 0 12px; }
+    h3 { font-size: 0.95rem; margin: 24px 0 8px; color: var(--fg); }
+    h4 { font-size: 0.85rem; margin: 20px 0 6px; text-transform: uppercase;
+         letter-spacing: 0.06em; color: var(--muted); }
+
+    /* Display math — scrollable on narrow screens */
+    .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+
+    /* Code blocks */
+    pre {
+      background: var(--bg-deep); border: 1px solid var(--border); border-radius: 6px;
+      padding: 12px 16px; overflow-x: auto; font-size: 0.82rem; line-height: 1.55;
+      margin: 12px 0;
+    }
+    code { font-family: 'Menlo', 'Monaco', 'Courier New', monospace; font-size: 0.85em; }
+    p code, li code {
+      background: var(--bg-deep); border: 1px solid var(--border);
+      border-radius: 3px; padding: 1px 4px;
+    }
+
+    ul.steps, ol.steps { margin: 0 0 14px; padding: 0 0 0 20px; }
+    ul.steps li, ol.steps li { font-size: 0.9rem; line-height: 1.65; margin: 5px 0; }
+
+    .callout {
+      background: var(--bg-deep); border-left: 3px solid var(--accent);
+      border-radius: 0 6px 6px 0; padding: 10px 14px; margin: 14px 0; font-size: 0.85rem;
+    }
+    .callout strong { display: block; margin-bottom: 3px; }
+
+    /* File-format tables */
+    .fmt-table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 0.83rem; }
+    .fmt-table th {
+      text-align: left; font-size: 0.75rem; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--muted); border-bottom: 1px solid var(--border);
+      padding: 5px 8px; background: var(--bg-deep);
+    }
+    .fmt-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .fmt-table tr:last-child td { border-bottom: none; }
+    .fmt-table td:first-child { font-weight: 600; white-space: nowrap; color: var(--accent); font-family: monospace; }
+    .fmt-table td:nth-child(2) { white-space: nowrap; color: var(--muted); }
+    .fmt-table .section-row td {
+      background: var(--bg-card); font-style: italic; font-weight: 600;
+      color: var(--fg); font-family: inherit; padding-top: 10px;
+    }
+    .fmt-table .section-row td:first-child { font-family: inherit; }
+
+    .key-table { width: 100%; border-collapse: collapse; margin: 10px 0 16px; font-size: 0.85rem; }
+    .key-table th { text-align: left; font-size: 0.75rem; text-transform: uppercase;
+                    letter-spacing: 0.05em; color: var(--muted); border-bottom: 1px solid var(--border);
+                    padding: 4px 8px; }
+    .key-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .key-table tr:last-child td { border-bottom: none; }
+    .key-table td:first-child { font-weight: 600; white-space: nowrap; color: var(--accent); }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+    .docs-link {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+      padding: 16px 18px; margin-top: 36px;
+    }
+    .docs-link .icon { font-size: 2rem; flex-shrink: 0; }
+    .docs-link p { margin: 0; font-size: 0.88rem; }
+    .docs-link a { color: var(--accent); font-weight: 600; text-decoration: none; }
+    .docs-link a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<header class="obie-header">
+  <a class="brand" href="../index.html">
+    <div class="logo-icon">🎻</div>
+    <h1>ObieWebApp</h1>
+  </a>
+  <span class="crumb">· Technical Reference</span>
+  <div class="gap"></div>
+  <a class="back-btn" href="./shortcuts.html">Tips</a>
+  <a class="back-btn" href="./index.html">← User Guide</a>
+</header>
+
+<main class="doc-main">
+
+  <h2 class="doc-title">Thoughts on the Analysis of the Violin</h2>
+  <p class="doc-lead">
+    In-depth explanation of the signal processing, mathematics, and file formats used in ObieApp.
+    Originally written by Chris Rogers; equations rendered from the source LaTeX.
+  </p>
+
+  <div class="toc">
+    <h3>Contents</h3>
+    <ul>
+      <li><a href="#frf">1 · Frequency Response Functions</a>
+        <ul>
+          <li><a href="#frf-what">1.1 What is a FRF?</a></li>
+          <li><a href="#frf-lsq">1.2 Least Squares Fit — H1 and H2</a></li>
+          <li><a href="#frf-coh">1.3 Coherence</a></li>
+        </ul>
+      </li>
+      <li><a href="#bands">2 · Band Averages</a></li>
+      <li><a href="#conv">3 · Convolutions</a></li>
+      <li><a href="#formats">4 · File Formats</a>
+        <ul>
+          <li><a href="#fmt-trf">4.1 TRF / TRV</a></li>
+          <li><a href="#fmt-avr">4.2 AvR / AvC</a></li>
+        </ul>
+      </li>
+      <li><a href="#wave">5 · Acoustic Wave Equation</a>
+        <ul>
+          <li><a href="#wave-eq">5.1 Wave Equation Derivation</a></li>
+          <li><a href="#impedance">5.2 Acoustic Impedance</a></li>
+          <li><a href="#intensity">5.3 Sound Intensity</a></li>
+          <li><a href="#qfactor">5.4 Quality Factor</a></li>
+        </ul>
+      </li>
+    </ul>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       1 · FRF
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="math-section" id="frf">
+    <div class="section-header">
+      <h2>1 · Frequency Response Functions</h2>
+    </div>
+
+    <h3 id="frf-what">1.1 What is a FRF?</h3>
+
+    <p>
+      We want to express the violin mathematically as a transfer function (also called the
+      frequency response function) — it converts some input (in this case a force from the hammer)
+      to some output (in this case sound or a pressure fluctuation):
+    </p>
+
+    $$f(t) \;\to\; p(t)$$
+
+    <p>
+      Taking the Fourier Transform, we can find the transfer function for the violin as:
+    </p>
+
+    $$H(f) = \frac{P(f)}{F(f)}$$
+
+    <p>
+      where \(P(f)\) and \(F(f)\) are the Fourier transforms of pressure and force and have real and
+      imaginary parts. The Fourier Transform is defined as:
+    </p>
+
+    $$G(f) = \int_{-\infty}^{\infty} g(t)\, e^{-i2\pi ft}\, dt$$
+
+    <p>
+      We can simplify — get the denominator to be real — by multiplying numerator and denominator by
+      \(F^*\):
+    </p>
+
+    $$H(f) = \frac{P(f)}{F(f)} = \frac{PF^*}{FF^*} = H_1 \qquad \frac{PP^*}{FP^*} = H_2$$
+
+    <h3 id="frf-lsq">1.2 Least Squares Fit — H1 and H2</h3>
+
+    <p>
+      In reality, we take 5–10 hits per position so that we can get a "best fit" reading.
+      We know that:
+    </p>
+
+    $$P(f) = H(f)\, F(f)$$
+
+    <p>So the error of the best fit for measured values \(F_i\) and \(P_i\) is:</p>
+
+    $$\epsilon_i(f) = P_i - H(f)F_i$$
+
+    <p>
+      Realizing that \(H(f)\) is a complex number \((a+ib)\) and that \(F, P\) are complex as well:
+    </p>
+
+    $$\begin{aligned}
+      \epsilon_i^2(f)
+        &= (P_i - H(f)F_i)(P_i - H(f)F_i)^*\\
+        &= |P_i|^2 - H(f)F_iP^*_i - P_iH^*(f)F^*_i + |H(f)F_i|^2 \\
+        &= |P_i|^2 -(a+ib)F_iP^*_i - P_i(a-ib)F^*_i + |(a+ib)F_i|^2\\
+        &= |P_i|^2 -(a+ib)F_iP^*_i - P_i(a-ib)F^*_i + (a^2+b^2)F_iF_i^*
+    \end{aligned}$$
+
+    <p>
+      Summing over all readings and finding the minimum by differentiating with respect to \(a\) and
+      \(b\) and setting equal to zero:
+    </p>
+
+    $$\begin{aligned}
+      \frac{\partial \sum \epsilon_i^2(f)}{\partial a} &= 0
+        = -\sum F_iP^*_i - \sum P_iF^*_i + 2a\sum F_iF_i^*\\
+      \frac{\partial \sum \epsilon_i^2(f)}{\partial b} &= 0
+        = -i\sum F_iP^*_i + i\sum P_iF^*_i  +2b\sum F_iF_i^*
+    \end{aligned}$$
+
+    <p>Multiplying the second equation by \(i\) and then adding:</p>
+
+    $$\begin{aligned}
+      0 &= -\sum F_iP^*_i - \sum P_iF^*_i + 2a\sum F_iF_i^*\\
+      0 &= \sum F_iP^*_i -\sum P_iF^*_i +2bi\sum F_iF_i^*
+    \end{aligned}$$
+
+    <p>Adding them together:</p>
+
+    $$\begin{aligned}
+      0 &= -2 \sum P_iF^*_i + 2a\sum F_iF_i^* +2bi\sum F_iF_i^*\\
+      \sum P_iF^*_i &= H(f)\sum F_iF_i^*
+    \end{aligned}$$
+
+    <p>This gives the <strong>H1 estimator</strong> (minimises output noise):</p>
+
+    $$\boxed{H_1(f) = \frac{\sum P_iF^*_i}{\sum F_iF_i^*}}$$
+
+    <p>
+      Alternatively, we can minimise the effect of noise on the <em>input</em> by using as the error:
+    </p>
+
+    $$\epsilon_i(f) = F_i - \frac{P_i}{H(f)}$$
+
+    <p>Expanding the squared error:</p>
+
+    $$\begin{aligned}
+      \epsilon_i^2(f)
+        &= \left(F_i - \frac{P_i}{H(f)}\right)\!\left(F_i - \frac{P_i}{H(f)}\right)^*\\
+        &= F_iF_i^* - F_i\frac{P_i^*}{H^*} - F^*_i\frac{P_i}{H} + \frac{P_i^*}{H^*}\frac{P_i}{H}\\
+        &= F_iF_i^* - F_iP_i^*(a-ib)^{-1} - F^*_iP_i(a+ib)^{-1} + P_iP_i^*(a^2+b^2)^{-1}
+    \end{aligned}$$
+
+    <p>Differentiating and setting to zero:</p>
+
+    $$\begin{aligned}
+      \frac{\partial \sum \epsilon_i^2}{\partial a} &= 0
+        = (a-ib)^{-2}\sum F_iP^*_i +(a+ib)^{-2}\sum P_iF^*_i -(a^2+b^2)^{-2}2a\sum P_iP_i^*\\
+      \frac{\partial \sum \epsilon_i^2}{\partial b} &= 0
+        = -i(a-ib)^{-2}\sum F_iP^*_i +i(a+ib)^{-2}\sum P_iF^*_i -(a^2+b^2)^{-2}2b\sum P_iP_i^*
+    \end{aligned}$$
+
+    <p>Multiplying the second by \(i\) and adding:</p>
+
+    $$\begin{aligned}
+      0 &= (a-ib)^{-2}\sum F_iP^*_i +(a+ib)^{-2}\sum P_iF^*_i -(a^2+b^2)^{-2}2a\sum P_iP_i^*\\
+      0 &= (a-ib)^{-2}\sum F_iP^*_i -(a+ib)^{-2}\sum P_iF^*_i -(a^2+b^2)^{-2}2ib\sum P_iP_i^*
+    \end{aligned}$$
+
+    <p>Adding and rearranging:</p>
+
+    $$\begin{aligned}
+      H(a^2+b^2)^{-2}\sum P_iP_i^* &= (a-ib)^{-2}\sum F_iP^*_i \\
+      H\sum P_iP_i^* &= \frac{(a+ib)^2(a-ib)^2}{(a-ib)^2}\sum F_iP^*_i \\
+      \sum P_iP_i^* &= H\sum F_iP^*_i
+    \end{aligned}$$
+
+    <p>This gives the <strong>H2 estimator</strong> (minimises input noise):</p>
+
+    $$\boxed{H_2(f) = \frac{\sum P_iP_i^*}{\sum F_iP^*_i}}$$
+
+    <p>
+      If the data is clean and the noise is truly random, H1 and H2 should be very close and their
+      ratio — the coherence — should be 1. George used the geometric mean as the working estimate:
+    </p>
+
+    $$H \sim \sqrt{H_1 H_2}$$
+
+    <h3 id="frf-coh">1.3 Coherence</h3>
+
+    <p>
+      The coherence \(C\) measures how consistently the system behaves across repeated measurements:
+    </p>
+
+    $$C = \frac{H_1}{H_2} = \frac{\left|\sum P_i F_i^*\right|^2}{\sum F_i F_i^* \cdot \sum P_i P_i^*}$$
+
+    <p>
+      The numerator is the cross-spectrum squared — how much \(F\) and \(P\) move together.
+      The denominator is the product of the individual power spectra — how much each signal varies
+      on its own. It is the frequency-domain analogue of \(R^2\) from linear regression, and answers:
+      <em>"how much of the output can be explained by the input?"</em>
+    </p>
+
+    <ul class="steps">
+      <li>\(C \approx 1\): output is well explained by input — clean measurement, linear system.</li>
+      <li>\(C \approx 0\): output has little to do with input at that frequency — noise dominated,
+          or the system simply doesn't respond there.</li>
+      <li>\(0 &lt; C &lt; 1\): partial explanation — could be noise, nonlinearity, or multiple
+          inputs contributing to the output.</li>
+    </ul>
+
+    <div class="callout">
+      <strong>Coherence is frequency-dependent.</strong>
+      A violin might have \(C \approx 1\) near a resonance (where it responds strongly and
+      predictably) but low coherence in a range where it barely responds and the output is
+      dominated by noise. Always plot it across the full frequency range.
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       2 · Band Averages
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="math-section" id="bands">
+    <div class="section-header">
+      <h2>2 · Band Averages</h2>
+    </div>
+
+    <p>
+      We can look at the average distribution of energy by breaking the FRF into frequency bands and
+      averaging the magnitudes over each band:
+    </p>
+
+    $$\begin{aligned}
+      \bar{b} &= \frac{1}{N}\sum_{f=f_{\mathrm{lo}}}^{f_{\mathrm{hi}}} \sqrt{H(f)H^*(f)} \\[6pt]
+      \bar{b}_{\mathrm{dB}} &= 20 \log_{10}\!\left(\bar{b}\right)
+    \end{aligned}$$
+
+    <p>
+      We also calculate the <strong>spectral centroid</strong> of the band — the first moment — which
+      tells you where the energy is concentrated within the band:
+    </p>
+
+    $$c = \frac{\displaystyle\sum_{f=f_{\mathrm{lo}}}^{f_{\mathrm{hi}}} f\,\sqrt{H(f)H^*(f)}}
+               {\displaystyle\sum_{f=f_{\mathrm{lo}}}^{f_{\mathrm{hi}}} \sqrt{H(f)H^*(f)}}$$
+
+    <p>In Python (<code>Python/processing/bands.py</code>):</p>
+
+<pre>f_lo  = float(band['start'])
+f_hi  = float(band['end'])
+mask     = (freq >= f_lo) & (freq <= f_hi)
+H_band   = H_mag[mask]          # linear magnitude, NOT in dB
+f_band   = freq[mask]
+avg_db   = 20.0 * math.log10(max(float(np.mean(H_band)), 1e-12))
+centroid = float(np.sum(f_band * H_band) / np.sum(H_band))</pre>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       3 · Convolutions
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="math-section" id="conv">
+    <div class="section-header">
+      <h2>3 · Convolutions</h2>
+    </div>
+
+    <p>
+      We can estimate what an instrument will sound like by convolving its FRF with a recording —
+      ideally captured with a force sensor at the bridge rather than a microphone.
+      The convolution of two functions \(f(t)\) and \(g(t)\) is:
+    </p>
+
+    $$y(t) = \int_{-\infty}^\infty f(\tau)\, g(t-\tau)\, d\tau$$
+
+    <h3>What it does</h3>
+    <p>
+      A violin has resonances — certain frequencies ring longer and louder than others. The FRF is a
+      fingerprint of exactly how the violin shapes sound. Convolution applies that fingerprint to any
+      audio signal. Feed in a Tchaikovsky recording; get out what it would sound like coloured by
+      that violin's resonance structure.
+    </p>
+
+    <h3>FFT acceleration</h3>
+    <p>
+      Computing the integral directly is slow. The convolution theorem says we can instead multiply
+      the two signals in the frequency domain:
+    </p>
+
+    $$\begin{aligned}
+      y(t) &= \mathrm{iFFT}\!\bigl(\mathrm{FFT}(g(t))\times \mathrm{FFT}(f(t))\bigr)\\[4pt]
+      &= \int_{-\infty}^\infty
+          \left[\int_{-\infty}^\infty g(\tau)e^{-i2\pi f\tau}\,d\tau\right]
+          \left[\int_{-\infty}^\infty f(\tau)e^{-i2\pi f\tau}\,d\tau\right]
+          e^{i2\pi ft}\,df
+    \end{aligned}$$
+
+    <p>In Python (<code>Python/processing/convolution.py</code>):</p>
+
+<pre>y = np.fft.irfft(
+    np.fft.rfft(wav, n_fft) * np.fft.rfft(ir.astype(np.float64), n_fft),
+    n_fft,
+)[:N].real</pre>
+
+    <p>
+      The output is the input signal with the violin's character stamped onto it — its resonant peaks
+      amplified, its dead spots suppressed, its natural decay times imposed on every note.
+    </p>
+
+    <h3>IR length</h3>
+    <p>
+      The impulse response (IR) length determines frequency resolution. ObieApp uses an adaptive
+      length: the next power of 2 above \(\text{sample\_rate} / \Delta f\), capped at 65536:
+    </p>
+
+<pre>def _adaptive_ir_length(freqs, sample_rate):
+    df = freqs[1] - freqs[0]
+    natural = int(sample_rate / df)
+    next_pow2 = 1 << (natural - 1).bit_length()
+    return min(next_pow2, 65536)</pre>
+
+    <h3>Minimum-phase reconstruction</h3>
+    <p>
+      For real-only FRF files (AvR format, no phase information), the phase can be estimated by
+      treating the system as minimum-phase — for such systems the log-magnitude and phase are a
+      Hilbert transform pair, so knowing one determines the other. In practice ObieApp stores all
+      FRFs as complex (AvC or TRF), so minimum-phase reconstruction is not required.
+    </p>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       4 · File Formats
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="math-section" id="formats">
+    <div class="section-header">
+      <h2>4 · File Formats</h2>
+    </div>
+
+    <p>
+      All multi-byte fields are <strong>little-endian</strong>. Fields prefixed <code>f</code> in
+      the MtxVec <em>TSingleArray</em> descriptor are 32-bit single-precision floats; all others are
+      as specified. Sources: <code>george.pas</code> (Dew Research / DSP Master) and the LabVIEW
+      writer code.
+    </p>
+
+    <!-- TRF -->
+    <h3 id="fmt-trf">4.1 TRF / TRV — Transfer Function Format</h3>
+
+    <p>
+      Binary format used by Rational Acoustics / MtxVec. The header is 110 bytes, followed
+      immediately by the data payload.
+    </p>
+
+    <h4>TFRFHeader (110 bytes, packed — no padding)</h4>
+
+    <table class="fmt-table">
+      <thead>
+        <tr><th>Field</th><th>Bytes</th><th>Type</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr class="section-row"><td colspan="4">TFRFHeader packed record</td></tr>
+        <tr><td>index</td><td>4</td><td>Integer</td><td>Channel or measurement index. ≥ 0.</td></tr>
+        <tr><td>Xr</td><td>8</td><td>Double</td><td>Reference (input) channel or physical X location.</td></tr>
+        <tr><td>Yr</td><td>8</td><td>Double</td><td>Response (output) channel or physical Y location.</td></tr>
+        <tr><td>XActual</td><td>8</td><td>Double</td><td>Physical X-axis value (excitation location).</td></tr>
+        <tr><td>YActual</td><td>8</td><td>Double</td><td>Physical Y-axis value (response location).</td></tr>
+        <tr><td>FRFType</td><td>1</td><td>TFRFType (U8)</td><td><code>0</code> = <em>ftTransfer</em> (.trf), <code>1</code> = <em>ftPoint</em> (.pnt).</td></tr>
+        <tr><td>DataType</td><td>1</td><td>TDataType (U8)</td><td><code>0</code> = Accelerance, <code>1</code> = Mobility, <code>2</code> = Receptance, <code>3</code> = Microphone.</td></tr>
+        <tr><td>HzRes</td><td>8</td><td>Double</td><td>Frequency resolution Δf (Hz/bin). &gt; 0.</td></tr>
+        <tr><td>StartFrequency</td><td>8</td><td>Double</td><td>Start frequency (Hz). ≥ 0.</td></tr>
+        <tr><td>EndFrequency</td><td>8</td><td>Double</td><td>End frequency (Hz). &gt; StartFrequency.</td></tr>
+        <tr class="section-row"><td colspan="4">TSingleArray (MtxVec array descriptor — all fields 4 bytes)</td></tr>
+        <tr><td>fComplex</td><td>4</td><td>Single</td><td><code>0.0</code> = real magnitude, <code>1.0</code> = complex Re/Im, <code>2.0</code> = complex + coherence γ² (Acquire format).</td></tr>
+        <tr><td>fLength</td><td>4</td><td>Single</td><td>Number of frequency bins N (stored as float).</td></tr>
+        <tr><td>a[2]</td><td>4</td><td>U32</td><td>Reserved / alignment padding.</td></tr>
+        <tr><td>fConditionCheck</td><td>4</td><td>Single</td><td>Internal integrity value.</td></tr>
+        <tr><td>Precision</td><td>4</td><td>U32</td><td><code>0</code> = Single (32-bit), <code>1</code> = Double (64-bit).</td></tr>
+        <tr><td>MtxVecVersion</td><td>4</td><td>U32</td><td>Version of MtxVec library that wrote the file.</td></tr>
+        <tr><td>SizeOf(TSample)</td><td>4</td><td>U32</td><td>Byte size of each data sample.</td></tr>
+        <tr><td>Tag</td><td>4</td><td>U32</td><td>User-defined tag or identifier.</td></tr>
+        <tr><td>MtxVecFileCode</td><td>4</td><td>U32</td><td>Magic number identifying a MtxVec file.</td></tr>
+        <tr><td>a[9], a[10]</td><td>4+4</td><td>U32</td><td>Reserved / alignment padding.</td></tr>
+        <tr class="section-row"><td colspan="4">Payload</td></tr>
+        <tr><td>caption</td><td>4</td><td>String</td><td>Short label, null-padded.</td></tr>
+        <tr><td>FRF data (fComplex=0)</td><td>N × 8</td><td>float64[]</td><td>N real magnitude values, little-endian.</td></tr>
+        <tr><td>FRF data (fComplex=1)</td><td>N × 16</td><td>float64[]</td><td>N complex samples as interleaved Re/Im pairs.</td></tr>
+        <tr><td>FRF data (fComplex=2)</td><td>N × 24</td><td>float64[]</td><td>N samples as interleaved Re/Im/γ² triples (Acquire).</td></tr>
+        <tr class="section-row"><td colspan="4">Optional metadata block (Acquire-written files only)</td></tr>
+        <tr><td>sentinel</td><td>11</td><td>bytes</td><td><code>b'\x00OBIE_META\n'</code> — marks start of metadata. Old readers stop before this and ignore it.</td></tr>
+        <tr><td>key: value lines</td><td>var</td><td>UTF-8</td><td><code>sample_rate</code>, <code>bit_depth</code>, <code>n_hits</code>, <code>threshold</code>, <code>ham_cutoff</code>, <code>mic_cutoff</code>, <code>device</code>.</td></tr>
+      </tbody>
+    </table>
+
+    <!-- AvR / AvC -->
+    <h3 id="fmt-avr">4.2 AvR / AvC — Averaged Spectrum Format</h3>
+
+    <p>
+      AvR files store a <em>real-valued</em> averaged spectrum; AvC files store a
+      <em>complex-valued</em> averaged spectrum. The file layout is identical except for the data
+      section, which is \(N \times 8\) bytes for AvR and \(N \times 16\) bytes for AvC.
+      \(N\) is given by <code>fLength</code> in the TSingleArray descriptor.
+    </p>
+
+    $$\text{AvR: } N \times 8\text{ bytes} \qquad \text{AvC: } N \times 16\text{ bytes} \qquad N = \texttt{int(fLength)}$$
+
+    <table class="fmt-table">
+      <thead>
+        <tr><th>Field</th><th>Bytes</th><th>Type</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr class="section-row"><td colspan="4">Header</td></tr>
+        <tr><td>DataType</td><td>1</td><td>TDataType (U8)</td><td>Response quantity (same enum as TRF above).</td></tr>
+        <tr><td>HzRes</td><td>8</td><td>Double</td><td>Frequency resolution Δf (Hz/bin). &gt; 0.</td></tr>
+        <tr><td>StartFrequency</td><td>8</td><td>Double</td><td>Start frequency (Hz). ≥ 0.</td></tr>
+        <tr><td>EndFrequency</td><td>8</td><td>Double</td><td>End frequency (Hz). &gt; StartFrequency.</td></tr>
+        <tr><td>ScaleFactor</td><td>8</td><td>Double</td><td>Scale factor applied to the averaged data.</td></tr>
+        <tr><td>nAverages</td><td>4</td><td>U32</td><td>Number of averages used. Typically 1–1000.</td></tr>
+        <tr><td>AverageType</td><td>1</td><td>Enum (U8)</td><td><code>0</code> = RMS, <code>1</code> = Mean, <code>2</code> = Complex, <code>3</code> = Geometric, <code>4</code> = None.</td></tr>
+        <tr class="section-row"><td colspan="4">TSingleArray (MtxVec array descriptor — all fields 4 bytes)</td></tr>
+        <tr><td>fComplex</td><td>4</td><td>Single</td><td><code>0.0</code> = real (AvR), <code>1.0</code> = complex (AvC).</td></tr>
+        <tr><td>fLength</td><td>4</td><td>Single</td><td>Number of data points N (stored as float).</td></tr>
+        <tr><td>a[2]</td><td>4</td><td>U32</td><td>Reserved.</td></tr>
+        <tr><td>fConditionCheck</td><td>4</td><td>Single</td><td>Internal integrity value.</td></tr>
+        <tr><td>Precision</td><td>4</td><td>U32</td><td><code>0</code> = Single, <code>1</code> = Double.</td></tr>
+        <tr><td>MtxVecVersion</td><td>4</td><td>U32</td><td>MtxVec library version.</td></tr>
+        <tr><td>SizeOf(TSample)</td><td>4</td><td>U32</td><td>Byte size of each sample.</td></tr>
+        <tr><td>Tag</td><td>4</td><td>U32</td><td>User-defined tag.</td></tr>
+        <tr><td>MtxVecFileCode</td><td>4</td><td>U32</td><td>Magic number.</td></tr>
+        <tr><td>a[9], a[10]</td><td>4+4</td><td>U32</td><td>Reserved.</td></tr>
+        <tr><td>caption</td><td>4</td><td>String</td><td>Short label, null-padded.</td></tr>
+        <tr class="section-row"><td colspan="4">Data section</td></tr>
+        <tr><td>AvR data</td><td>N × 8</td><td>float64[]</td><td>N real-valued doubles, little-endian. Present when <code>fComplex = 0</code>.</td></tr>
+        <tr><td>AvC data</td><td>N × 16</td><td>float64[]</td><td>N complex samples as interleaved Re/Im double pairs. Present when <code>fComplex = 1</code>.</td></tr>
+        <tr class="section-row"><td colspan="4">Notes (appended after data)</td></tr>
+        <tr><td>notes</td><td>var</td><td>String</td><td>Free-text annotation starting immediately after the data section.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       5 · Acoustic Wave Equation
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="math-section" id="wave">
+    <div class="section-header">
+      <h2>5 · Acoustic Wave Equation</h2>
+    </div>
+
+    <p>
+      This section derives the linearised acoustic wave equation from first principles and applies it
+      to the mechanics of violin plates and the sound hole.
+    </p>
+
+    <h3 id="wave-eq">5.1 Wave Equation Derivation</h3>
+
+    <p>
+      Assume that the pressure is \(p\), the speed of a fluid particle is \(u\) with a mean of zero,
+      and the density everywhere is \(\rho_0 + \rho\). The 1D continuity equation gives:
+    </p>
+
+    $$\frac{\partial(\rho_0 + \rho)}{\partial t} + \frac{\partial(\rho_0 + \rho)u}{\partial x} = 0$$
+
+    <p>Expanding and dropping the nonlinear term \(\partial(\rho u)/\partial x\):</p>
+
+    $$\frac{\partial \rho}{\partial t} + \rho_0\frac{\partial u}{\partial x} = 0$$
+
+    <p>Differentiating again with respect to \(t\):</p>
+
+    $$\frac{\partial^2 \rho}{\partial t^2} + \rho_0\frac{\partial^2 u}{\partial x\,\partial t} = 0$$
+
+    <p>The momentum equation (1D, no gravity or friction) linearised for small fluctuations:</p>
+
+    $$\rho_0 \frac{\partial u}{\partial t} + \rho_0 u\frac{\partial u}{\partial x} + \frac{\partial p}{\partial x} = 0$$
+
+    <p>Differentiating with respect to \(x\) and dropping the middle (nonlinear) term:</p>
+
+    $$\rho_0 \frac{\partial^2 u}{\partial t\,\partial x} + \frac{\partial^2 p}{\partial x^2} = 0$$
+
+    <p>Combining the continuity and momentum equations:</p>
+
+    $$\frac{\partial^2 p}{\partial x^2} = \frac{\partial^2 \rho}{\partial t^2}$$
+
+    <h4>Adiabatic closure</h4>
+
+    <p>For an adiabatic process \(p = K\rho^\gamma\), so:</p>
+
+    $$\frac{\partial p}{\partial x} = K\gamma\rho^{\gamma-1}\frac{\partial \rho}{\partial x} = c^2\frac{\partial \rho}{\partial x}$$
+
+    <p>Linearising the second time derivative:</p>
+
+    $$\frac{\partial^2 p}{\partial t^2} = \gamma K\rho^{\gamma-1}\frac{\partial^2 \rho}{\partial t^2} = \gamma RT\frac{\partial^2 \rho}{\partial t^2}$$
+
+    <p>Substituting into the combined equation gives the <strong>acoustic wave equation</strong>:</p>
+
+    $$\boxed{\frac{\partial^2 p}{\partial t^2} = \gamma RT\,\frac{\partial^2 p}{\partial x^2}}$$
+
+    <p>where the speed of sound \(c = \sqrt{\gamma RT}\).</p>
+
+    <h3 id="impedance">5.2 Acoustic Impedance</h3>
+
+    <p>
+      Specific acoustic impedance \(z\) is the ratio of pressure to acoustic particle velocity:
+      \(p = zu\), analogous to voltage driving a current.
+    </p>
+
+    <p>
+      For a plate with mass \(m\), stiffness \(k\), and damping \(\beta\), area \(A\), the equation
+      of motion is:
+    </p>
+
+    $$\sum F = ma = pA - kx - \beta u$$
+
+    <p>Solving for impedance:</p>
+
+    $$z = \frac{ma + kx + \beta u}{Au} = \frac{m}{A}\frac{\ddot{x}}{\dot{x}} + \frac{\beta}{A} + \frac{k}{A}\frac{x}{\dot{x}}$$
+
+    <p>Assuming a harmonic solution \(u = \dot{x} = Ce^{i\omega t}\):</p>
+
+    $$z = r + i\omega M - \frac{i}{\omega C}$$
+
+    <p>where the lumped parameters are:</p>
+
+    $$r = \frac{\beta}{A} \qquad M = \frac{m}{A} \qquad C = \frac{A}{k}$$
+
+    <p>
+      This is the direct mechanical analogue of an electrical RLC circuit: resistance \(r\),
+      inductance (mass) \(M\), and compliance (capacitance) \(C\).
+    </p>
+
+    <p>
+      For the sound hole, modelled with frictional resistance \(R_h\), and the top plate with
+      restoring force:
+    </p>
+
+    $$m_{\text{hole}}\,\ddot{x}_h = A_h\,\Delta p - R_h\,\dot{x}_h$$
+
+    $$m_{\text{plate}}\,\ddot{x}_p = F - k_p x_p - R_p\,\dot{x}_p + A_p\,\Delta p$$
+
+    <h3 id="intensity">5.3 Sound Intensity</h3>
+
+    <p>
+      Sound intensity is defined as the sound power per unit surface area.
+      For a point source of power \(P\):
+    </p>
+
+    $$I = \frac{P}{4\pi r^2}$$
+
+    <p>
+      Sound Power Level and Sound Intensity Level are referenced to
+      \(P_0 = 10^{-12}\,\mathrm{W}\) and \(I_0 = 10^{-12}\,\mathrm{W/m^2}\) respectively:
+    </p>
+
+    $$\mathrm{SWL} = 10\log_{10}\!\left(\frac{P}{P_0}\right) \qquad
+      \mathrm{SIL} = 10\log_{10}\!\left(\frac{I}{I_0}\right)$$
+
+    <p>Since \(I = pu = p^2/z\), the Sound Pressure Level is:</p>
+
+    $$\mathrm{SPL} = 10\log_{10}\!\left(\frac{p^2}{p_0^2}\right) = 20\log_{10}\!\left(\frac{p}{p_0}\right)$$
+
+    <p>referenced to \(p_0 = 20\,\mu\mathrm{Pa}\).</p>
+
+    <h3 id="qfactor">5.4 Quality Factor</h3>
+
+    <p>
+      The quality factor \(Q\) characterises the sharpness of a resonance peak. For the damped
+      oscillator \(m\ddot{x} + R\dot{x} + kx = 0\):
+    </p>
+
+    $$Q = \frac{f_{\text{center}}}{\Delta f} = \frac{\sqrt{mk}}{R} = \frac{\omega_0}{2r}$$
+
+    <p>
+      where \(\Delta f\) is the half-power bandwidth (the −3 dB width of the peak),
+      \(r\) is the exponential decay rate, and \(R\) is the damping coefficient.
+      Higher \(Q\) means a sharper, more persistent resonance.
+    </p>
+
+  </section>
+
+  <div class="docs-link">
+    <div class="icon">📖</div>
+    <div>
+      <p><strong>User Guide</strong></p>
+      <p>For instructions on using Explore, Acquire, and Convolve, see the
+         <a href="./index.html">ObieWebApp User Guide</a>.</p>
+    </div>
+  </div>
+
+  <footer style="margin-top:40px;font-size:0.78rem;color:var(--muted);text-align:center">
+    Oberlin Acoustics Workshop &nbsp;·&nbsp; ObieWebApp &nbsp;·&nbsp;
+    Mathematics by Chris Rogers &nbsp;·&nbsp;
+    Formatted with <a href="https://katex.org/" target="_blank" rel="noopener" style="color:var(--accent)">KaTeX</a>
+  </footer>
+
+</main>
+</body>
+</html>

@@ -1,0 +1,1728 @@
+/* ─────────────────────────────────────────────────────────────────────
+ * explore.js  —  Explore FRF tool
+ *
+ * Requires (loaded before this file):
+ *   plotly-theme.js   — cssVar(), pcfg
+ *   audio.js          — AudioPlayer
+ * ───────────────────────────────────────────────────────────────────── */
+
+(function () {
+  'use strict';
+
+  // ── Color palettes ────────────────────────────────────────────────────
+  const PALETTES = {
+    default:  ['#ff6f00','#2196f3','#4caf50','#e91e63','#9c27b0','#00bcd4','#ff5722','#8bc34a','#ffc107','#607d8b'],
+    warm:     ['#b71c1c','#c62828','#d32f2f','#e64a19','#f57c00','#ff8f00','#f9a825','#f57f17'],
+    cool:     ['#0d47a1','#1565c0','#0277bd','#00838f','#006064','#1b5e20','#33691e','#827717'],
+    contrast: ['#000000','#e53935','#1e88e5','#43a047','#fb8c00','#8e24aa','#00acc1','#6d4c41'],
+  };
+  const BAND_COLORS = ['#e74c3c','#e67e22','#2ecc71','#3498db','#9b59b6','#1abc9c','#f39c12'];
+
+  // Band presets — loaded from ObieAppSettings/bands/ when a data folder is set.
+  // Empty until a folder is selected; the dropdown shows only "No bands" + "Custom…".
+  let _dynamicBandPresets = {};  // key → { label, bands: [{label,f_lo,f_hi}] }
+
+  const INTERPRET_DICTS = {
+    radiation: {
+      label: 'Radiation (Mic)',
+      note:  'Isotropic monopole → increasingly directional multipole radiation',
+      regions: [
+        {label:'A0',              f_lo:264,  f_hi:290,  color:'#e74c3c'},
+        {label:'CBR',             f_lo:380,  f_hi:420,  color:'#e67e22'},
+        {label:'B1-',             f_lo:393,  f_hi:470,  color:'#f1c40f'},
+        {label:'B1+',             f_lo:473,  f_hi:593,  color:'#2ecc71'},
+        {label:'Transition Hill', f_lo:800,  f_hi:1300, color:'#3498db'},
+        {label:'Bridge Hill',     f_lo:1750, f_hi:3000, color:'#9b59b6'},
+        {label:'Upper Hill',      f_lo:3000, f_hi:7000, color:'#e91e63'},
+      ],
+      table: [
+        {mode:'A0',               range:'264–290 Hz',   avg:'276 Hz'},
+        {mode:'CBR',              range:'380–420 Hz',   avg:'400 Hz'},
+        {mode:'B1-',              range:'393–470 Hz',   avg:'444 Hz'},
+        {mode:'B1+',              range:'473–593 Hz',   avg:'541 Hz'},
+        {mode:'Transition Hill',  range:'800–1300 Hz',  avg:''},
+        {mode:'Bridge Hill',      range:'1750–3000 Hz', avg:''},
+        {mode:'Upper Hill',       range:'3000–7000 Hz', avg:''},
+      ],
+      rangebars: [{lo:264,hi:290},{lo:380,hi:420},{lo:393,hi:470},{lo:473,hi:593}],
+    },
+    accelerance: {
+      label: 'Accelerance',
+      note:  'Body vibration measured via accelerometer (bridge or plate)',
+      regions: [
+        {label:'A0',              f_lo:264,  f_hi:290,  color:'#e74c3c'},
+        {label:'CBR',             f_lo:380,  f_hi:420,  color:'#e67e22'},
+        {label:'B1-',             f_lo:393,  f_hi:470,  color:'#f1c40f'},
+        {label:'B1+',             f_lo:473,  f_hi:593,  color:'#2ecc71'},
+        {label:'Transition Hill', f_lo:800,  f_hi:1300, color:'#3498db'},
+        {label:'Bridge Hill',     f_lo:1750, f_hi:3000, color:'#9b59b6'},
+        {label:'Upper Hill',      f_lo:3000, f_hi:7000, color:'#e91e63'},
+      ],
+      table: [
+        {mode:'A0',               range:'264–290 Hz',   avg:'276 Hz'},
+        {mode:'CBR',              range:'380–420 Hz',   avg:'400 Hz'},
+        {mode:'B1-',              range:'393–470 Hz',   avg:'444 Hz'},
+        {mode:'B1+',              range:'473–593 Hz',   avg:'541 Hz'},
+        {mode:'Transition Hill',  range:'800–1300 Hz',  avg:''},
+        {mode:'Bridge Hill',      range:'1750–3000 Hz', avg:''},
+        {mode:'Upper Hill',       range:'3000–7000 Hz', avg:''},
+      ],
+      rangebars: [{lo:264,hi:290},{lo:380,hi:420},{lo:393,hi:470},{lo:473,hi:593}],
+    },
+    vibrometer: {
+      label: 'Mobility (Vibrometer)',
+      note:  'Plate or bridge velocity measured by laser vibrometer',
+      regions: [
+        {label:'A0',              f_lo:264,  f_hi:290,  color:'#e74c3c'},
+        {label:'CBR',             f_lo:380,  f_hi:420,  color:'#e67e22'},
+        {label:'B1-',             f_lo:393,  f_hi:470,  color:'#f1c40f'},
+        {label:'B1+',             f_lo:473,  f_hi:593,  color:'#2ecc71'},
+        {label:'Transition Hill', f_lo:800,  f_hi:1300, color:'#3498db'},
+        {label:'Bridge Hill',     f_lo:1750, f_hi:3000, color:'#9b59b6'},
+        {label:'Upper Hill',      f_lo:3000, f_hi:7000, color:'#e91e63'},
+      ],
+      table: [
+        {mode:'A0',               range:'264–290 Hz',   avg:'276 Hz'},
+        {mode:'CBR',              range:'380–420 Hz',   avg:'400 Hz'},
+        {mode:'B1-',              range:'393–470 Hz',   avg:'444 Hz'},
+        {mode:'B1+',              range:'473–593 Hz',   avg:'541 Hz'},
+        {mode:'Transition Hill',  range:'800–1300 Hz',  avg:''},
+        {mode:'Bridge Hill',      range:'1750–3000 Hz', avg:''},
+        {mode:'Upper Hill',       range:'3000–7000 Hz', avg:''},
+      ],
+      rangebars: [{lo:264,hi:290},{lo:380,hi:420},{lo:393,hi:470},{lo:473,hi:593}],
+    },
+  };
+  let _interpretDictKey = 'radiation';
+
+  // Fundamentals in the G3–F#4 range (196–370 Hz) — one per chromatic semitone
+  const HARMONIC_NOTES = [
+    { name:'C',  freq:261.63 }, { name:'C#', freq:277.18 },
+    { name:'D',  freq:293.66 }, { name:'D#', freq:311.13 },
+    { name:'E',  freq:329.63 }, { name:'F',  freq:349.23 },
+    { name:'F#', freq:369.99 }, { name:'G',  freq:196.00 },
+    { name:'G#', freq:207.65 }, { name:'A',  freq:220.00 },
+    { name:'A#', freq:233.08 }, { name:'B',  freq:246.94 },
+  ];
+  let _harmonicNote = null;
+
+  // ── State ──────────────────────────────────────────────────────────────
+  let _datasets  = [];
+  let _undoStack = [];
+  let _nextId    = 0;
+  let _palette   = PALETTES.default;
+  let _templates = [];
+  let _dataDir              = null;  // FileSystemDirectoryHandle
+  let _exploreSettingsHandle = null;  // ObieAppSettings/ dir
+  let _bandsHandle          = null;  // ObieAppSettings/bands/ dir
+  let _listsHandle          = null;  // ObieAppSettings/lists/ dir
+  let _colorsHandle         = null;  // ObieAppSettings/colors/ dir
+  let _customPalettesList   = [];   // cached from folder (or localStorage)
+  let _dirFiles  = [];     // [{name, ext, path, handle}] — scanned from data folder
+  let _searchResults  = []; // current filtered list
+  let _pendingPaths   = {}; // filename → full relative path, populated just before pyExploreLoadFile
+  let _pendingColors  = {}; // filename → hex color, set by list loader, consumed by obieExploreAddDataset
+  let _lists     = [];
+  let _customBands = null;
+  let _lastSearchClickIdx = -1;
+  let _frfOpacity = 1.0;   // ←→ arrows fade FRF lines; bands stay at full opacity
+
+  const _S = {
+    xLog: true, xMin: 200, xMax: 7000,
+    yLog: false, yMin: null, yMax: null,
+    yDbRange: 38,
+    smoothing: 0,
+    normalize: false,     // legacy — kept so saved prefs still load
+    normMode: 'as_measured',  // 'as_measured' | 'normalize' | 'avg_range'
+    normFLo: 200, normFHi: 7000,
+    bandPreset: '',
+    bandShading: true,
+    showCoh: false,
+    lineWidth: 1.0,
+  };
+
+  // ── Helpers ────────────────────────────────────────────────────────────
+  function $(id) { return document.getElementById(id); }
+  function _esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── IndexedDB wrapper (stores FileSystemDirectoryHandle across reloads) ─
+  const _IDB = (() => {
+    let _db = null;
+    function open() {
+      if (_db) return Promise.resolve(_db);
+      return new Promise((res, rej) => {
+        const req = indexedDB.open('obieExplore', 1);
+        req.onupgradeneeded = e => e.target.result.createObjectStore('kv');
+        req.onsuccess  = e => { _db = e.target.result; res(_db); };
+        req.onerror    = e => rej(e.target.error);
+      });
+    }
+    return {
+      async put(key, val) {
+        const db = await open();
+        return new Promise((res, rej) => {
+          const tx = db.transaction('kv', 'readwrite');
+          tx.objectStore('kv').put(val, key);
+          tx.oncomplete = res; tx.onerror = e => rej(e.target.error);
+        });
+      },
+      async get(key) {
+        const db = await open();
+        return new Promise((res, rej) => {
+          const tx = db.transaction('kv', 'readonly');
+          const req = tx.objectStore('kv').get(key);
+          req.onsuccess = () => res(req.result ?? null);
+          req.onerror   = e => rej(e.target.error);
+        });
+      },
+      async del(key) {
+        const db = await open();
+        return new Promise((res, rej) => {
+          const tx = db.transaction('kv', 'readwrite');
+          tx.objectStore('kv').delete(key);
+          tx.oncomplete = res; tx.onerror = e => rej(e.target.error);
+        });
+      },
+    };
+  })();
+
+  // ── Undo ───────────────────────────────────────────────────────────────
+  function _saveUndo() {
+    _undoStack.push(_datasets.map(d => ({...d, freqs:[...d.freqs], mags:[...d.mags]})));
+    if (_undoStack.length > 20) _undoStack.shift();
+    _syncUndoBtn();
+  }
+  function _syncUndoBtn() {
+    const b = $('undo-btn'); if (b) b.disabled = !_undoStack.length;
+  }
+
+  // ── Smoothing (binary-search, O(n log n)) ─────────────────────────────
+  function _smooth(freqs, mags, semitones) {
+    if (!semitones) return mags;
+    const ratio = Math.pow(2, semitones / 12);
+    const n = freqs.length;
+    const out = new Array(n);
+    for (let i = 0; i < n; i++) {
+      const fLo = freqs[i] / ratio, fHi = freqs[i] * ratio;
+      let lo = 0, hi = n;
+      while (lo < hi) { const m = (lo+hi)>>1; freqs[m] < fLo ? lo=m+1 : hi=m; }
+      const s = lo; lo = 0; hi = n;
+      while (lo < hi) { const m = (lo+hi)>>1; freqs[m] <= fHi ? lo=m+1 : hi=m; }
+      const e = lo;
+      let sum = 0; for (let j = s; j < e; j++) sum += mags[j];
+      out[i] = e > s ? sum / (e - s) : mags[i];
+    }
+    return out;
+  }
+
+  // ── Normalize (shift max to 0 dB) ─────────────────────────────────────
+  function _norm(mags) {
+    let maxV = -Infinity;
+    for (let i = 0; i < mags.length; i++) { if (isFinite(mags[i]) && mags[i] > maxV) maxV = mags[i]; }
+    if (!isFinite(maxV)) return mags;
+    return mags.map(v => v - maxV);
+  }
+
+  function _normByAvg(freqs, mags, fLo, fHi) {
+    let sum = 0, n = 0;
+    for (let i = 0; i < freqs.length; i++) {
+      if (freqs[i] >= fLo && freqs[i] <= fHi && isFinite(mags[i])) { sum += mags[i]; n++; }
+    }
+    if (!n) return mags;
+    const avg = sum / n;
+    return mags.map(v => v - avg);
+  }
+
+  function _applyNorm(freqs, mags) {
+    if (_S.normMode === 'normalize') return _norm(mags);
+    if (_S.normMode === 'avg_range') return _normByAvg(freqs, mags, _S.normFLo, _S.normFHi);
+    return mags;
+  }
+
+  // ── Band computation ───────────────────────────────────────────────────
+  function _computeBands(freqs, mags, bands) {
+    return bands.map(b => {
+      const pts = freqs.reduce((acc, f, i) => {
+        if (f >= b.f_lo && f <= b.f_hi && isFinite(mags[i])) acc.push([f, mags[i]]);
+        return acc;
+      }, []);
+      if (!pts.length) return {...b, avg_db: 0, centroid: (b.f_lo + b.f_hi) / 2};
+      const avg = pts.reduce((s, [,m]) => s + m, 0) / pts.length;
+      let wsum = 0, wtot = 0;
+      pts.forEach(([f, m]) => { const w = Math.pow(10, m / 20); wsum += f * w; wtot += w; });
+      return {...b, avg_db: avg, centroid: wtot > 0 ? wsum / wtot : (b.f_lo + b.f_hi) / 2};
+    });
+  }
+
+  // ── Band loading from ObieAppSettings/bands/ ─────────────────────────
+  function _edgesToBands(edges) {
+    const bands = [];
+    for (let i = 0; i < edges.length - 1; i++)
+      bands.push({ label: `${Math.round(edges[i])}–${Math.round(edges[i+1])}`,
+                   f_lo: edges[i], f_hi: edges[i+1] });
+    return bands;
+  }
+
+  async function _loadBandsFromFolder(dir) {
+    _dynamicBandPresets = {};
+    try {
+      for await (const [name, h] of dir.entries()) {
+        if (h.kind !== 'file') continue;
+        const lname = name.toLowerCase();
+        try {
+          if (lname.endsWith('.json')) {
+            // JSON format: { name, edges } or { name, bands:[{f_lo,f_hi,label}] }
+            const data = JSON.parse(await (await h.getFile()).text());
+            const label = (data.name || name.replace(/\.json$/i, '')).replace(/\s+/g, ' ').trim();
+            let bands = [];
+            if (Array.isArray(data.edges) && data.edges.length >= 2)
+              bands = _edgesToBands(data.edges.map(Number).filter(isFinite));
+            else if (Array.isArray(data.bands) && data.bands.length)
+              bands = data.bands;
+            if (bands.length) _dynamicBandPresets[label] = { label, bands };
+          } else if (lname.endsWith('.txt')) {
+            // Legacy LabVIEW format: tab-separated edge values on one line
+            const text = await (await h.getFile()).text();
+            const label = name
+              .replace(/_filter\.txt$/i, '')
+              .replace(/_filter$/i,      '')
+              .replace(/\.txt$/i,        '')
+              .replace(/\s+/g, ' ').trim();
+            const edges = text.trim().split(/\t/).map(s => parseFloat(s.trim())).filter(isFinite);
+            if (edges.length < 2) continue;
+            _dynamicBandPresets[label] = { label, bands: _edgesToBands(edges) };
+          }
+        } catch(_) {}
+      }
+    } catch(_) {}
+    _populateBandSel();
+  }
+
+  // Parse a LabVIEW XML list file (<Array><Cluster>…) into our list format.
+  // Returns {name, description, files, colors} or null if not a valid LV list.
+  function _parseLVList(text, listName) {
+    try {
+      const doc = new DOMParser().parseFromString(text.trim(), 'text/xml');
+      if (doc.querySelector('parsererror')) return null;
+      const root = doc.documentElement;
+      if (!root || root.tagName !== 'Array') return null;
+
+      const files = [], colors = {};
+      for (const cluster of root.children) {
+        if (cluster.tagName !== 'Cluster') continue;
+        const fields = {};
+        for (const el of cluster.children) {
+          const n = el.querySelector('Name')?.textContent?.trim();
+          const v = el.querySelector('Val')?.textContent?.trim();
+          if (n != null && v != null) fields[n] = v;
+        }
+        if (fields['Show?'] === '0') continue;
+        const fname = fields['Name'];
+        if (!fname) continue;
+        files.push(fname);
+        const colorInt = parseInt(fields['Color'] || '0', 10);
+        if (colorInt !== 0)
+          colors[fname] = '#' + (colorInt & 0xFFFFFF).toString(16).padStart(6, '0');
+      }
+      return files.length ? { name: listName, description: 'LabVIEW list', files, colors } : null;
+    } catch(_) { return null; }
+  }
+
+  async function _loadListsFromFolder(dir) {
+    _lists = [];
+    try {
+      for await (const [name, h] of dir.entries()) {
+        if (h.kind !== 'file') continue;
+        const lname = name.toLowerCase();
+        try {
+          if (lname.endsWith('.json')) {
+            const data = JSON.parse(await (await h.getFile()).text());
+            if (data.name && Array.isArray(data.files))
+              _lists.push({ ...data, _filename: name });
+          } else if (lname.endsWith('.txt')) {
+            const text = await (await h.getFile()).text();
+            if (!text.trim().startsWith('<Array>')) continue;
+            const listName = name
+              .replace(/_list\.txt$/i, '').replace(/\.txt$/i, '')
+              .replace(/\s+/g, ' ').trim();
+            const list = _parseLVList(text, listName);
+            if (list) _lists.push({ ...list, _filename: name });
+          }
+        } catch(_) {}
+      }
+      _lists.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    } catch(_) {}
+  }
+
+  function _shortBandLabel(full) {
+    const cut = full.indexOf('(');
+    const s = (cut > 0 ? full.slice(0, cut) : full).trim();
+    return s.length > 12 ? s.slice(0, 11) + '…' : s;
+  }
+
+  function _populateBandSel() {
+    const sel = $('band-sel'); if (!sel) return;
+    const cur = _S.bandPreset;
+
+    sel.innerHTML = '<option value="">No bands</option>';
+    Object.keys(_dynamicBandPresets).sort().forEach(k => {
+      const o = document.createElement('option');
+      const full = _dynamicBandPresets[k].label;
+      o.value = k;
+      o.dataset.full = full;
+      o.textContent = _shortBandLabel(full);
+      sel.appendChild(o);
+    });
+    const oCustom = document.createElement('option');
+    oCustom.value = 'custom'; oCustom.textContent = 'Custom…';
+    sel.appendChild(oCustom);
+
+    sel.value = (cur === 'custom' || _dynamicBandPresets[cur]) ? cur : '';
+    if (sel.value !== cur) _S.bandPreset = sel.value;
+
+    // Attach expand/collapse behaviour once per element
+    if (!sel.dataset.bandEventsAttached) {
+      sel.dataset.bandEventsAttached = '1';
+      const showFull  = () => Array.from(sel.options).forEach(o => {
+        if (o.dataset.full) o.textContent = o.dataset.full;
+      });
+      const showShort = () => Array.from(sel.options).forEach(o => {
+        if (o.dataset.full) o.textContent = _shortBandLabel(o.dataset.full);
+      });
+      sel.addEventListener('mousedown', showFull);
+      sel.addEventListener('keydown',   showFull);
+      sel.addEventListener('blur',      showShort);
+      sel.addEventListener('change',    showShort);
+    }
+  }
+
+  // ── Render main plot ──────────────────────────────────────────────────
+  function render() {
+    const plotTraces = [];
+    const bandShapes = [], bandTraces = [];
+
+    _datasets.filter(d => d.visible).forEach(d => {
+      let mags = _smooth(d.freqs, d.mags, _S.smoothing);
+      mags = _applyNorm(d.freqs, mags);
+      if (_S.yLog) mags = mags.map(m => isFinite(m) ? Math.pow(10, m / 20) : 0);
+      plotTraces.push({
+        x: d.freqs, y: mags, type:'scatter', mode:'lines',
+        name: d.name, line:{color:d.color, width:_S.lineWidth}, showlegend:false,
+        opacity: _frfOpacity,
+      });
+    });
+    if (!plotTraces.length)
+      plotTraces.push({x:[], y:[], type:'scatter', mode:'lines', showlegend:false});
+
+    // Bands — always computed in dB space; line position converted if in linear mode
+    const activeBands = _S.bandPreset === 'custom' && _customBands
+      ? _customBands
+      : (_S.bandPreset && _dynamicBandPresets[_S.bandPreset])
+        ? _dynamicBandPresets[_S.bandPreset].bands
+        : null;
+
+    const visDs = _datasets.filter(d => d.visible);
+    if (activeBands && visDs.length > 0) {
+      // Compute bands independently for every visible dataset
+      const allBandData = visDs.map(ds => {
+        let mags = _smooth(ds.freqs, ds.mags, _S.smoothing);
+        mags = _applyNorm(ds.freqs, mags);
+        return { name: ds.name, color: ds.color, bands: _computeBands(ds.freqs, mags, activeBands) };
+      });
+      window._exploreLastBandData = allBandData;
+
+      // Band shading — one rect per band, drawn once regardless of dataset count
+      if (_S.bandShading) {
+        allBandData[0].bands.forEach((b, i) => {
+          const c = BAND_COLORS[i % BAND_COLORS.length];
+          bandShapes.push({type:'rect', xref:'x', yref:'paper', x0:b.f_lo, x1:b.f_hi, y0:0, y1:1, fillcolor:c, opacity:0.1, line:{width:0}});
+        });
+      }
+
+      // Band average lines and centroids — one set per dataset, colored by dataset
+      allBandData.forEach(({name, color, bands}) => {
+        bands.forEach(b => {
+          const yVal = _S.yLog ? Math.pow(10, b.avg_db / 20) : b.avg_db;
+          bandTraces.push({x:[b.f_lo,b.f_hi], y:[yVal,yVal], type:'scatter', mode:'lines', line:{color, width:2.5}, showlegend:false, hovertemplate:`<b>${_esc(b.label)}</b> · ${_esc(name)}<br>Avg: ${b.avg_db.toFixed(1)} dB<extra></extra>`});
+          bandTraces.push({x:[b.centroid], y:[yVal], type:'scatter', mode:'markers', marker:{color, size:7, line:{color:'#fff',width:1.5}}, showlegend:false, hovertemplate:`<b>${_esc(b.label)}</b> · ${_esc(name)}<br>Centroid: ${b.centroid.toFixed(0)} Hz<extra></extra>`});
+        });
+      });
+
+      _renderBandTable(allBandData);
+    } else {
+      window._exploreLastBandData = null;
+      _renderBandTable(null);
+    }
+
+    // Y range — computed from FRF data only (visible X range), before coherence scaling
+    let yRange;
+    if (!_S.yLog) {
+      if (_S.yMin != null && _S.yMax != null) {
+        yRange = [_S.yMin, _S.yMax];
+      } else {
+        let maxY = -Infinity;
+        for (const t of plotTraces) {
+          for (let i = 0; i < t.y.length; i++) {
+            const v = t.y[i], x = t.x[i];
+            if (!isFinite(v)) continue;
+            if (_S.xMin != null && x < _S.xMin) continue;
+            if (_S.xMax != null && x > _S.xMax) continue;
+            if (v > maxY) maxY = v;
+          }
+        }
+        if (isFinite(maxY)) yRange = [maxY - _S.yDbRange, maxY + 2];
+      }
+    }
+    // _S.yLog (linear magnitude mode) → yRange undefined → Plotly autoscales
+
+    // Coherence traces — mapped into the bottom third of the FRF y-range so they
+    // act as a carpet at the base of the plot without competing with the FRF.
+    // customdata stores the true γ² (0–1) for the hover tooltip.
+    const cohTraces = [];
+    const anyCoh = _datasets.some(d => d.visible && d.cohs?.length);
+    const hasCoh = anyCoh && _S.showCoh;
+    if (hasCoh) {
+      // Derive a base scale: dB mode uses yRange; linear mode computes from FRF data
+      let baseScale = yRange;
+      if (!baseScale && _S.yLog) {
+        let minV = Infinity, maxV = -Infinity;
+        for (const t of plotTraces) {
+          for (const v of t.y) { if (isFinite(v) && v >= 0) { if (v < minV) minV = v; if (v > maxV) maxV = v; } }
+        }
+        if (isFinite(maxV)) baseScale = [Math.max(0, minV * 0.9), maxV * 1.05];
+      }
+      if (baseScale) {
+        const [lo, hi] = baseScale;
+        const cohCeil = lo + (hi - lo) / 3;   // top of coherence carpet = bottom third of plot
+        _datasets.filter(d => d.visible && d.cohs?.length).forEach(d => {
+          const scaled = d.cohs.map(c => lo + c * (cohCeil - lo));
+          cohTraces.push({
+            x: d.freqs, y: scaled, customdata: d.cohs, type: 'scatter', mode: 'lines',
+            line: { color: d.color, width: 1.5 },
+            showlegend: false, opacity: 0.4 * _frfOpacity,
+            hovertemplate: `<b>${_esc(d.name)}</b><br>%{x:.0f} Hz  γ²=%{customdata:.2f}<extra></extra>`,
+          });
+        });
+      }
+    }
+    // Enable/disable the coherence checkbox based on whether any dataset carries coherence
+    const cohChk = $('coh-chk');
+    if (cohChk) { cohChk.disabled = !anyCoh; cohChk.checked = _S.showCoh && anyCoh; }
+
+    const border = cssVar('--border'), text = cssVar('--text');
+    const xRange = (_S.xMin != null && _S.xMax != null)
+      ? (_S.xLog ? [Math.log10(Math.max(_S.xMin,1)), Math.log10(_S.xMax)] : [_S.xMin, _S.xMax])
+      : undefined;
+
+    const layout = {
+      paper_bgcolor:'#ffffff', plot_bgcolor:'#ffffff',
+      font:{color:text, family:'inherit', size:12},
+      margin:{l:65, r:16, t:12, b:50},
+      showlegend:false, autosize:true,
+      xaxis:{title:'Frequency (Hz)', type:_S.xLog?'log':'linear', range:xRange, gridcolor:border, zerolinecolor:border, linecolor:border},
+      yaxis:{title:_S.yLog?'Magnitude (linear)':'Magnitude (dB)', type:'linear', range:yRange, gridcolor:border, zerolinecolor:border, linecolor:border},
+      shapes: bandShapes,
+    };
+
+    Plotly.react('explore-plot', [...plotTraces, ...bandTraces, ...cohTraces], layout,
+      {responsive:true, displayModeBar:true, displaylogo:false, modeBarButtonsToRemove:['sendDataToCloud'],
+       toImageButtonOptions:{format:'png', scale:2, filename:'explore-frf'}});
+  }
+
+  // ── Band table ─────────────────────────────────────────────────────────
+  function _renderBandTable(allBandData) {
+    const el = $('band-table'); if (!el) return;
+    if (!allBandData?.length || !allBandData[0].bands?.length) {
+      el.innerHTML = '<span class="muted-txt">Select a band preset</span>'; return;
+    }
+    const nBands = allBandData[0].bands.length;
+    const truncName = n => n.length > 10 ? n.slice(0, 9) + '…' : n;
+    const dsHeaders = allBandData.map(ds =>
+      `<th colspan="2"><span class="band-dot" style="background:${ds.color}"></span>${_esc(truncName(ds.name))}</th>`
+    ).join('');
+    const subHeaders = allBandData.map(() => '<th>Avg dB</th><th>Centroid</th>').join('');
+    let html = `<table class="band-tbl"><thead>
+      <tr><th>Band</th>${dsHeaders}</tr>
+      <tr><th></th>${subHeaders}</tr>
+    </thead><tbody>`;
+    for (let i = 0; i < nBands; i++) {
+      const c = BAND_COLORS[i % BAND_COLORS.length];
+      const label = allBandData[0].bands[i].label;
+      const dsCells = allBandData.map(ds => {
+        const b = ds.bands[i];
+        return `<td>${b.avg_db.toFixed(1)}</td><td>${b.centroid.toFixed(0)}</td>`;
+      }).join('');
+      html += `<tr><td><span class="band-dot" style="background:${c}"></span>${_esc(label)}</td>${dsCells}</tr>`;
+    }
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  }
+
+  // ── Dataset list ───────────────────────────────────────────────────────
+  function _renderList() {
+    const box = $('dataset-list'); if (!box) return;
+    if (!_datasets.length) {
+      box.innerHTML = '<div class="ds-empty">Drop FRF files here or use Browse / Search</div>';
+      return;
+    }
+    box.innerHTML = _datasets.map(d =>
+      `<div class="ds-row${d.visible?'':' ds-hidden'}" data-id="${d.id}" title="${_esc(d.path || d.name)}">
+        <input type="checkbox" class="ds-vis" data-id="${d.id}"${d.visible?' checked':''}>
+        <span class="ds-swatch" data-id="${d.id}" style="background:${d.color}" title="Change color"></span>
+        <span class="ds-label">${_esc(d.name)}</span>
+        <button class="ds-play-btn" data-id="${d.id}" title="Convolve and play">▶</button>
+      </div>`
+    ).join('');
+
+    box.querySelectorAll('.ds-vis').forEach(cb => cb.addEventListener('change', e => {
+      const d = _datasets.find(x => x.id === +e.target.dataset.id);
+      if (d) { d.visible = e.target.checked; _renderList(); render(); }
+    }));
+    box.querySelectorAll('.ds-swatch').forEach(sw => sw.addEventListener('click', e => {
+      const d = _datasets.find(x => x.id === +e.target.dataset.id); if (!d) return;
+      const inp = document.createElement('input'); inp.type='color'; inp.value=d.color;
+      inp.addEventListener('input', ev => { d.color=ev.target.value; _renderList(); render(); });
+      inp.click();
+    }));
+    box.querySelectorAll('.ds-play-btn').forEach(btn => btn.addEventListener('click', e => {
+      _playDataset(+e.target.dataset.id);
+    }));
+
+    // Hover: thicken the corresponding Plotly trace and show path tooltip
+    box.querySelectorAll('.ds-row').forEach(row => {
+      const id = +row.dataset.id;
+      row.addEventListener('mouseenter', () => {
+        const vis = _datasets.filter(d => d.visible);
+        const idx = vis.findIndex(d => d.id === id);
+        if (idx >= 0) Plotly.restyle('explore-plot', {'line.width': _S.lineWidth * 3}, [idx]);
+      });
+      row.addEventListener('mouseleave', () => {
+        const vis = _datasets.filter(d => d.visible);
+        const idx = vis.findIndex(d => d.id === id);
+        if (idx >= 0) Plotly.restyle('explore-plot', {'line.width': _S.lineWidth}, [idx]);
+      });
+    });
+  }
+
+  // ── Play dataset ───────────────────────────────────────────────────────
+  function _playDataset(id) {
+    const d = _datasets.find(x => x.id === id); if (!d) return;
+    if (!window.pyExploreConvolve) { alert('Python not ready — wait a moment.'); return; }
+    const st = $('explore-status');
+    if (st) st.textContent = `Convolving ${d.name}…`;
+    window.pyExploreConvolve(new Float64Array(d.freqs), new Float64Array(d.mags));
+  }
+
+  window.onExploreConvolveResult = function(samplesArr, sr) {
+    const samples = new Float32Array(samplesArr);
+    const ctx = new AudioContext();
+    const buf = ctx.createBuffer(1, samples.length, +sr);
+    buf.copyToChannel(samples, 0);
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.connect(ctx.destination); src.start();
+    src.onended = () => ctx.close();
+    const st = $('explore-status');
+    if (st) { st.textContent = 'Playing…'; src.onended = () => { ctx.close(); st.textContent=''; }; }
+  };
+  window.onExploreConvolveError = function(msg) {
+    const st = $('explore-status');
+    if (st) { st.textContent = 'Error: ' + msg; setTimeout(() => st.textContent='', 5000); }
+  };
+
+  // ── Dataset ops ────────────────────────────────────────────────────────
+  window.expSeeAll   = () => { _saveUndo(); _datasets.forEach(d=>d.visible=true);  _renderList(); render(); };
+  window.expSeeNone  = () => { _saveUndo(); _datasets.forEach(d=>d.visible=false); _renderList(); render(); };
+  window.expReduce   = () => { _saveUndo(); _datasets=_datasets.filter(d=>d.visible); _renderList(); render(); };
+  window.expClearAll = () => { _saveUndo(); _datasets=[]; _renderList(); render(); };
+  window.expUndo     = () => {
+    if (!_undoStack.length) return;
+    _datasets = _undoStack.pop(); _syncUndoBtn(); _renderList(); render();
+  };
+
+  // ── Preferences modal ─────────────────────────────────────────────────
+  const _PREF_DEFAULTS = {
+    defaultWavUrl: '../../sample-data/1-Tchaikovsky-short.wav',
+    outputDeviceId: '',
+    yDbRange: 38, xMin: 200, xMax: 7000, lineWidth: 1.0,
+  };
+
+  function _loadPrefs() {
+    try { return { ..._PREF_DEFAULTS, ...JSON.parse(localStorage.getItem('obieExplore_prefs') || '{}') }; }
+    catch(_) { return { ..._PREF_DEFAULTS }; }
+  }
+
+  function _applyPrefsToForm(p) {
+    const storedName = localStorage.getItem('obieExplore_wavName');
+    const set = (id, val) => { const el = $('pref-' + id); if (el && val != null) el.value = val; };
+    set('wav-url',   storedName || p.defaultWavUrl || _PREF_DEFAULTS.defaultWavUrl);
+    set('yrange',    p.yDbRange  ?? _PREF_DEFAULTS.yDbRange);
+    set('xmin',      p.xMin      ?? _PREF_DEFAULTS.xMin);
+    set('xmax',      p.xMax      ?? _PREF_DEFAULTS.xMax);
+    set('linewidth', p.lineWidth ?? _PREF_DEFAULTS.lineWidth);
+    const sel = $('pref-device');
+    if (sel && p.outputDeviceId) sel.value = p.outputDeviceId;
+  }
+
+  async function _enumeratePrefsOutputs() {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const sel = $('pref-device'); if (!sel) return;
+      const saved = _loadPrefs().outputDeviceId;
+      sel.innerHTML = '<option value="">Default output</option>';
+      devices.filter(d => d.kind === 'audiooutput' && d.deviceId !== 'default').forEach(d => {
+        const o = document.createElement('option');
+        o.value = d.deviceId;
+        o.textContent = d.label || `Speaker (${d.deviceId.slice(0,8)}…)`;
+        if (d.deviceId === saved) o.selected = true;
+        sel.appendChild(o);
+      });
+    } catch(_) {}
+  }
+
+  window.expPreferences = function() {
+    _applyPrefsToForm(_loadPrefs());
+    _enumeratePrefsOutputs();
+    $('prefs-modal')?.classList.add('open');
+  };
+  window.expClosePrefs = () => $('prefs-modal')?.classList.remove('open');
+
+  async function _saveExploreJson() {
+    if (!_exploreSettingsHandle) return;
+    try {
+      const data = { lineWidth: _S.lineWidth, yDbRange: _S.yDbRange, xMin: _S.xMin, xMax: _S.xMax };
+      const fh = await _exploreSettingsHandle.getFileHandle('explore.json', { create: true });
+      const w  = await fh.createWritable();
+      await w.write(JSON.stringify(data, null, 2));
+      await w.close();
+    } catch (_) {}
+  }
+
+  window.expSavePrefs = function() {
+    const g = id => $('pref-' + id)?.value ?? '';
+    const p = {
+      defaultWavUrl:  g('wav-url').trim() || _PREF_DEFAULTS.defaultWavUrl,
+      outputDeviceId: g('device'),
+      yDbRange:   parseFloat(g('yrange'))    || _PREF_DEFAULTS.yDbRange,
+      xMin:       parseFloat(g('xmin'))      || _PREF_DEFAULTS.xMin,
+      xMax:       parseFloat(g('xmax'))      || _PREF_DEFAULTS.xMax,
+      lineWidth:  parseFloat(g('linewidth')) || _PREF_DEFAULTS.lineWidth,
+    };
+    localStorage.setItem('obieExplore_prefs', JSON.stringify(p));
+    localStorage.setItem('obieExplore_defaultWavUrl', p.defaultWavUrl);
+    _S.yDbRange = p.yDbRange; _S.xMin = p.xMin; _S.xMax = p.xMax; _S.lineWidth = p.lineWidth;
+    _syncControls(); render();
+    _saveExploreJson();   // also persist to ObieAppSettings/explore.json
+    expClosePrefs();
+  };
+
+  window.expResetPrefs = function() {
+    localStorage.removeItem('obieExplore_prefs');
+    localStorage.removeItem('obieExplore_defaultWavUrl');
+    localStorage.removeItem('obieExplore_wavName');
+    _IDB.del('wavData').catch(() => {});
+    _applyPrefsToForm(_PREF_DEFAULTS);
+    _S.yDbRange = _PREF_DEFAULTS.yDbRange; _S.xMin = _PREF_DEFAULTS.xMin;
+    _S.xMax = _PREF_DEFAULTS.xMax; _S.lineWidth = _PREF_DEFAULTS.lineWidth;
+    _syncControls(); render();
+    const st = $('prefs-save-msg');
+    if (st) { st.textContent = '✓ Reset to defaults'; setTimeout(() => st.textContent = '', 2500); }
+  };
+
+  window.expBrowseWav = function() {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = '.wav,audio/wav';
+    input.onchange = async () => {
+      const file = input.files[0]; if (!file) return;
+      const ab = await file.arrayBuffer();
+      await _IDB.put('wavData', ab);
+      localStorage.setItem('obieExplore_wavName', file.name);
+      localStorage.removeItem('obieExplore_defaultWavUrl');
+      const el = $('pref-wav-url'); if (el) el.value = file.name;
+      const st = $('prefs-save-msg');
+      if (st) { st.textContent = '✓ WAV stored locally'; setTimeout(() => st.textContent = '', 2500); }
+    };
+    input.click();
+  };
+
+
+  // ── Toolbar: misc buttons ─────────────────────────────────────────────
+  window.expHelp = () => window.open('../../Docs/index.html', '_blank');
+  window.expTips = () => window.open('../../Docs/shortcuts.html', '_blank');
+
+  // ── Data Folder helpers ───────────────────────────────────────────────
+  const _SCAN_EXTS = new Set(['.trf','.trv','.avc','.avr','.csv','.mat']);
+
+  const _NON_INSTRUMENT_DIRS = new Set(['ObieAppSettings', 'Test_Samples']);
+  async function _countTopDirs(dh) {
+    let n = 0;
+    for await (const [name, h] of dh.entries()) {
+      if (h.kind === 'directory' && !_NON_INSTRUMENT_DIRS.has(name)) n++;
+    }
+    return n;
+  }
+
+  async function _scanDir(dh, relPath) {
+    const out = [];
+    for await (const [name, h] of dh.entries()) {
+      if (h.kind === 'file') {
+        const ext = name.substring(name.lastIndexOf('.')).toLowerCase();
+        if (_SCAN_EXTS.has(ext))
+          out.push({ name, ext, path: relPath ? relPath + '/' + name : name, handle: h });
+      } else if (h.kind === 'directory') {
+        if (name === 'ObieAppSettings') continue;
+        const sub = await _scanDir(h, relPath ? relPath + '/' + name : name);
+        for (const f of sub) out.push(f);
+      }
+    }
+    return out;
+  }
+
+  async function _applyFolder(dir) {
+    const st = $('explore-status');
+    if (st) st.textContent = 'Scanning folder…';
+    _dataDir = dir;
+
+    // Load settings first — openObieAppSettings seeds Test_Samples on new folders,
+    // so the scan must happen after to include those files.
+    try {
+      let templatesHandle;
+      let _expFolderIsNew, _expSeedsFailed;
+      ({ settingsHandle: _exploreSettingsHandle, bandsHandle: _bandsHandle, templatesHandle,
+         listsHandle: _listsHandle, colorsHandle: _colorsHandle,
+         isNew: _expFolderIsNew, seedsFailed: _expSeedsFailed }
+        = await openObieAppSettings(dir));
+      if (_expFolderIsNew) {
+        const seedNote = _expSeedsFailed
+          ? '\n\nNote: some default templates and band presets could not be downloaded — check your internet connection and try reselecting the folder.'
+          : '';
+        alert('This is a new Data Folder and I moved over the default settings folder.' + seedNote);
+      }
+
+      // Load explore prefs from explore.json
+      try {
+        const file  = await (await _exploreSettingsHandle.getFileHandle('explore.json')).getFile();
+        const prefs = JSON.parse(await file.text());
+        if (prefs.lineWidth != null) _S.lineWidth = prefs.lineWidth;
+        if (prefs.yDbRange  != null) _S.yDbRange  = prefs.yDbRange;
+        if (prefs.xMin      != null) _S.xMin      = prefs.xMin;
+        if (prefs.xMax      != null) _S.xMax      = prefs.xMax;
+        _syncControls();
+        render();
+      } catch (_) {}
+
+      // Load bands from ObieAppSettings/bands/
+      if (_bandsHandle) await _loadBandsFromFolder(_bandsHandle);
+
+      // Load lists from ObieAppSettings/lists/
+      if (_listsHandle) await _loadListsFromFolder(_listsHandle);
+
+      // Load custom palettes from ObieAppSettings/colors/
+      if (_colorsHandle) await _loadCustomPalettesFromFolder(_colorsHandle);
+
+      // Load templates from ObieAppSettings/Templates/
+      try {
+        for await (const [name, h] of templatesHandle.entries()) {
+          if (h.kind !== 'file' || !name.toLowerCase().endsWith('.json')) continue;
+          try {
+            const tpl = JSON.parse(await (await h.getFile()).text());
+            _templates.push(...(Array.isArray(tpl) ? tpl : [tpl]));
+          } catch (_) {}
+        }
+        const menu = $('new-test-menu');
+        if (menu) menu.innerHTML = _templates.map((t, i) =>
+          `<button class="menu-item" onclick="expPickTemplate(${i})">${_esc(t.name)}</button>`
+        ).join('');
+      } catch (_) {}
+    } catch (_) {}
+
+    // Scan after seeding so newly created folders (Test_Samples, etc.) are included
+    _dirFiles = await _scanDir(dir, '');
+
+    const nDirs = await _countTopDirs(dir);
+    const btn = $('data-folder-btn');
+    if (btn) btn.textContent = '📁 ' + dir.name;
+    const ind = $('folder-name-ind');
+    if (ind) ind.textContent = dir.name + (nDirs > 0 ? '  (' + nDirs + ' instruments)' : '');
+    if (st) { st.textContent = `Folder: ${dir.name} — ${_dirFiles.length} files`; setTimeout(() => st.textContent = '', 4000); }
+    $('folder-overlay')?.classList.add('hidden');
+  }
+
+  // ── Data Folder ───────────────────────────────────────────────────────
+  window.expSetDataFolder = async function() {
+    if (!window.showDirectoryPicker) {
+      alert('Directory picker not supported in this browser.\nUse Browse to open individual files.');
+      return;
+    }
+    try {
+      // Always show picker — Chrome defaults to the last-used location naturally.
+      // (requestPermission() before showDirectoryPicker() consumes the user gesture
+      //  and causes the picker to silently fail, so we skip that step here.)
+      const dir = await window.showDirectoryPicker({ mode: 'read' });
+      // Clear saved path when switching to a different folder
+      if (localStorage.getItem('obieExplore_folderName') !== dir.name)
+        localStorage.removeItem('obieExplore_folderPath');
+      await _applyFolder(dir);
+      localStorage.setItem('obieExplore_folderName', dir.name);
+      saveDataFolderHandle(dir).catch(() => {});  // sync to shared cross-tool IDB
+    } catch(e) { if (e.name !== 'AbortError') console.warn('expSetDataFolder:', e); }
+  };
+
+  // ── Search modal ──────────────────────────────────────────────────────
+  window.expSearch = function() {
+    if (!_dataDir) {
+      alert('Set a Data Folder first (use the 📁 Data Folder button).');
+      return;
+    }
+    $('search-modal')?.classList.add('open');
+    _runSearch();
+  };
+  window.expCloseSearch = () => $('search-modal')?.classList.remove('open');
+
+  function _runSearch() {
+    const pattern = ($('search-pattern')?.value || '').trim();
+    const kw1 = ($('search-kw1')?.value || '').trim().toLowerCase();
+    const kw2 = ($('search-kw2')?.value || '').trim().toLowerCase();
+    const kw3 = ($('search-kw3')?.value || '').trim().toLowerCase();
+
+    const ftAll = $('ft-all')?.checked;
+    const ftAvR = $('ft-avr')?.checked;
+    const ftAvC = $('ft-avc')?.checked;
+    const ftTrf = $('ft-trf')?.checked;
+
+    const patterns = pattern ? pattern.split(',').map(p => p.trim()).filter(Boolean) : [];
+    const keywords = [kw1, kw2, kw3].filter(Boolean);
+
+    _searchResults = _dirFiles.filter(f => {
+      const n = f.name.toLowerCase();
+
+      // File type filter
+      if (!ftAll) {
+        const ok = (ftAvR && f.ext === '.avr') ||
+                   (ftAvC && f.ext === '.avc') ||
+                   (ftTrf && (f.ext === '.trf' || f.ext === '.trv'));
+        if (!ok) return false;
+      }
+
+      // Pattern: filename must contain at least one (case-insensitive)
+      if (patterns.length && !patterns.some(p => n.includes(p.toLowerCase()))) return false;
+
+      // Keywords: OR — at least one must match (if any specified)
+      if (keywords.length && !keywords.some(k => n.includes(k))) return false;
+
+      return true;
+    });
+
+    const countEl = $('search-count');
+    if (countEl) countEl.textContent = _searchResults.length;
+
+    const list = $('search-results-list');
+    if (!list) return;
+    _lastSearchClickIdx = -1;
+    if (!_searchResults.length) {
+      list.innerHTML = '<div class="sr-empty">No matching files</div>';
+      return;
+    }
+    list.innerHTML = _searchResults.map((f, i) =>
+      `<div class="sr-item" data-idx="${i}">${_esc(f.name)}</div>`
+    ).join('');
+  }
+
+  window.expSelectAllSearch  = function() {
+    document.querySelectorAll('#search-results-list .sr-item').forEach(el => el.classList.add('selected'));
+  };
+  window.expSelectNoneSearch = function() {
+    document.querySelectorAll('#search-results-list .sr-item').forEach(el => el.classList.remove('selected'));
+  };
+
+  window.expLoadSelected = async function() {
+    const selected = [...document.querySelectorAll('#search-results-list .sr-item.selected')];
+    if (!selected.length) { alert('No files selected.'); return; }
+    if (!window.pyExploreLoadFile) { alert('Python not ready — try again.'); return; }
+    $('search-modal')?.classList.remove('open');
+    for (const el of selected) {
+      const f = _searchResults[+el.dataset.idx]; if (!f) continue;
+      try {
+        const file = await f.handle.getFile();
+        _pendingPaths[f.name] = f.path;  // store path so obieExploreAddDataset can attach it
+        window.pyExploreLoadFile(f.name, new Uint8Array(await file.arrayBuffer()));
+      } catch(e) { console.warn('load error', f.name, e); }
+    }
+  };
+
+  function _wireSearchFilters() {
+    ['search-pattern','search-kw1','search-kw2','search-kw3'].forEach(id => {
+      const el = $(id); if (el) el.addEventListener('input', _runSearch);
+    });
+    ['ft-avr','ft-avc','ft-trf','ft-all'].forEach(id => {
+      const el = $(id); if (!el) return;
+      el.addEventListener('change', e => {
+        if (id === 'ft-all' && e.target.checked)
+          ['ft-avr','ft-avc','ft-trf'].forEach(o => { const x=$(o); if(x) x.checked=false; });
+        else if (id !== 'ft-all' && e.target.checked) {
+          const a=$('ft-all'); if(a) a.checked=false;
+        }
+        _runSearch();
+      });
+    });
+
+    // Search list click — toggle on plain click, range-select on shift-click
+    const list = $('search-results-list');
+    if (list) {
+      list.addEventListener('click', e => {
+        const item = e.target.closest('.sr-item');
+        if (!item) return;
+        const idx = +item.dataset.idx;
+        if (e.shiftKey && _lastSearchClickIdx >= 0) {
+          const lo = Math.min(_lastSearchClickIdx, idx);
+          const hi = Math.max(_lastSearchClickIdx, idx);
+          list.querySelectorAll('.sr-item').forEach(el => {
+            if (+el.dataset.idx >= lo && +el.dataset.idx <= hi)
+              el.classList.add('selected');
+          });
+        } else {
+          item.classList.toggle('selected');
+          _lastSearchClickIdx = idx;
+        }
+      });
+    }
+  }
+
+  // ── File ops ──────────────────────────────────────────────────────────
+
+  window.expBrowse = function() {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.multiple = true; inp.accept = '.trf,.trv,.avc,.avr,.csv,.mat';
+    inp.addEventListener('change', async () => {
+      if (!window.pyExploreLoadFile) { alert('Python not ready — try again.'); return; }
+      for (const f of inp.files)
+        window.pyExploreLoadFile(f.name, new Uint8Array(await f.arrayBuffer()));
+    });
+    inp.click();
+  };
+
+  window.expLists = function() {
+    const modal = $('lists-modal'); if (!modal) return;
+    const box = modal.querySelector('.lists-content');
+    if (box) {
+      box.innerHTML = _lists.length
+        ? _lists.map((l, i) =>
+            `<div class="list-item">
+              <div class="list-item-header">
+                <div>
+                  <div class="list-name">${_esc(l.name)}</div>
+                  ${l.description ? `<div class="list-desc">${_esc(l.description)}</div>` : ''}
+                </div>
+                <button class="act-btn" onclick="expLoadList(${i})">Load</button>
+              </div>
+              <ul class="list-files">${(l.files||[]).map(f=>`<li>${_esc(f)}</li>`).join('')}</ul>
+            </div>`
+          ).join('')
+        : '<p class="muted-txt">No lists found in ObieAppSettings/lists/.</p>';
+    }
+    modal.classList.add('open');
+  };
+  window.expCloseLists = () => $('lists-modal')?.classList.remove('open');
+
+  window.expLoadList = async function(idx) {
+    const list = _lists[idx]; if (!list) return;
+    if (!window.pyExploreLoadFile) { alert('Python not ready.'); return; }
+    $('lists-modal')?.classList.remove('open');
+    let loaded = 0;
+    const notFound = [];
+    for (const filePath of (list.files || [])) {
+      const fname = filePath.split('/').pop().split('\\').pop();
+      if (_datasets.some(d => d.name === fname)) continue;
+      const f = _dirFiles.find(x => x.path === filePath) || _dirFiles.find(x => x.name === fname);
+      if (f) {
+        try {
+          const file = await f.handle.getFile();
+          _pendingPaths[f.name] = f.path;
+          if (list.colors?.[filePath] || list.colors?.[fname])
+            _pendingColors[f.name] = list.colors[filePath] || list.colors[fname];
+          window.pyExploreLoadFile(f.name, new Uint8Array(await file.arrayBuffer()));
+          loaded++;
+        } catch(e) { notFound.push(filePath); }
+      } else {
+        notFound.push(filePath);
+      }
+    }
+    const st = $('explore-status');
+    if (notFound.length && st) {
+      st.textContent = `${loaded} loaded, ${notFound.length} not found`;
+      setTimeout(() => st.textContent = '', 5000);
+    }
+  };
+
+  window.expSaveCurrentList = async function() {
+    if (!_listsHandle) {
+      alert('Set a Data Folder first — lists are saved in ObieAppSettings/lists/.');
+      return;
+    }
+    if (!_datasets.length) {
+      alert('No datasets loaded to save as a list.');
+      return;
+    }
+    const name = prompt('List name:', 'My List');
+    if (!name?.trim()) return;
+    const description = (prompt('Short description (optional):') ?? '').trim();
+    const files = _datasets.map(d => d.path || d.name);
+    const data = { name: name.trim(), description, files };
+    const filename = name.trim().replace(/[/\\?%*:|"<>]/g, '-') + '.json';
+    try {
+      const fh = await _listsHandle.getFileHandle(filename, { create: true });
+      const w  = await fh.createWritable();
+      await w.write(JSON.stringify(data, null, 2));
+      await w.close();
+      await _loadListsFromFolder(_listsHandle);
+      expLists();   // re-render modal in place
+      const st = $('explore-status');
+      if (st) { st.textContent = `✓ Saved list "${name.trim()}"`; setTimeout(() => st.textContent = '', 3000); }
+    } catch(e) {
+      alert('Could not save list: ' + e.message);
+    }
+  };
+
+  window.expShare = function() {
+    const vis = _datasets.filter(d => d.visible);
+    if (!vis.length) { alert('No visible datasets to export.'); return; }
+    const allFreqs = [...new Set(vis.flatMap(d => d.freqs))].sort((a,b)=>a-b);
+    const header = ['Frequency_Hz', ...vis.map(d => d.name.replace(/[,\n"]/g,'_'))].join(',');
+    const rows = allFreqs.map(f => {
+      const vals = vis.map(d => {
+        const idx = d.freqs.indexOf(f);
+        return idx >= 0 ? d.mags[idx].toFixed(4) : '';
+      });
+      return [f, ...vals].join(',');
+    });
+    const csv = [header, ...rows].join('\n');
+    const url = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+    const a = document.createElement('a');
+    a.href = url; a.download = 'explore_export_' + new Date().toISOString().slice(0,10) + '.csv';
+    a.click(); URL.revokeObjectURL(url);
+  };
+
+  // ── Custom palette persistence ────────────────────────────────────────
+  // localStorage fallback (used when no data folder is set)
+  function _lsLoadPalettes() {
+    try { return JSON.parse(localStorage.getItem('obieExplore_customPalettes') || '[]'); }
+    catch(_) { return []; }
+  }
+  function _lsSavePalettes(list) {
+    try { localStorage.setItem('obieExplore_customPalettes', JSON.stringify(list)); } catch(_) {}
+  }
+
+  // Normalize a color entry: plain "#hex" string OR {hex:"#..."} object → "#hex"
+  function _normalizeColor(c) {
+    if (typeof c === 'string') return c;
+    if (c && typeof c === 'object') return c.hex || c.color || c.value || null;
+    if (typeof c === 'number') return '#' + (c & 0xFFFFFF).toString(16).padStart(6, '0');
+    return null;
+  }
+
+  async function _loadCustomPalettesFromFolder(dir) {
+    _customPalettesList = [];
+    try {
+      for await (const [name, h] of dir.entries()) {
+        if (h.kind !== 'file') continue;
+        const lname = name.toLowerCase();
+        try {
+          if (lname.endsWith('.json')) {
+            const data = JSON.parse(await (await h.getFile()).text());
+            const colors = (data.colors || []).map(_normalizeColor).filter(Boolean);
+            if (data.name && colors.length)
+              _customPalettesList.push({ name: data.name, colors, _filename: name });
+          } else if (lname.endsWith('.txt')) {
+            // Legacy LabVIEW binary color format: 4 bytes per color, 0x00RRGGBB big-endian
+            const ab = await (await h.getFile()).arrayBuffer();
+            if (ab.byteLength < 4 || ab.byteLength % 4 !== 0) continue;
+            const view = new DataView(ab);
+            const colors = [];
+            for (let i = 0; i < ab.byteLength; i += 4)
+              colors.push('#' + (view.getUint32(i, false) & 0xFFFFFF).toString(16).padStart(6, '0'));
+            if (colors.length < 2) continue;
+            const paletteName = name
+              .replace(/_colors\.txt$/i, '')
+              .replace(/\s+colors\.txt$/i, '')
+              .replace(/\.txt$/i, '')
+              .replace(/\s+/g, ' ').trim();
+            _customPalettesList.push({ name: paletteName, colors, _filename: name });
+          }
+        } catch(_) {}
+      }
+      _customPalettesList.sort((a, b) => a.name.localeCompare(b.name));
+    } catch(_) {}
+  }
+
+  let _cpColors = [...PALETTES.default];   // current builder state
+
+  function _renderCustomPaletteBuilder() {
+    const row = $('custom-palette-swatches'); if (!row) return;
+    row.innerHTML = _cpColors.map((c, i) =>
+      `<input type="color" class="cp-color-inp" value="${c}" data-idx="${i}">`
+    ).join('');
+    row.querySelectorAll('.cp-color-inp').forEach(inp =>
+      inp.addEventListener('input', e => { _cpColors[+e.target.dataset.idx] = e.target.value; })
+    );
+  }
+
+  function _renderColorModal() {
+    const box = $('custom-palettes-list'); if (!box) return;
+    const list = _colorsHandle ? _customPalettesList : _lsLoadPalettes();
+    if (!list.length) {
+      box.innerHTML = `<p class="muted-txt" style="font-size:10px;margin:0">${_colorsHandle ? 'No custom palettes in ObieAppSettings/colors/ yet.' : 'No saved custom palettes yet.'}</p>`;
+      return;
+    }
+    box.innerHTML = `<div class="palette-grid">${
+      list.map((p, i) =>
+        `<div style="position:relative">
+          <button class="palette-btn" onclick="expPickCustomPalette(${i})" style="width:100%;text-align:left">
+            <div class="palette-name">${_esc(p.name)}</div>
+            <div class="palette-swatches">${p.colors.map(c=>`<div class="palette-sw" style="background:${_esc(c)}"></div>`).join('')}</div>
+          </button>
+          <button class="cp-del-btn" onclick="expDeleteCustomPalette(${i})" title="Delete"
+                  style="position:absolute;top:3px;right:3px;padding:0 5px;line-height:16px;font-size:10px">✕</button>
+        </div>`
+      ).join('')
+    }</div>`;
+  }
+
+  window.expColors = function() {
+    _cpColors = [..._palette];    // seed builder with current palette
+    _renderColorModal();
+    _renderCustomPaletteBuilder();
+    $('colors-modal')?.classList.add('open');
+  };
+  window.expCloseColors = () => $('colors-modal')?.classList.remove('open');
+
+  window.expPickPalette = function(name) {
+    _palette = PALETTES[name] || PALETTES.default;
+    _datasets.forEach((d,i) => d.color = _palette[i % _palette.length]);
+    _renderList(); render();
+    $('colors-modal')?.classList.remove('open');
+  };
+
+  window.expPickCustomPalette = function(idx) {
+    const list = _colorsHandle ? _customPalettesList : _lsLoadPalettes();
+    const p = list[idx]; if (!p) return;
+    _palette = [...p.colors];
+    _datasets.forEach((d,i) => d.color = _palette[i % _palette.length]);
+    _renderList(); render();
+    $('colors-modal')?.classList.remove('open');
+  };
+
+  window.expDeleteCustomPalette = async function(idx) {
+    if (_colorsHandle) {
+      const entry = _customPalettesList[idx]; if (!entry) return;
+      try { await _colorsHandle.removeEntry(entry._filename); } catch(_) {}
+      await _loadCustomPalettesFromFolder(_colorsHandle);
+    } else {
+      const list = _lsLoadPalettes();
+      list.splice(idx, 1);
+      _lsSavePalettes(list);
+    }
+    _renderColorModal();
+  };
+
+  window.expCustomPaletteAdd = function() {
+    if (_cpColors.length >= 12) return;
+    _cpColors.push('#888888');
+    _renderCustomPaletteBuilder();
+  };
+  window.expCustomPaletteRemove = function() {
+    if (_cpColors.length <= 2) return;
+    _cpColors.pop();
+    _renderCustomPaletteBuilder();
+  };
+
+  window.expApplyCustomPalette = function() {
+    _palette = [..._cpColors];
+    _datasets.forEach((d,i) => d.color = _palette[i % _palette.length]);
+    _renderList(); render();
+    $('colors-modal')?.classList.remove('open');
+  };
+
+  window.expSaveCustomPalette = async function() {
+    const name = ($('custom-palette-name')?.value || '').trim();
+    if (!name) { alert('Enter a name for this palette first.'); return; }
+    const entry = { name, colors: [..._cpColors] };
+    if (_colorsHandle) {
+      const filename = name.replace(/[/\\?%*:|"<>]/g, '-') + '.json';
+      try {
+        const fh = await _colorsHandle.getFileHandle(filename, { create: true });
+        const w  = await fh.createWritable();
+        await w.write(JSON.stringify(entry, null, 2));
+        await w.close();
+        await _loadCustomPalettesFromFolder(_colorsHandle);
+      } catch(e) { alert('Could not save palette: ' + e.message); return; }
+    } else {
+      const list = _lsLoadPalettes();
+      list.push(entry);
+      _lsSavePalettes(list);
+    }
+    _palette = [..._cpColors];
+    _datasets.forEach((d,i) => d.color = _palette[i % _palette.length]);
+    _renderList(); render();
+    _renderColorModal();
+    const inp = $('custom-palette-name'); if (inp) inp.value = '';
+  };
+
+  // ── Plot controls ─────────────────────────────────────────────────────
+  window.expToggleYLog = function() { _S.yLog = !_S.yLog; _syncAxisBtns(); render(); };
+  window.expRescaleY   = function() { _S.yMin = null; _S.yMax = null; render(); };
+  window.expSetYDbRange = function(v) { _S.yDbRange = parseFloat(v) || 38; render(); };
+  window.expSetXRange  = function() {
+    const mn = parseFloat($('x-min-inp')?.value), mx = parseFloat($('x-max-inp')?.value);
+    if (isFinite(mn)) _S.xMin = mn; if (isFinite(mx)) _S.xMax = mx;
+    render();
+  };
+  window.expToggleXLog = function() { _S.xLog = !_S.xLog; _syncAxisBtns(); render(); };
+  window.expSetSmoothing = function(v) { _S.smoothing = parseFloat(v) || 0; render(); };
+  window.expSetNormalize = function(v) {
+    _S.normMode = v;   // 'as_measured' | 'normalize' | 'avg_range'
+    _S.normalize = v === 'normalize';  // keep legacy field in sync
+    const wrap = $('norm-range-wrap');
+    if (wrap) wrap.style.display = v === 'avg_range' ? 'flex' : 'none';
+    render();
+  };
+  window.expSetNormRange = function() {
+    const lo = parseFloat($('norm-f-lo')?.value), hi = parseFloat($('norm-f-hi')?.value);
+    if (isFinite(lo) && isFinite(hi) && lo >= hi) {
+      alert('Normalization range: lower frequency must be less than upper frequency.');
+      return;
+    }
+    if (isFinite(lo)) _S.normFLo = lo;
+    if (isFinite(hi)) _S.normFHi = hi;
+    render();
+  };
+  window.expToggleBandShading = function(v) { _S.bandShading = !!v; render(); };
+  window.expToggleCoherence  = function(v) { _S.showCoh = !!v; render(); };
+  window.expSetBandPreset = function(v) {
+    if (v === 'custom') { expCustomBands(); return; }
+    _S.bandPreset = v; render();
+  };
+  window.expCustomBands = async function() {
+    const input = prompt(
+      'Enter custom band boundaries (Hz), comma-separated.\nExample: 200,500,1000,2000,4000,7000'
+    );
+    if (!input) return;
+    const edges = input.split(',').map(s => parseFloat(s.trim())).filter(isFinite);
+    if (edges.length < 2) { alert('Need at least 2 boundary values.'); return; }
+    const sorted = [...edges].sort((a, b) => a - b);
+    const wasUnsorted = edges.some((v, i) => v !== sorted[i]);
+    if (wasUnsorted) alert('Band boundaries were not in order — they have been sorted automatically.');
+    edges.length = 0; sorted.forEach(v => edges.push(v));
+    // Check for duplicate values after sorting (would produce zero-width bands)
+    const hasDupes = sorted.some((v, i) => i > 0 && v === sorted[i - 1]);
+    if (hasDupes) { alert('Band boundaries contain duplicate values. Please enter unique frequencies.'); return; }
+    _customBands = _edgesToBands(edges);
+    _S.bandPreset = 'custom';
+    const sel = $('band-sel');
+    if (sel) {
+      let o = sel.querySelector('option[value="custom"]');
+      if (!o) { o = document.createElement('option'); o.value = 'custom'; sel.appendChild(o); }
+      o.textContent = 'Custom'; sel.value = 'custom';
+    }
+    render();
+
+    // Offer to save as a preset to ObieAppSettings/bands/
+    if (_bandsHandle) {
+      const saveName = prompt('Save as a band preset? Enter a name (or Cancel to skip):', '');
+      if (saveName?.trim()) {
+        const name = saveName.trim();
+        const filename = name.replace(/[/\\?%*:|"<>]/g, '-') + '.json';
+        try {
+          const fh = await _bandsHandle.getFileHandle(filename, { create: true });
+          const w  = await fh.createWritable();
+          await w.write(JSON.stringify({ name, edges }, null, 2));
+          await w.close();
+          await _loadBandsFromFolder(_bandsHandle);
+          const st = $('explore-status');
+          if (st) { st.textContent = `✓ Saved band preset "${name}"`; setTimeout(() => st.textContent = '', 3000); }
+        } catch(e) { alert('Could not save band preset: ' + e.message); }
+      }
+    }
+  };
+  window.expExportBands = function() {
+    const all = window._exploreLastBandData;
+    if (!all?.length) { alert('Select a band preset first.'); return; }
+    const dsCols = all.map(ds => `${ds.name}_avg_dB,${ds.name}_centroid_Hz`).join(',');
+    const rows = [`Band,f_lo_Hz,f_hi_Hz,${dsCols}`];
+    all[0].bands.forEach((b, i) => {
+      const vals = all.map(ds => `${ds.bands[i].avg_db.toFixed(3)},${ds.bands[i].centroid.toFixed(1)}`).join(',');
+      rows.push(`${b.label},${b.f_lo},${b.f_hi},${vals}`);
+    });
+    const url = URL.createObjectURL(new Blob([rows.join('\n')], {type:'text/csv'}));
+    const a = document.createElement('a'); a.href=url; a.download='band_data.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ── Interpret modal ───────────────────────────────────────────────────
+  function _renderInterpretDict() {
+    const dict = INTERPRET_DICTS[_interpretDictKey];
+    if (!dict) return;
+    const tbody = $('interpret-ranges-body');
+    if (tbody) tbody.innerHTML = dict.table.map(r =>
+      `<tr><td>${r.mode}</td><td>${r.range}</td><td>${r.avg}</td></tr>`
+    ).join('');
+    const noteEl = $('interpret-dict-note');
+    if (noteEl) noteEl.textContent = dict.note;
+  }
+
+  window.expInterpretSetDict = function(key) {
+    _interpretDictKey = key;
+    _renderInterpretDict();
+    window.expInterpret();   // re-draw plot with new regions
+  };
+
+  window.expInterpret = function() {
+    const modal = $('interpret-modal'); if (!modal) return;
+    modal.classList.add('open');
+    _renderInterpretDict();
+    _renderNoteButtons();
+    const dict = INTERPRET_DICTS[_interpretDictKey];
+    const vis = _datasets.filter(d => d.visible);
+    const traces = vis.map(d => {
+      let mags = _smooth(d.freqs, d.mags, _S.smoothing);
+      mags = _applyNorm(d.freqs, mags);
+      return {x:d.freqs, y:mags, type:'scatter', mode:'lines', name:d.name, line:{color:d.color, width:1.5}, showlegend:true};
+    });
+    if (!traces.length) traces.push({x:[],y:[],type:'scatter',mode:'lines',showlegend:false});
+
+    const shapes = dict.regions.map(r => ({
+      type:'rect', xref:'x', yref:'paper', x0:r.f_lo, x1:r.f_hi, y0:0, y1:1,
+      fillcolor:r.color, opacity:0.1, line:{width:0},
+    }));
+    const annotations = dict.regions.map(r => ({
+      x: Math.sqrt(r.f_lo * r.f_hi), xref:'x', y:1.05, yref:'paper',
+      text: r.label, showarrow:false, font:{color:r.color, size:11}, xanchor:'center',
+    }));
+    dict.rangebars.forEach((r, i) => {
+      shapes.push({type:'line', xref:'x', yref:'paper', x0:r.lo, x1:r.hi, y0:0.97-i*0.015, y1:0.97-i*0.015, line:{color:'#888',width:3}});
+    });
+
+    // Harmonic lines for selected note
+    if (_harmonicNote) {
+      const noteInfo = HARMONIC_NOTES.find(n => n.name === _harmonicNote);
+      if (noteInfo) {
+        const f0 = noteInfo.freq;
+        for (let n = 1; n * f0 <= 10500; n++) {
+          const hf = n * f0;
+          if (hf < 190) continue;
+          shapes.push({type:'line', xref:'x', yref:'paper', x0:hf, x1:hf, y0:0, y1:1,
+                       line:{color:'#1565c0', width:1, dash:'dot'}});
+          annotations.push({
+            x:hf, xref:'x', y:1.02, yref:'paper',
+            text: String(n), showarrow:false,
+            font:{size:8, color:'#1565c0'}, xanchor:'center',
+          });
+        }
+      }
+    }
+
+    Plotly.react('interpret-plot', traces, {
+      paper_bgcolor:'white', plot_bgcolor:'white',
+      font:{color:'#333', family:'inherit', size:12},
+      margin:{l:65, r:16, t:50, b:80},
+      showlegend: traces.length > 1,
+      legend:{x:1, xanchor:'right', y:1, font:{size:10}},
+      xaxis:{title:'Frequency (Hz)', type:'log', range:[Math.log10(200), Math.log10(10000)], gridcolor:'#ddd', zerolinecolor:'#ddd'},
+      yaxis:{title:'Intensity (dB)', gridcolor:'#ddd', zerolinecolor:'#ddd'},
+      shapes, annotations,
+    }, {responsive:true, displayModeBar:false});
+  };
+
+  function _renderNoteButtons() {
+    const container = $('note-picker');
+    if (!container) return;
+    // Chromatic order for display
+    const ordered = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+    container.innerHTML = ordered.map(name => {
+      const info = HARMONIC_NOTES.find(n => n.name === name);
+      const freq = info ? Math.round(info.freq) : '';
+      const active = _harmonicNote === name ? 'background:#1565c0;color:#fff;' : 'background:#f0f4ff;color:#1565c0;';
+      return `<button onclick="expSetHarmonicNote('${name}')"
+        style="border:1px solid #1565c0;border-radius:4px;padding:3px 5px;cursor:pointer;font-size:11px;line-height:1.3;min-width:36px;${active}">
+        <div style="font-weight:600">${name}</div>
+        <div style="font-size:8px;opacity:0.85">${freq}</div>
+      </button>`;
+    }).join('');
+  }
+
+  window.expSetHarmonicNote = function(name) {
+    _harmonicNote = (_harmonicNote === name) ? null : name;  // toggle off if clicked again
+    window.expInterpret();
+  };
+  window.expCloseInterpret = () => $('interpret-modal')?.classList.remove('open');
+
+  // ── Sync controls ─────────────────────────────────────────────────────
+  function _syncControls() {
+    const xMin = $('x-min-inp'), xMax = $('x-max-inp');
+    if (xMin) xMin.value = _S.xMin; if (xMax) xMax.value = _S.xMax;
+    const yRange = $('y-db-range'); if (yRange) yRange.value = _S.yDbRange;
+    const sm = $('smooth-sel'); if (sm) sm.value = String(_S.smoothing);
+    const nm = $('norm-sel');
+    if (nm) nm.value = _S.normMode || (_S.normalize ? 'normalize' : 'as_measured');
+    const wrap = $('norm-range-wrap');
+    if (wrap) wrap.style.display = _S.normMode === 'avg_range' ? 'flex' : 'none';
+    const loEl = $('norm-f-lo'), hiEl = $('norm-f-hi');
+    if (loEl) loEl.value = _S.normFLo; if (hiEl) hiEl.value = _S.normFHi;
+    const shadeChk = $('band-shade-chk'); if (shadeChk) shadeChk.checked = _S.bandShading;
+    _syncAxisBtns();
+  }
+  function _syncAxisBtns() {
+    const yl = $('y-log-btn');
+    if (yl) { yl.textContent = _S.yLog ? 'Y=lin' : 'Y=dB'; yl.classList.toggle('active', _S.yLog); }
+    const xl = $('x-log-btn');
+    if (xl) { xl.textContent = _S.xLog ? 'X=log' : 'X=lin'; xl.classList.toggle('active', _S.xLog); }
+  }
+
+  // ── Hover readout ─────────────────────────────────────────────────────
+  const _NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+  function _freqToNote(hz) {
+    if (!isFinite(hz) || hz <= 0) return null;
+    const midi  = Math.round(12 * Math.log2(hz / 440) + 69);
+    const name  = _NOTE_NAMES[((midi % 12) + 12) % 12];
+    const refHz = Math.round(440 * Math.pow(2, (midi - 69) / 12));
+    return { name, refHz };
+  }
+
+  function _setupHover() {
+    const el = $('explore-plot'); if (!el) return;
+    el.on('plotly_hover', data => {
+      if (!data.points?.length) return;
+      const pt = data.points[0]; if (!isFinite(pt.y)) return;
+      const ro = $('hover-readout'); if (!ro) return;
+      const hz = Number(pt.x);
+      const noteInfo = _freqToNote(hz);
+      const notePart = noteInfo ? `  (${noteInfo.name} = ${noteInfo.refHz} Hz)` : '';
+      // Coherence traces carry customdata (true γ²); FRF traces do not
+      if (pt.data.customdata != null) {
+        const coh = Array.isArray(pt.data.customdata) ? pt.data.customdata[pt.pointIndex] : pt.customdata;
+        ro.textContent = `γ² = ${(+coh).toFixed(2)},  Freq = ${hz.toFixed(0)} Hz${notePart}`;
+      } else {
+        ro.textContent = `Amp = ${pt.y.toFixed(1)} dB,  Freq = ${hz.toFixed(0)} Hz${notePart}`;
+      }
+    });
+    el.on('plotly_unhover', () => { const ro=$('hover-readout'); if(ro) ro.textContent=''; });
+  }
+
+  // ── Drag-and-drop onto plot ───────────────────────────────────────────
+  function _setupDropZone() {
+    const area = $('explore-drop-area'); if (!area) return;
+    ['dragenter','dragover'].forEach(ev => area.addEventListener(ev, e => {
+      e.preventDefault(); area.classList.add('dragging');
+    }));
+    ['dragleave','drop'].forEach(ev => area.addEventListener(ev, e => {
+      e.preventDefault(); area.classList.remove('dragging');
+    }));
+    area.addEventListener('drop', async e => {
+      if (!window.pyExploreLoadFile) { alert('Python not ready.'); return; }
+      for (const f of (e.dataTransfer?.files||[]))
+        window.pyExploreLoadFile(f.name, new Uint8Array(await f.arrayBuffer()));
+    });
+  }
+
+  // ── Resizable sidebar splitter ────────────────────────────────────────
+  function _setupResizer() {
+    const resizer = $('ex-resizer');
+    const sidebar = document.querySelector('.ex-sidebar');
+    if (!resizer || !sidebar) return;
+
+    // Restore saved width
+    const saved = parseInt(localStorage.getItem('obieExplore_sidebarW'));
+    if (saved >= 80) sidebar.style.width = saved + 'px';
+
+    resizer.addEventListener('mousedown', e => {
+      const startX = e.clientX;
+      const startW = sidebar.offsetWidth;
+      resizer.classList.add('dragging');
+      document.body.classList.add('resizing');
+
+      function onMove(e) {
+        const w = Math.max(80, Math.min(500, startW + e.clientX - startX));
+        sidebar.style.width = w + 'px';
+        Plotly.Plots.resize('explore-plot');
+      }
+      function onUp() {
+        resizer.classList.remove('dragging');
+        document.body.classList.remove('resizing');
+        localStorage.setItem('obieExplore_sidebarW', sidebar.offsetWidth);
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      }
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    });
+  }
+
+  // ── Python-side callbacks ─────────────────────────────────────────────
+  window.obieExploreAddDataset = function(name, freqsJs, magsJs, cohsJs) {
+    const n = String(name).split('/').pop().split('\\').pop();
+    if (_datasets.some(d => d.name === n)) {
+      const st = $('explore-status');
+      if (st) { st.textContent = `Already loaded: ${n}`; setTimeout(()=>st.textContent='', 3000); }
+      return;
+    }
+    _saveUndo();
+    const id = _nextId++;
+    const color = _pendingColors[n] || _palette[_datasets.length % _palette.length];
+    delete _pendingColors[n];
+    const path  = _pendingPaths[n] || n;
+    delete _pendingPaths[n];
+    const cohs = cohsJs ? Array.from(cohsJs) : null;
+    _datasets.push({id, name:n, path, color, visible:true, freqs:Array.from(freqsJs), mags:Array.from(magsJs), cohs});
+    _renderList(); render();
+    const st = $('explore-status');
+    if (st) { st.textContent = `✓ ${n}`; setTimeout(()=>st.textContent='', 3000); }
+  };
+
+  window.obieExploreError = function(name, msg) {
+    const n = String(name).split('/').pop().split('\\').pop();
+    if (msg.includes('not a supported file type')) {
+      alert(`${n}\n\n${msg}`);
+      return;
+    }
+    const st = $('explore-status');
+    if (st) { st.textContent = `Error: ${msg}`; st.style.color='var(--red,#c00)'; setTimeout(()=>{st.textContent=''; st.style.color='';}, 5000); }
+    console.error(`[Explore] ${name}: ${msg}`);
+  };
+
+  window.obieExploreWavReady = function(info) {
+    const el = $('wav-info'); if (el) el.textContent = '✓ WAV: ' + info;
+  };
+  window.obieExploreWavError = function(msg) {
+    const el = $('wav-info'); if (el) el.textContent = 'WAV error: ' + msg;
+  };
+
+  window.obieExploreReady = function() {
+    $('loading')?.classList.add('gone');
+    // Load default WAV — try IDB-stored file first, then fall back to URL
+    (async () => {
+      try {
+        const wavData = await _IDB.get('wavData');
+        if (wavData) {
+          const name = localStorage.getItem('obieExplore_wavName') || 'snippet.wav';
+          if (window.pyExploreSetWav) window.pyExploreSetWav(new Uint8Array(wavData), name);
+          return;
+        }
+      } catch(_) {}
+      const url = localStorage.getItem('obieExplore_defaultWavUrl')
+        || '../../sample-data/1-Tchaikovsky-short.wav';
+      fetch(url)
+        .then(r => r.ok ? r.arrayBuffer() : Promise.reject(r.status))
+        .then(ab => window.pyExploreSetWav && window.pyExploreSetWav(new Uint8Array(ab), url.split('/').pop()))
+        .catch(e => console.warn('Default WAV fetch failed:', e));
+    })();
+
+    // Restore saved settings — prefs first (baseline), then session state on top
+    try {
+      const prefs = JSON.parse(localStorage.getItem('obieExplore_prefs') || '{}');
+      if (prefs.lineWidth != null) _S.lineWidth = prefs.lineWidth;
+      if (prefs.yDbRange  != null) _S.yDbRange  = prefs.yDbRange;
+      if (prefs.xMin      != null) _S.xMin      = prefs.xMin;
+      if (prefs.xMax      != null) _S.xMax      = prefs.xMax;
+    } catch(_) {}
+    try {
+      const saved = JSON.parse(localStorage.getItem('obieExplore_plotState') || '{}');
+      Object.assign(_S, saved);
+    } catch(_) {}
+    _syncControls();
+    _populateBandSel();  // build dropdown from _dynamicBandPresets (empty until folder loaded)
+    render();
+    _setupHover();
+    _setupDropZone();
+    _syncUndoBtn();
+    _renderList();
+    window.addEventListener('resize', () => Plotly.Plots.resize('explore-plot'));
+
+    // Restore last data folder — prefer the shared handle (written by home page / other tools)
+    const savedName  = localStorage.getItem('obieExplore_folderName');
+    const sharedName = localStorage.getItem('obieDataFolderName');
+    const nameToShow = sharedName || savedName;
+    const _pathInd    = $('folder-name-ind');
+    const _overlaySub = $('folder-overlay-sub');
+    if (nameToShow) {
+      if (_pathInd)    _pathInd.textContent    = nameToShow + '  (click 📁 to reconnect)';
+      if (_overlaySub) _overlaySub.textContent = `"${nameToShow}" needs permission — click to reconnect`;
+      loadDataFolderHandle().then(async h => {
+        if (!h) return;
+        const perm = await h.queryPermission({ mode: 'read' }).catch(() => 'denied');
+        if (perm !== 'granted') return;
+        await _applyFolder(h);
+        localStorage.setItem('obieExplore_folderName', h.name);
+      }).catch(() => {});
+    }
+  };
+
+  // Save plot state on page hide
+  window.addEventListener('pagehide', () => {
+    try { localStorage.setItem('obieExplore_plotState', JSON.stringify(_S)); } catch(_) {}
+  });
+
+  // Live-apply preferences saved from the preferences tab (storage event fires in other tabs)
+  window.addEventListener('storage', e => {
+    if (e.key !== 'obieExplore_prefs') return;
+    try {
+      const prefs = JSON.parse(e.newValue || '{}');
+      if (prefs.lineWidth != null) _S.lineWidth = prefs.lineWidth;
+      if (prefs.yDbRange  != null) _S.yDbRange  = prefs.yDbRange;
+      if (prefs.xMin      != null) _S.xMin      = prefs.xMin;
+      if (prefs.xMax      != null) _S.xMax      = prefs.xMax;
+      if (_exploreSettingsHandle) {
+        (async () => {
+          try {
+            const fh = await _exploreSettingsHandle.getFileHandle('explore.json', { create: true });
+            const w  = await fh.createWritable();
+            await w.write(JSON.stringify(prefs, null, 2));
+            await w.close();
+          } catch (_) {}
+        })();
+      }
+    } catch(_) {}
+    _syncControls();
+    render();
+  });
+
+
+  // ── Boot ──────────────────────────────────────────────────────────────
+  document.addEventListener('keydown', e => {
+    if (document.activeElement?.tagName === 'INPUT'  ||
+        document.activeElement?.tagName === 'SELECT' ||
+        document.activeElement?.tagName === 'TEXTAREA') return;
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      _S.lineWidth = Math.min(3, +(_S.lineWidth + 0.25).toFixed(2));
+      render();
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      _S.lineWidth = Math.max(0.5, +(_S.lineWidth - 0.25).toFixed(2));
+      render();
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      _frfOpacity = Math.min(1.0, +(_frfOpacity + 0.05).toFixed(2));
+      render();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      _frfOpacity = Math.max(0.05, +(_frfOpacity - 0.05).toFixed(2));
+      render();
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', () => {
+    Plotly.newPlot('explore-plot', [], {
+      paper_bgcolor:'transparent', plot_bgcolor:'transparent',
+      margin:{l:65, r:16, t:12, b:50}, autosize:true,
+      xaxis:{title:'Frequency (Hz)', type:'log', range:[Math.log10(200),Math.log10(7000)]},
+      yaxis:{title:'Magnitude (dB)'},
+    }, {responsive:true, displayModeBar:true, displaylogo:false, modeBarButtonsToRemove:['sendDataToCloud']});
+    _syncUndoBtn();
+    _renderList();
+    _syncAxisBtns();
+    _wireSearchFilters();
+    _setupResizer();
+  });
+
+})();

@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="./coi-serviceworker.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ObieWebApp — Violin Acoustics Toolkit</title>
+  <link rel="stylesheet" href="./css/theme.css">
+  <link rel="stylesheet" href="./css/index.css">
+  <script src="./version.js"></script>
+  <script src="./versions/versions.js" onerror="window.OBIE_VERSIONS=[]"></script>
+  <script src="./js/obie-settings.js"></script>
+  <script src="./js/browser-check.js"></script>
+</head>
+<body>
+
+<header class="obie-header">
+  <a class="brand" href="./index.html">
+    <div class="logo-icon">🎻</div>
+    <h1>ObieWebApp</h1>
+  </a>
+  <span class="crumb">· Oberlin Acoustics Workshop</span>
+  <div class="gap"></div>
+  <div id="version-wrap" style="display:none;align-items:center;gap:5px">
+    <span style="font-size:0.72rem;color:var(--muted)">Version:</span>
+    <select id="version-sel" onchange="goToVersion(this.value)"
+            style="font-size:0.72rem;padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:var(--bg-deep);color:var(--fg);cursor:pointer">
+      <option value="">Latest</option>
+    </select>
+  </div>
+  <a class="btn" href="./Docs/shortcuts.html" style="font-size:0.75rem;padding:3px 9px" target="_blank">Tips</a>
+</header>
+
+<main class="landing">
+
+  <section class="intro">
+    <h2>Tools for analyzing the vibrational characteristics of violins</h2>
+    <p>
+      This is a modular browser-based toolkit for measuring Violin response. 
+     Everything runs locally in your browser — no
+      uploads, no server.  You need to use Chrome or Edge to access the folder picker and local file saving features.
+    </p>
+  </section>
+
+  <!-- ── Data Folder selector ─────────────────────────────────────────── -->
+  <div class="folder-bar" id="folder-bar">
+    <div class="folder-bar-left">
+      <span class="folder-bar-label">📁 Data Folder</span>
+      <span class="folder-bar-name" id="folder-bar-name">No folder selected</span>
+    </div>
+    <button class="folder-bar-btn" id="folder-bar-btn" onclick="pickDataFolder()">Select…</button>
+    <button class="folder-bar-btn" onclick="openCreateFolder()">+ Create new…</button>
+  </div>
+
+  <hr class="divider">
+
+  <p class="section-label">🔍 Tools
+    <span id="py-preload-bar" class="py-preload-bar"></span>
+  </p>
+  <div class="tool-grid">
+
+    <a class="tool-card" href="./tools/explore/">
+      <div class="head">
+        <div class="icon">🔍</div>
+        <span class="name">Explore</span>
+      </div>
+      <p class="desc">
+        Load, compare, and interpret multiple FRF files. Overlaid plots with smoothing, normalization,
+        band averaging, FRF interpretation, and per-dataset convolution playback.
+      </p>
+      <span class="tag app">Tool · PyScript</span>
+    </a>
+
+    <a class="tool-card" href="./tools/convolve/">
+      <div class="head">
+        <div class="icon">🔀</div>
+        <span class="name">Convolve</span>
+      </div>
+      <p class="desc">
+        Load an FRF CSV or TRF and convolve it with any WAV file. Full complex
+        frequency-domain convolution with min-phase or zero-phase
+        reconstruction. Play and save the result.
+      </p>
+      <span class="tag app">Tool · PyScript</span>
+    </a>
+
+    <a class="tool-card" href="./tools/acquire/">
+      <div class="head">
+        <div class="icon">🎯</div>
+        <span class="name">Acquire</span>
+      </div>
+      <p class="desc">
+        Impact-hammer FRF acquisition with auto-accept, calibration factors,
+        overlaid multi-position plots, template support, and session notes.
+        Settings and templates saved to your Data Folder.
+      </p>
+      <span class="tag app">Tool · PyScript</span>
+    </a>
+
+  </div>
+
+  <p class="section-label">📚 References</p>
+  <div class="tool-grid">
+
+    <a class="tool-card" href="./Docs/">
+      <div class="head">
+        <div class="icon">📖</div>
+        <span class="name">Documentation</span>
+      </div>
+      <p class="desc">
+        How to use Explore, Convolve, and Acquire. Quick-start guide,
+        controls reference, and links to the full technical PDF.
+      </p>
+      <span class="tag">Guide</span>
+    </a>
+
+    <a class="tool-card" href="https://github.com/chrisbuerginrogers/ObieApp/tree/main/Python" target="_blank" rel="noopener">
+      <div class="head">
+        <div class="icon">💻</div>
+        <span class="name">Source Code</span>
+      </div>
+      <p class="desc">
+        Browse the full source code on GitHub.
+      </p>
+      <span class="tag">GitHub</span>
+    </a>
+
+  </div>
+
+  <hr class="divider">
+
+  <p class="section-label">🧪 Experimental</p>
+  <div class="tool-grid">
+
+    <a class="tool-card experimental" href="./tools/matlab/">
+      <div class="head">
+        <div class="icon">📊</div>
+        <span class="name">Export to MATLAB</span>
+      </div>
+      <p class="desc">
+        Browse your Data Folder, select FRF / AvC / AvR files, and download
+        a <code>.mat</code> file ready to open in MATLAB. Complex FRF data is
+        preserved for AvC files.
+      </p>
+      <span class="tag experimental-tag">Experimental</span>
+    </a>
+
+    <a class="tool-card experimental" href="./tools/wavview/">
+      <div class="head">
+        <div class="icon">🔊</div>
+        <span class="name">WAV Viewer</span>
+      </div>
+      <p class="desc">
+        Browse your Data Folder for <code>.wav</code> files. View hammer and
+        microphone time-domain signals, trigger markers, and the computed FRF
+        for any recorded capture.
+      </p>
+      <span class="tag experimental-tag">Experimental</span>
+    </a>
+
+    <a class="tool-card experimental" href="./Docs/experimental.html" target="_blank" rel="noopener">
+      <div class="head">
+        <div class="icon">📋</div>
+        <span class="name">Experimental Docs</span>
+      </div>
+      <p class="desc">
+        Documentation for experimental tools: Export to MATLAB and WAV Viewer.
+      </p>
+      <span class="tag experimental-tag">Experimental</span>
+    </a>
+
+    <a class="tool-card experimental" href="./tools/setup/">
+      <div class="head">
+        <div class="icon">💻</div>
+        <span class="name">Standalone Setup</span>
+      </div>
+      <p class="desc">
+        Three options: web UI via local server with browser caching (once online,
+        then offline forever); fully air-gapped web UI via a one-time asset
+        download script; or native desktop Python tools with no browser at all.
+      </p>
+      <span class="tag experimental-tag">Experimental</span>
+    </a>
+
+    <a class="tool-card experimental" href="./Docs/make-your-own.html" target="_blank" rel="noopener">
+      <div class="head">
+        <div class="icon">🔧</div>
+        <span class="name">Make Your Own Tool</span>
+      </div>
+      <p class="desc">
+        Build a custom ObieApp tool using Claude Code. A starter prompt gives
+        Claude the project rules, Python modules, and conventions needed to
+        write a complete new tool.
+      </p>
+      <span class="tag experimental-tag">Experimental</span>
+    </a>
+
+  </div>
+
+  <div class="ps-ver-row">
+    <span class="ps-ver-label">PyScript version:</span>
+    <select id="ps-ver-sel">
+      <option value="2026.3.1">2026.3.1 — recommended</option>
+      <option value="2024.11.1">2024.11.1 — Chrome 116 compatible</option>
+    </select>
+  </div>
+
+  <!-- ── Create new Data Folder modal ─────────────────────────────────── -->
+  <div class="idx-modal-overlay" id="create-folder-modal">
+    <div class="idx-modal-box">
+      <div class="idx-modal-header">
+        <span class="idx-modal-title">Create a new Data Folder</span>
+        <button class="idx-modal-close" onclick="closeCreateFolder()">✕</button>
+      </div>
+      <div class="idx-modal-body">
+        <p class="idx-modal-hint" id="create-folder-hint">A folder picker will open. To create a new folder inside it:</p>
+        <ol class="idx-modal-steps" id="create-folder-steps"></ol>
+        <p class="idx-modal-hint idx-modal-warn" id="create-folder-warn" style="display:none"></p>
+        <div id="create-folder-err" class="idx-modal-err"></div>
+      </div>
+      <div class="idx-modal-footer">
+        <button class="idx-act-btn" onclick="closeCreateFolder()">Cancel</button>
+        <button class="idx-act-btn accent" onclick="doCreateFolder()">Open Folder Picker…</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="obie-footer">
+    Oberlin Acoustics Workshop &nbsp;·&nbsp; ObieWebApp <span id="footer-version"></span> &nbsp;·&nbsp;
+    Built by <a href="https://claude.ai/code" target="_blank" rel="noopener">Claude</a>
+    with <a href="https://pyscript.net/" target="_blank" rel="noopener">PyScript</a>
+    &nbsp;+&nbsp; <a href="https://plotly.com/javascript/" target="_blank" rel="noopener">Plotly</a>
+  </footer>
+
+</main>
+
+<script type="module">
+const _psVer = localStorage.getItem('obiePyScriptVersion') || '2026.3.1';
+let donkey;
+try { ({ donkey } = await import('https://pyscript.net/releases/' + _psVer + '/core.js')); } catch(_) {}
+
+async function preloadPyodide() {
+  if (!donkey) return;  // older version — skip preload
+  const bar = document.getElementById('py-preload-bar');
+  if (!bar) return;
+  try {
+    bar.textContent = '⏳ pre-loading Python…';
+    const py = await donkey({
+      type: 'py',
+      persistent: false,
+      config: { packages: ['numpy', 'scipy'] }
+    });
+    await py.execute('import numpy, scipy');
+    await py.kill();
+    bar.className = 'py-preload-bar ready';
+    bar.textContent = '✓ Python ready';
+    setTimeout(() => { bar.style.opacity = '0'; }, 3000);
+  } catch (_) {
+    if (bar) bar.textContent = '';
+  }
+}
+
+preloadPyodide();
+</script>
+<script>
+  const _vEl = document.getElementById('footer-version');
+  if (_vEl && typeof OBIE_VERSION !== 'undefined') _vEl.textContent = 'v' + OBIE_VERSION;
+
+  // ── Version picker ────────────────────────────────────────────────────
+  // Detect whether we're currently inside an archived version folder
+  var _vParts = window.location.pathname.split('/').filter(Boolean);
+  var _vIdx   = _vParts.indexOf('versions');
+  var _currentArchivedVersion = (_vIdx >= 0 && _vParts[_vIdx + 1] && /^\d+\.\d+\.\d+$/.test(_vParts[_vIdx + 1]))
+                                ? _vParts[_vIdx + 1] : null;
+
+  window.goToVersion = function(v) {
+    if (!v) {
+      // "Latest" selected — navigate up if we're inside a versioned folder
+      if (_currentArchivedVersion) window.location.href = '../../';
+      return;
+    }
+    if (_currentArchivedVersion) {
+      window.location.href = '../' + v + '/';   // sibling version
+    } else {
+      window.location.href = './versions/' + v + '/';  // from main page
+    }
+  };
+
+  (async function() {
+    const wrap = document.getElementById('version-wrap');
+    const sel  = document.getElementById('version-sel');
+    if (!wrap || !sel) return;
+
+    let versions = [];
+
+    // On GitHub Pages: read the actual versions/ directory via the GitHub API
+    const host = window.location.hostname;
+    if (host.endsWith('.github.io')) {
+      try {
+        const owner = host.replace('.github.io', '');
+        const repo  = window.location.pathname.split('/').filter(Boolean)[0] || '';
+        const res   = await fetch(
+          'https://api.github.com/repos/' + owner + '/' + repo + '/contents/Web/versions',
+          { headers: { Accept: 'application/vnd.github+json' } }
+        );
+        if (res.ok) {
+          const items = await res.json();
+          versions = items
+            .filter(function(i) { return i.type === 'dir' && /^\d+\.\d+\.\d+$/.test(i.name); })
+            .map(function(i) { return i.name; })
+            .sort(function(a, b) {
+              const pa = a.split('.').map(Number), pb = b.split('.').map(Number);
+              for (let i = 0; i < 3; i++) if (pa[i] !== pb[i]) return pb[i] - pa[i];
+              return 0;
+            });
+        }
+      } catch (_) { /* fall through to manifest */ }
+    }
+
+    // Localhost / custom domain fallback: use the versions.js manifest
+    if (versions.length === 0) {
+      versions = window.OBIE_VERSIONS || [];
+    }
+
+    // When on an archived page, always ensure that version appears as an option
+    // (the manifest / API may be unavailable inside the snapshot folder)
+    if (_currentArchivedVersion && !versions.includes(_currentArchivedVersion)) {
+      versions.unshift(_currentArchivedVersion);
+    }
+
+    versions.forEach(function(v) {
+      const opt = document.createElement('option');
+      opt.value = v;
+      opt.textContent = 'v' + v;
+      sel.appendChild(opt);
+    });
+
+    // Show the current version as selected (when browsing an archived snapshot)
+    if (_currentArchivedVersion) sel.value = _currentArchivedVersion;
+
+    wrap.style.display = 'flex';
+  })();
+
+  (function() {
+    var sel = document.getElementById('ps-ver-sel');
+    if (!sel) return;
+    sel.value = localStorage.getItem('obiePyScriptVersion') || '2026.3.1';
+    sel.addEventListener('change', function() {
+      localStorage.setItem('obiePyScriptVersion', this.value);
+    });
+  })();
+</script>
+<script>
+(function () {
+  const bar     = document.getElementById('folder-bar');
+  const nameEl  = document.getElementById('folder-bar-name');
+  const btn     = document.getElementById('folder-bar-btn');
+
+  const saved = localStorage.getItem('obieDataFolderName');
+  if (saved) {
+    nameEl.textContent = saved;
+    bar.classList.add('needs-reconnect');
+    btn.textContent = 'Reconnect…';
+
+    // Confirm permission asynchronously — upgrade to green if already granted
+    loadDataFolderHandle().then(async handle => {
+      if (!handle) return;
+      const perm = await handle.queryPermission({ mode: 'readwrite' }).catch(() => 'prompt');
+      if (perm === 'granted') {
+        bar.classList.remove('needs-reconnect');
+        bar.classList.add('has-folder');
+        btn.textContent = 'Change…';
+      }
+    }).catch(() => {});
+  }
+
+  window.openCreateFolder = function() {
+    document.getElementById('create-folder-err').textContent = '';
+
+    const isMac = /Mac OS X/.test(navigator.userAgent);
+    const steps = document.getElementById('create-folder-steps');
+    const warn  = document.getElementById('create-folder-warn');
+
+    if (isMac) {
+      steps.innerHTML = [
+        'Navigate to where you want the folder (e.g. inside Documents)',
+        'Click the <strong>New Folder</strong> button in the picker',
+        'Name it (e.g. <strong>ObieData</strong>)',
+        'Select it and click <strong>Open</strong>',
+      ].map(s => `<li>${s}</li>`).join('');
+      warn.textContent = '⚠ Chrome on Mac cannot access the Desktop, Documents root, or Downloads directly — navigate into a subfolder first.';
+      warn.style.display = '';
+    } else {
+      steps.innerHTML = [
+        'Navigate to where you want the folder',
+        'Right-click in an empty area and choose <strong>New → Folder</strong>',
+        'Name it (e.g. <strong>ObieData</strong>) and press Enter',
+        'Select it and click <strong>Select Folder</strong>',
+      ].map(s => `<li>${s}</li>`).join('');
+      warn.style.display = 'none';
+    }
+
+    document.getElementById('create-folder-modal').classList.add('open');
+  };
+
+  window.closeCreateFolder = function() {
+    document.getElementById('create-folder-modal').classList.remove('open');
+  };
+
+  window.doCreateFolder = async function() {
+    const errEl = document.getElementById('create-folder-err');
+    if (!window.showDirectoryPicker) { alert('Directory picker requires Chrome or Edge.'); return; }
+    try {
+      const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      closeCreateFolder();
+      await saveDataFolderHandle(handle);
+      const { isNew } = await openObieAppSettings(handle);
+      if (isNew) alert('New Data Folder created. Default settings have been copied in.');
+      document.getElementById('folder-bar-name').textContent = handle.name;
+      document.getElementById('folder-bar').classList.remove('needs-reconnect');
+      document.getElementById('folder-bar').classList.add('has-folder');
+      document.getElementById('folder-bar-btn').textContent = 'Change…';
+    } catch (e) {
+      if (e.name !== 'AbortError') errEl.textContent = 'Could not open folder: ' + e.message;
+    }
+  };
+
+  window.pickDataFolder = async function () {
+    if (!window.showDirectoryPicker) {
+      alert('Directory picker requires Chrome or Edge.');
+      return;
+    }
+    try {
+      const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      await saveDataFolderHandle(handle);
+      const { isNew } = await openObieAppSettings(handle);
+      if (isNew) alert('This is a new Data Folder and I moved over the default settings folder.');
+      nameEl.textContent = handle.name;
+      bar.classList.remove('needs-reconnect');
+      bar.classList.add('has-folder');
+      btn.textContent = 'Change…';
+    } catch (e) {
+      if (e.name !== 'AbortError') alert('Folder error: ' + e.message);
+    }
+  };
+})();
+</script>
+</body>
+</html>
