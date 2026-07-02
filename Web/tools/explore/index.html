@@ -425,6 +425,27 @@
   <div class="ctx-item" onclick="expSaveGroupAverage()">💾 Save to Group Averages…</div>
 </div>
 
+<!-- Group Average save modal -->
+<div id="avg-save-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(90vw,380px);height:auto">
+    <div class="modal-header">
+      <span>Save Group Average</span>
+      <button class="modal-close" onclick="expCloseAvgSave()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:16px;display:flex;flex-direction:column;gap:14px">
+      <div class="pref-row" style="gap:8px">
+        <label for="avg-save-name" style="min-width:48px;font-size:12px">Name</label>
+        <input id="avg-save-name" type="text" value="Group Average" style="flex:1">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="act-btn" onclick="expCloseAvgSave()">Cancel</button>
+        <button class="act-btn" onclick="expAvgSaveChoice('csv')">Save as CSV</button>
+        <button class="act-btn accent" onclick="expAvgSaveChoice('avr')">Save as AvR</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script type="py" src="./main.py" config="./pyscript.toml" async></script>
 
 </body>
