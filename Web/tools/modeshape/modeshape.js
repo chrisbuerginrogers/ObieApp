@@ -306,15 +306,26 @@ async function _loadAllTRFs(run) {
     return;
   }
 
-  // Auto-apply stencil.json from the run folder if present
+  // Auto-apply stencil from the run folder: template.json preferred, stencil.json for old runs
   if (run.testHandle) {
     try {
-      const sfh  = await run.testHandle.getFileHandle('stencil.json');
-      const data = JSON.parse(await (await sfh.getFile()).text());
-      if (data && (data.type === 'node-stencil' || data.type === 'node-layout' || data.nodes)) {
-        _applyStencil(data);
+      let stencilData = null;
+      try {
+        const rfh     = await run.testHandle.getFileHandle('template.json');
+        const runData = JSON.parse(await (await rfh.getFile()).text());
+        if (runData.stencil && (runData.stencil.nodes || runData.stencil.type === 'node-stencil')) {
+          stencilData = runData.stencil;
+        }
+      } catch (_) {}
+      if (!stencilData) {
+        const sfh  = await run.testHandle.getFileHandle('stencil.json');
+        const data = JSON.parse(await (await sfh.getFile()).text());
+        if (data && (data.type === 'node-stencil' || data.type === 'node-layout' || data.nodes)) {
+          stencilData = data;
+        }
       }
-    } catch { /* no stencil.json — user can pick one manually */ }
+      if (stencilData) _applyStencil(stencilData);
+    } catch { /* no stencil available — user can pick one manually */ }
   }
 
   _trfPending = files.length;

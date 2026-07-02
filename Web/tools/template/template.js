@@ -22,6 +22,10 @@ let _selected = null; // node id | null
 // Drag: capture start position so we can offset cleanly through any transform
 let _drag = null; // {nodeId, startMX, startMY, startXmm, startYmm}
 
+// Violin reference overlay & projector mount
+let _violinViz     = { show: false, orientation: 'vertical', opacity: 0.25 };
+let _verticalMount = false;
+
 // Watch state — polls a TRF folder to track Acquire progress (no Acquire coupling)
 let _watchHandle      = null;       // FileSystemDirectoryHandle for the TRF/ folder
 let _watchTestHandle  = null;       // parent test run folder (for writing node_layout.json)
@@ -104,6 +108,28 @@ function _buildGridNodes() {
 const _NODE_R = 9; // base node circle radius (px)
 
 // ─── Violin outline ───────────────────────────────────────────────────────────
+const _violinImg = new Image();
+_violinImg.src    = './violin-outline.svg';
+_violinImg.onload = () => _renderCanvas();
+
+function _drawViolinOutline() {
+  if (!_violinViz.show || !_violinImg.complete || !_violinImg.naturalWidth) return;
+  const { scale, xStretch, yStretch, rotation, panX, panY } = _transform;
+  const W = _canvas.width, H = _canvas.height;
+  const rad = rotation * Math.PI / 180;
+  _ctx.save();
+  _ctx.globalAlpha = _violinViz.opacity;
+  _ctx.translate(W / 2 + panX, H / 2 + panY);
+  _ctx.rotate(rad);
+  _ctx.scale(scale * xStretch, scale * yStretch);
+  if (_violinViz.orientation === 'vertical') _ctx.rotate(Math.PI / 2);
+  // SVG 1514×914: body centre at SVG (890,485) → shift so it lands at mm (0,0)
+  // Extra 180° so neck points the correct direction after orientation rotation
+  _ctx.rotate(Math.PI);
+  _ctx.drawImage(_violinImg, -200, -131.5, 400, 248);
+  _ctx.restore();
+}
+
 function _renderCanvas() {
   const W = _canvas.width, H = _canvas.height;
   _ctx.clearRect(0, 0, W, H);
@@ -119,7 +145,17 @@ function _renderCanvas() {
   _ctx.beginPath(); _ctx.moveTo(W / 2 + panX, 0); _ctx.lineTo(W / 2 + panX, H); _ctx.stroke();
   _ctx.beginPath(); _ctx.moveTo(0, H / 2 + panY); _ctx.lineTo(W, H / 2 + panY); _ctx.stroke();
 
-  if (!_nodes.length) return;
+  // Vertical mount preview — same -90° rotation as the projection window
+  _ctx.save();
+  if (_verticalMount) {
+    _ctx.translate(W / 2, H / 2);
+    _ctx.rotate(-Math.PI / 2);
+    _ctx.translate(-W / 2, -H / 2);
+  }
+
+  _drawViolinOutline();
+
+  if (!_nodes.length) { _ctx.restore(); return; }
 
   // Draw edges between row/col neighbours
   _ctx.strokeStyle = 'rgba(100,160,255,0.30)';
@@ -181,6 +217,8 @@ function _renderCanvas() {
     _ctx.textBaseline = 'middle';
     _ctx.fillText(n.label, pos.x, pos.y);
   });
+
+  _ctx.restore();
 }
 
 // ─── Hit testing ──────────────────────────────────────────────────────────────
@@ -380,11 +418,13 @@ window.tplOpenProjection = function() {
 function _pushToProjection() {
   if (!_projWindow || _projWindow.closed) return;
   _projWindow.postMessage({
-    type:        'tpl-update',
-    nodes:       _nodes.map(n => ({ ...n })),
-    transform:   { ..._transform },
-    currentNode: _watchCurrentNode,
-    doneNodes:   [..._watchDoneNodes]
+    type:          'tpl-update',
+    nodes:         _nodes.map(n => ({ ...n })),
+    transform:     { ..._transform },
+    currentNode:   _watchCurrentNode,
+    doneNodes:     [..._watchDoneNodes],
+    violinViz:     { ..._violinViz },
+    verticalMount: _verticalMount
   }, '*');
 }
 
@@ -659,20 +699,27 @@ window.tplStartWatching = async function(i) {
   _watchTestHandle = run.testHandle;
   _watchRunLabel   = run.label;
 
-  // Write node_layout.json to the test folder so Modal Analysis can find coordinates
-  if (_nodes.length) {
+  // Merge node layout into template.json (the unified run file)
+  if (_nodes.length && _watchTestHandle) {
     try {
-      const layoutData = {
-        template_name: _currentName,
-        nodes:         _nodes.map(n => ({ ...n })),
-        grid:          { ..._grid }
+      let existing = {};
+      try {
+        const rfh = await _watchTestHandle.getFileHandle('template.json');
+        existing = JSON.parse(await (await rfh.getFile()).text());
+      } catch (_) {}
+      const stencilPatch = {
+        ...((existing.stencil) ? existing.stencil : {}),
+        name:  _currentName || existing.stencil?.name || 'Node Layout',
+        type:  'node-stencil',
+        nodes: _nodes.map(n => ({ ...n })),
+        grid:  { ..._grid }
       };
-      const fh = await _watchTestHandle.getFileHandle('node_layout.json', { create: true });
+      const fh = await _watchTestHandle.getFileHandle('template.json', { create: true });
       const w  = await fh.createWritable();
-      await w.write(JSON.stringify(layoutData, null, 2));
+      await w.write(JSON.stringify({ ...existing, stencil: stencilPatch }, null, 2));
       await w.close();
     } catch (e) {
-      console.warn('Could not write node_layout.json:', e.message);
+      console.warn('Could not write stencil to template.json:', e.message);
     }
   }
 
@@ -791,6 +838,38 @@ window.tplResetWatch = async function() {
   _renderCanvas();
   _pushToProjection();
   await _pollTRF(); // re-read actual folder state
+};
+
+// ─── Violin outline controls ──────────────────────────────────────────────────
+window.tplToggleViolin = function() {
+  _violinViz.show = !_violinViz.show;
+  const btn = document.getElementById('tpl-violin-btn');
+  if (btn) btn.textContent = _violinViz.show ? 'Hide Outline' : 'Show Outline';
+  _renderCanvas();
+  _pushToProjection();
+};
+
+window.tplSetViolinOrientation = function(val) {
+  _violinViz.orientation = val;
+  _renderCanvas();
+  _pushToProjection();
+};
+
+window.tplSetViolinOpacity = function(val) {
+  _violinViz.opacity = parseFloat(val);
+  const lbl = document.getElementById('violin-opacity-lbl');
+  if (lbl) lbl.textContent = Math.round(parseFloat(val) * 100) + '%';
+  _renderCanvas();
+  _pushToProjection();
+};
+
+// ─── Vertical projector mount ─────────────────────────────────────────────────
+window.tplToggleVerticalMount = function() {
+  _verticalMount = !_verticalMount;
+  const btn = document.getElementById('tpl-vmount-btn');
+  if (btn) btn.classList.toggle('accent', _verticalMount);
+  _renderCanvas();
+  _pushToProjection();
 };
 
 // ─── Help ─────────────────────────────────────────────────────────────────────
