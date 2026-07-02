@@ -283,7 +283,7 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
   font-size: 17px; color: var(--muted); line-height: 1;
 }
 .modal-close:hover { color: var(--text); }
-.modal-body { padding: 14px; overflow-y: auto; }
+.modal-body { padding: 14px; overflow-y: auto; flex: 1; min-height: 0; }
 
 /* ── Preferences modal ───────────────────────────────────────────────── */
 .pref-section { font-size: 10px; font-weight: 700; text-transform: uppercase;
@@ -309,7 +309,7 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 #notes-textarea:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
 
 /* ── Template modal ──────────────────────────────────────────────────── */
-.tpl-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.tpl-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; overflow-y: auto; }
 .tpl-item {
   border: 1px solid var(--border); border-radius: 5px;
   padding: 8px 10px; background: var(--bg-deep); cursor: pointer;
@@ -447,3 +447,11 @@ input[type=color].cp-color-inp {
 }
 input[type=color].cp-color-inp::-webkit-color-swatch-wrapper { padding: 0; }
 input[type=color].cp-color-inp::-webkit-color-swatch { border: none; border-radius: 2px; }
+
+/* ── Setup modal section headers ─────────────────────────────────────── */
+.setup-section-hdr {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--muted);
+  margin: 14px 0 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px;
+}
+.setup-section-hdr:first-child { margin-top: 0; }

@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../coi-serviceworker.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stencil Builder — ObieWebApp</title>
+
+  <link rel="stylesheet" href="../../css/theme.css">
+  <script src="../../version.js"></script>
+  <script>document.write('<link rel="stylesheet" href="./template.css?v=' + OBIE_VERSION + '">');</script>
+
+  <script src="../../js/obie-settings.js"></script>
+  <script src="../../js/browser-check.js"></script>
+  <script>document.write('<scr'+'ipt src="./template.js?v=' + OBIE_VERSION + '" defer><\/scr'+'ipt>');</script>
+</head>
+<body>
+
+<div class="tpl-page">
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <header class="obie-header">
+    <a class="brand" href="../../index.html">
+      <div class="logo-icon">🎻</div>
+      <h1>ObieWebApp</h1>
+    </a>
+    <span class="crumb">· Stencil Builder</span>
+    <div class="gap"></div>
+    <a class="btn" href="../../index.html" style="font-size:0.75rem;padding:3px 9px">← All tools</a>
+  </header>
+
+  <!-- ── Toolbar ──────────────────────────────────────────────────────────── -->
+  <div class="tpl-toolbar">
+    <button class="tb-btn" onclick="tplSetDataFolder()">📁 Data Folder</button>
+    <span id="tpl-folder-name" class="folder-name-disp"></span>
+    <div class="tb-flex"></div>
+    <button class="tb-btn" onclick="tplOpenTemplateModal()">Open Stencil</button>
+    <button class="tb-btn" onclick="tplSaveTemplate()">Save Stencil</button>
+    <span id="tpl-name-ind" class="tpl-name-ind"></span>
+    <div style="width:6px"></div>
+    <button class="tb-btn" id="tpl-watch-btn" onclick="tplOpenWatchModal()">Watch Run…</button>
+    <span id="tpl-watch-ind" class="tpl-watch-ind" style="display:none"></span>
+    <button class="tb-btn" id="tpl-reset-btn" onclick="tplResetWatch()" style="display:none" title="Re-read TRF folder and sync projector">↺ Sync</button>
+    <button class="tb-btn" id="tpl-stop-btn" onclick="tplStopWatching()" style="display:none">■ Stop</button>
+    <div style="width:4px"></div>
+    <button class="tb-btn accent" onclick="tplOpenProjection()">📽 Project</button>
+    <button class="tb-btn" onclick="tplHelp()">Help</button>
+  </div>
+
+  <!-- ── Body: sidebar + canvas ───────────────────────────────────────────── -->
+  <div class="tpl-body">
+
+    <!-- Sidebar -->
+    <div class="tpl-sidebar">
+
+      <div class="sb-section">
+        <div class="sb-title">Grid Setup</div>
+        <div class="sb-row">
+          <label>Rows</label>
+          <input type="number" id="inp-rows" value="4" min="1" max="30">
+        </div>
+        <div class="sb-row">
+          <label>Columns</label>
+          <input type="number" id="inp-cols" value="6" min="1" max="30">
+        </div>
+        <div class="sb-row">
+          <label>X spacing (mm)</label>
+          <input type="number" id="inp-xspacing" value="25" min="1" max="500" step="1">
+        </div>
+        <div class="sb-row">
+          <label>Y spacing (mm)</label>
+          <input type="number" id="inp-yspacing" value="20" min="1" max="500" step="1">
+        </div>
+        <button class="sb-btn" onclick="tplRebuildGrid()">Rebuild Grid</button>
+        <div class="sb-hint">Rebuild resets all node positions to grid</div>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-title">Projection Transform</div>
+        <div class="sb-row">
+          <label>Scale (px/mm)</label>
+          <input type="number" id="inp-scale" value="5" min="0.5" max="40" step="0.5" oninput="tplSyncTransform()">
+        </div>
+        <div class="sb-row">
+          <label>X stretch</label>
+          <input type="number" id="inp-xstretch" value="1.00" min="0.1" max="4" step="0.01" oninput="tplSyncTransform()">
+        </div>
+        <div class="sb-row">
+          <label>Y stretch</label>
+          <input type="number" id="inp-ystretch" value="1.00" min="0.1" max="4" step="0.01" oninput="tplSyncTransform()">
+        </div>
+        <div class="sb-row">
+          <label>Rotation (°)</label>
+          <input type="number" id="inp-rotation" value="0" min="-180" max="180" step="0.5" oninput="tplSyncTransform()">
+        </div>
+        <div class="sb-row">
+          <label>Pan X (px)</label>
+          <input type="number" id="inp-panx" value="0" min="-3000" max="3000" step="1" oninput="tplSyncTransform()">
+        </div>
+        <div class="sb-row">
+          <label>Pan Y (px)</label>
+          <input type="number" id="inp-pany" value="0" min="-3000" max="3000" step="1" oninput="tplSyncTransform()">
+        </div>
+      </div>
+
+      <div class="sb-section" id="node-detail-section" style="display:none">
+        <div class="sb-title">Selected Node</div>
+        <div class="sb-row">
+          <label>Label</label>
+          <input type="text" id="inp-node-label" maxlength="8" oninput="tplUpdateNodeLabel()">
+        </div>
+        <div class="sb-row">
+          <label>X (mm)</label>
+          <input type="number" id="inp-node-x" step="0.1" oninput="tplUpdateNodeCoords()">
+        </div>
+        <div class="sb-row">
+          <label>Y (mm)</label>
+          <input type="number" id="inp-node-y" step="0.1" oninput="tplUpdateNodeCoords()">
+        </div>
+        <button class="sb-btn" onclick="tplResetNodeToGrid()">Reset to grid position</button>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-title">Summary</div>
+        <div id="tpl-node-count" class="sb-stat">0 nodes</div>
+      </div>
+
+    </div>
+
+    <!-- Canvas -->
+    <div class="tpl-canvas-wrap" id="tpl-canvas-wrap">
+      <canvas id="tpl-canvas"></canvas>
+      <div class="tpl-canvas-hint">Click to select · Drag to move · Arrow keys nudge 1 mm · Shift+Arrow = 0.1 mm</div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- ── Watch Run modal ───────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="watch-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span>Watch Run</span>
+      <button class="modal-close" onclick="tplCloseWatchModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.8rem;color:var(--muted);margin-bottom:12px;line-height:1.5">
+        Select a test run to monitor. Stencil Builder will poll its <code>TRF/</code> folder every second and advance the projection as positions are recorded in Acquire.
+      </p>
+      <div id="watch-run-list">
+        <div class="tpl-list-empty">Set a Data Folder to see available runs.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="act-btn" onclick="tplRefreshRunList()">↺ Refresh</button>
+      <button class="act-btn" onclick="tplCloseWatchModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Template picker modal ─────────────────────────────────────────────── -->
+<div class="modal-overlay" id="tpl-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span>Node Stencils</span>
+      <button class="modal-close" onclick="tplCloseTemplateModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="tpl-modal-list">
+        <div class="tpl-list-empty">Set a Data Folder to load stencils, or use Browse below.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="act-btn" onclick="tplBrowseTemplate()">Browse file…</button>
+      <button class="act-btn" onclick="tplCloseTemplateModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

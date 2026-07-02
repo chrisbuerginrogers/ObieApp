@@ -54,12 +54,12 @@
 
   <hr class="divider">
 
-  <p class="section-label">🔍 Tools
+  <p class="section-label">🔍 Tools — v1.1.6 (stable)
     <span id="py-preload-bar" class="py-preload-bar"></span>
   </p>
   <div class="tool-grid">
 
-    <a class="tool-card" href="./tools/explore/">
+    <a class="tool-card" href="./versions/1.1.6/tools/explore/">
       <div class="head">
         <div class="icon">🔍</div>
         <span class="name">Explore</span>
@@ -71,7 +71,7 @@
       <span class="tag app">Tool · PyScript</span>
     </a>
 
-    <a class="tool-card" href="./tools/convolve/">
+    <a class="tool-card" href="./versions/1.1.6/tools/convolve/">
       <div class="head">
         <div class="icon">🔀</div>
         <span class="name">Convolve</span>
@@ -84,7 +84,7 @@
       <span class="tag app">Tool · PyScript</span>
     </a>
 
-    <a class="tool-card" href="./tools/acquire/">
+    <a class="tool-card" href="./versions/1.1.6/tools/acquire/">
       <div class="head">
         <div class="icon">🎯</div>
         <span class="name">Acquire</span>
@@ -97,17 +97,48 @@
       <span class="tag app">Tool · PyScript</span>
     </a>
 
-    <a class="tool-card" href="./tools/modeshape/">
+  </div>
+
+  <p class="section-label">🧬 Beta — v1.1.7 (testing)</p>
+  <div class="tool-grid">
+
+    <a class="tool-card experimental" href="./tools/acquire/">
       <div class="head">
-        <div class="icon">🌊</div>
-        <span class="name">Modal Analysis</span>
+        <div class="icon">🎯</div>
+        <span class="name">Acquire <span style="font-size:10px;font-weight:400;opacity:0.75">beta</span></span>
       </div>
       <p class="desc">
-        Roving-hammer, fixed-accelerometer FRF acquisition across a user-defined
-        node mesh. Animates 3-D mode shapes at any frequency — click a resonance
-        peak to see the structure oscillate in real time.
+        Now also collects modal data: configurable response label (acceleration,
+        velocity, displacement) and stencil-driven node positions for roving-hammer
+        modal surveys.
       </p>
-      <span class="tag app">Tool · PyScript</span>
+      <span class="tag experimental-tag">Beta</span>
+    </a>
+
+    <a class="tool-card experimental" href="./tools/modeshape/">
+      <div class="head">
+        <div class="icon">🌊</div>
+        <span class="name">Modal Analysis <span style="font-size:10px;font-weight:400;opacity:0.75">updated</span></span>
+      </div>
+      <p class="desc">
+        Visualisation and animation of mode shapes from an Acquire modal dataset.
+        Data acquisition has moved to Acquire; Modal Analysis now focuses on
+        loading, inspecting, and animating completed surveys.
+      </p>
+      <span class="tag experimental-tag">Beta</span>
+    </a>
+
+    <a class="tool-card experimental" href="./tools/template/">
+      <div class="head">
+        <div class="icon">📐</div>
+        <span class="name">Stencil Builder <span style="font-size:10px;font-weight:400;opacity:0.75">new</span></span>
+      </div>
+      <p class="desc">
+        Design and calibrate node layouts for projector-assisted hammer testing.
+        Drag nodes to position, adjust the projection transform to fit your
+        violin, and save stencils that automatically set positions in Acquire.
+      </p>
+      <span class="tag experimental-tag">Beta</span>
     </a>
 
   </div>
