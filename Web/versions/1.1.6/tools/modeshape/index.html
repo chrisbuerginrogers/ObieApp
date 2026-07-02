@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../coi-serviceworker.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Modal Analysis — ObieWebApp</title>
+
+  <link rel="stylesheet" href="../../css/theme.css">
+  <script src="../../version.js"></script>
+  <script>document.write('<link rel="stylesheet" href="./modeshape.css?v='+OBIE_VERSION+'">');</script>
+
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" crossorigin="anonymous"></script>
+
+  <!-- PyScript — version set by home-page toggle -->
+  <script>(function(){var v=localStorage.getItem('obiePyScriptVersion')||'2026.3.1';document.write('<link rel="stylesheet" href="https://pyscript.net/releases/'+v+'/core.css">');document.write('<scr'+'ipt type="module" src="https://pyscript.net/releases/'+v+'/core.js"><\/scr'+'ipt>');})();</script>
+
+  <script src="../../js/obie-settings.js"></script>
+  <script src="../../js/browser-check.js"></script>
+  <script>document.write('<scr'+'ipt src="./modeshape.js?v='+OBIE_VERSION+'" defer><\/scr'+'ipt>');</script>
+</head>
+<body>
+
+<div id="loading" class="loading-overlay">
+  <div class="spin"></div>
+  <div class="load-title">Loading PyScript + NumPy…</div>
+  <div class="load-sub">First load may take 15–30 s</div>
+</div>
+<script>
+  setTimeout(function() {
+    var el = document.getElementById('loading');
+    if (!el || el.classList.contains('gone')) return;
+    el.querySelector('.spin').style.display = 'none';
+    el.querySelector('.load-title').textContent = 'Failed to load';
+    el.querySelector('.load-sub').textContent =
+      'PyScript could not be fetched. This app requires Chrome or Edge.';
+  }, 90000);
+</script>
+
+<div class="ms-page">
+
+  <!-- ── Header ────────────────────────────────────────────────────────────── -->
+  <header class="obie-header">
+    <a class="brand" href="../../index.html">
+      <div class="logo-icon">🎻</div>
+      <h1>ObieWebApp</h1>
+    </a>
+    <span class="crumb">· Modal Analysis</span>
+    <div class="gap"></div>
+    <a class="btn" href="../../index.html" style="font-size:0.75rem;padding:3px 9px">← All tools</a>
+  </header>
+
+  <!-- ── Toolbar ────────────────────────────────────────────────────────────── -->
+  <div class="ms-toolbar">
+    <button class="tb-btn" onclick="msPreferences()">Settings</button>
+    <button class="tb-btn" onclick="msNotes()">Notes</button>
+    <button id="ms-folder-btn" class="tb-btn" onclick="msSetDataFolder()">📁 Data Folder</button>
+    <span id="ms-folder-name" class="folder-name-disp"></span>
+    <button id="ms-study-btn" class="tb-btn" onclick="msSetStudy()">🔬 Study…</button>
+    <span id="ms-study-name-disp" style="font-size:10px;font-weight:600;color:var(--accent)"></span>
+    <button class="tb-btn" onclick="msGeometry()">🔧 Geometry</button>
+    <div class="tb-flex"></div>
+    <button class="tb-btn" onclick="msTemplate()">Template…</button>
+    <button class="tb-btn" onclick="msLiveView()">LiveView</button>
+    <button class="tb-btn" onclick="msHelp()">Help</button>
+    <button id="ms-start-btn" class="tb-btn start" onclick="msToggleAcquire()">▶ Start</button>
+  </div>
+
+  <!-- ── Banner row: node status chips + template indicator ───────────────── -->
+  <div class="ms-banner-row">
+    <span class="ms-study-lbl" id="ms-study-banner"></span>
+    <div id="node-banner"><span style="font-size:10px;color:var(--muted);font-style:italic">Loading…</span></div>
+    <div class="tb-flex"></div>
+    <div id="ms-tpl-ind" class="ms-tpl-ind"></div>
+  </div>
+
+  <!-- ── Status row ─────────────────────────────────────────────────────────── -->
+  <div class="ms-status-row">
+    <span id="ms-status-txt" class="ms-status-txt">Idle — press Start to begin acquisition</span>
+    <span id="ms-soundcard-ind" class="ms-soundcard-ind"></span>
+  </div>
+
+  <!-- ── Body ──────────────────────────────────────────────────────────────── -->
+  <div class="ms-body">
+
+    <!-- Left: node list sidebar -->
+    <aside class="ms-sidebar">
+      <div class="ms-sidebar-hdr">Nodes</div>
+      <div id="node-list" class="node-list"></div>
+      <div class="ms-sidebar-footer">
+        <button class="tb-btn" onclick="msGeometry()" style="font-size:10px;width:100%">Edit Geometry…</button>
+      </div>
+    </aside>
+
+    <!-- Drag handle -->
+    <div id="ms-resizer" class="ms-resizer"></div>
+
+    <!-- Right: tabs -->
+    <div class="ms-main">
+
+      <!-- Tab bar -->
+      <div class="ms-tab-bar">
+        <div class="ms-tab active" id="tab-acquire"   onclick="msSwitchTab('acquire')">Acquire</div>
+        <div class="ms-tab"        id="tab-modeshape" onclick="msSwitchTab('modeshape')">Mode Shape</div>
+      </div>
+
+      <!-- ── ACQUIRE TAB ─────────────────────────────────────────────────── -->
+      <div class="ms-tab-panel active" id="panel-acquire">
+        <div class="ms-acq-body">
+
+          <!-- Mini plots -->
+          <div class="ms-mini-col">
+
+            <div class="mini-section">
+              <div class="mini-hdr">
+                <button class="mini-y-btn" onclick="msRescaleFFT()" title="Autoscale Y">Y</button>
+                <span class="mini-title">Hammer FFT</span>
+              </div>
+              <div id="ms-plot-fft" class="mini-plot"></div>
+            </div>
+
+            <div class="mini-section">
+              <div class="mini-hdr">
+                <button class="mini-y-btn" onclick="msRescaleHammer()" title="Autoscale Y">Y</button>
+                <span class="mini-title">Hammer</span>
+                <label style="font-size:9px;color:#7c2bc8;display:flex;align-items:center;gap:2px" title="Trigger threshold">
+                  <input id="inp-thr-disp" type="number" step="0.005" min="0.001" max="1" value="0.05"
+                    style="font-size:9px;color:#7c2bc8;width:44px;border:none;background:transparent;text-align:right;padding:0"
+                    onchange="msApplyThreshold(this.value)"
+                    onkeydown="if(event.key==='Enter'){msApplyThreshold(this.value);this.blur()}">
+                  <span>V</span>
+                </label>
+                <label style="font-size:9px;color:#2e7d32;margin-left:auto;display:flex;align-items:center;gap:2px" title="Hammer time cutoff">
+                  <input id="inp-ham-cut-disp" type="number" step="0.001" min="0.001" max="5" value="0.30"
+                    style="font-size:9px;color:#2e7d32;width:44px;border:none;background:transparent;text-align:right;padding:0"
+                    onchange="msApplyHamCutoff(this.value)"
+                    onkeydown="if(event.key==='Enter'){msApplyHamCutoff(this.value);this.blur()}">
+                  <span>s</span>
+                </label>
+              </div>
+              <div id="ms-plot-hammer" class="mini-plot"></div>
+            </div>
+
+            <div class="mini-section">
+              <div class="mini-hdr">
+                <button class="mini-y-btn" onclick="msRescaleMic()" title="Autoscale Y">Y</button>
+                <span class="mini-title">Accelerometer</span>
+                <label style="font-size:9px;color:#2e7d32;margin-left:auto;display:flex;align-items:center;gap:2px" title="Mic time cutoff">
+                  <input id="inp-mic-cut-disp" type="number" step="0.001" min="0.001" max="5" value="0.30"
+                    style="font-size:9px;color:#2e7d32;width:44px;border:none;background:transparent;text-align:right;padding:0"
+                    onchange="msApplyMicCutoff(this.value)"
+                    onkeydown="if(event.key==='Enter'){msApplyMicCutoff(this.value);this.blur()}">
+                  <span>s</span>
+                </label>
+              </div>
+              <div id="ms-plot-mic" class="mini-plot"></div>
+            </div>
+
+          </div><!-- ms-mini-col -->
+
+          <!-- Main FRF plot -->
+          <div class="ms-frf-wrap">
+
+            <!-- No-folder overlay -->
+            <div id="folder-overlay" class="folder-overlay">
+              <div class="folder-overlay-msg">📁 Select a Data Folder to get started</div>
+              <button class="tb-btn start" onclick="msSetDataFolder()" style="padding:6px 18px;font-size:12px">Select Data Folder…</button>
+              <div class="folder-overlay-sub" id="folder-overlay-sub"></div>
+            </div>
+
+            <!-- Plot controls (matches Acquire plot toolbar layout) -->
+            <div class="ms-plot-toolbar">
+              <button class="tb-btn" onclick="msRescaleY()" title="Rescale Y to data">↕Y</button>
+              <input id="ms-y-db-range" class="tb-inp" type="number" value="38" min="5" max="120"
+                     style="width:3.2ch;font-size:9px;padding:0 2px;text-align:right"
+                     title="Y dB range" onchange="msSetYDbRange(this.value)">
+              <span class="tb-lbl">dB</span>
+              <button id="ms-xlog-btn" class="tb-btn active" onclick="msToggleXLog()" title="Toggle X log/linear">X=log</button>
+              <label class="tb-chk">
+                <input type="checkbox" id="ms-hist-chk" checked onchange="msToggleHistory(this.checked)">
+                Show History
+              </label>
+              <div class="tb-flex"></div>
+              <button id="ms-delete-btn" class="tb-btn" onclick="msDeleteLastHit()" disabled title="Delete last hit">↩ Undo Hit</button>
+              <button id="ms-clear-btn"  class="tb-btn" onclick="msClearNode()"    disabled title="Clear current node">🗑 Clear</button>
+              <button class="tb-btn" onclick="msStartOver()" style="color:#c62828" title="Clear ALL nodes">↺ Start over</button>
+            </div>
+
+            <div id="ms-frf-plot"></div>
+
+          </div><!-- ms-frf-wrap -->
+
+        </div><!-- ms-acq-body -->
+      </div><!-- panel-acquire -->
+
+      <!-- ── MODE SHAPE TAB ──────────────────────────────────────────────── -->
+      <div class="ms-tab-panel" id="panel-modeshape">
+        <div class="ms-mode-body">
+
+          <!-- Controls bar -->
+          <div class="ms-mode-controls">
+            <label>Frequency</label>
+            <input id="ms-freq-inp" type="number" value="1000" min="1" step="1"
+                   onchange="msSetModeFreq(this.value)">
+            <span class="pref-unit">Hz</span>
+            <input id="ms-freq-slider" type="range" min="1" max="7000" value="1000"
+                   oninput="msSetModeFreqSlider(this.value)">
+            <span class="ms-freq-disp" id="ms-freq-disp">1000 Hz</span>
+
+            <div class="tb-sep" style="margin:0 4px"></div>
+
+            <label>Amplitude</label>
+            <input id="ms-amp-inp" type="number" value="1" min="0.01" step="0.1"
+                   onchange="msSetModeAmp(this.value)" style="width:55px">
+
+            <div class="tb-sep" style="margin:0 4px"></div>
+
+            <button id="ms-anim-btn" class="tb-btn start" onclick="msToggleAnimation()">▶ Animate</button>
+            <button class="tb-btn" onclick="msRefreshModeShape()">⟳ Refresh</button>
+
+            <div class="tb-sep" style="margin:0 4px"></div>
+
+            <label title="Deformation direction in 3D">Deform axis</label>
+            <select id="ms-deform-axis" onchange="msSetDeformAxis(this.value)"
+                    style="font-size:11px;padding:2px 4px;border:1px solid var(--border);border-radius:3px;background:var(--bg)">
+              <option value="z">Z</option>
+              <option value="y">Y</option>
+              <option value="x">X</option>
+            </select>
+          </div>
+
+          <!-- Mode shape content: FRF ref + 3D plot -->
+          <div class="ms-mode-content">
+
+            <!-- FRF reference (click to pick frequency) -->
+            <div class="ms-frf-ref-wrap">
+              <div class="ms-frf-ref-hdr">FRF overlay — click to set frequency</div>
+              <div id="ms-frf-ref-plot"></div>
+            </div>
+
+            <!-- 3D Animation -->
+            <div class="ms-mode-plot-wrap">
+              <div id="ms-mode-plot"></div>
+              <div id="ms-no-data-msg" class="ms-no-data-msg" style="display:none">
+                <div>No measurements yet</div>
+                <p>Acquire FRFs on the Acquire tab, then return here to animate the mode shape.</p>
+              </div>
+            </div>
+
+          </div>
+
+        </div><!-- ms-mode-body -->
+      </div><!-- panel-modeshape -->
+
+    </div><!-- ms-main -->
+
+  </div><!-- ms-body -->
+
+</div><!-- ms-page -->
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Geometry Editor Modal
+═══════════════════════════════════════════════════════════════════════ -->
+<div id="geom-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(96vw,1000px);height:min(90vh,680px)">
+    <div class="modal-header">
+      <span class="modal-title">Geometry Editor</span>
+      <button class="modal-close" onclick="msCloseGeom()">✕</button>
+    </div>
+    <!-- two-column layout: tables left, canvas preview right -->
+    <div class="modal-body geom-modal-body">
+
+      <!-- Left: grid builder + tables -->
+      <div class="geom-left">
+
+        <div class="geom-section">Quick Grid</div>
+        <div class="geom-grid-row">
+          <label>Rows</label>
+          <input type="number" id="geom-rows" value="3" min="1" max="20">
+          <label>Cols</label>
+          <input type="number" id="geom-cols" value="5" min="1" max="30">
+          <button class="tb-btn" onclick="geomGenerateGrid()">Generate Grid</button>
+          <span style="font-size:10px;color:var(--muted)">Uniform spacing · Z=0</span>
+        </div>
+
+        <div class="geom-section">Nodes</div>
+        <p style="font-size:10px;color:var(--muted);margin:0 0 6px">
+          Each node is a measurement point. Label shown on the mode shape. Coordinates are in your units.
+        </p>
+        <table class="geom-table">
+          <thead>
+            <tr>
+              <th style="width:60px">Label</th>
+              <th style="width:80px">X</th>
+              <th style="width:80px">Y</th>
+              <th style="width:80px">Z</th>
+              <th style="width:32px"></th>
+            </tr>
+          </thead>
+          <tbody id="geom-node-tbody"></tbody>
+        </table>
+        <button class="tb-btn geom-add-btn" onclick="geomAddNode()">+ Add Node</button>
+        <button class="tb-btn geom-add-btn" onclick="geomAutoConnect()">⟳ Chain edges</button>
+
+        <div class="geom-section" style="margin-top:14px">Edges</div>
+        <p style="font-size:10px;color:var(--muted);margin:0 0 6px">Enter zero-based node indices (0 = first node).</p>
+        <table class="geom-table">
+          <thead><tr><th>From</th><th>To</th><th style="width:32px"></th></tr></thead>
+          <tbody id="geom-edge-tbody"></tbody>
+        </table>
+        <button class="tb-btn geom-add-btn" onclick="geomAddEdge()">+ Add Edge</button>
+
+        <div class="save-row" style="margin-top:12px">
+          <button class="act-btn accent" onclick="msApplyGeom()">Apply</button>
+          <button class="act-btn" onclick="msCloseGeom()">Cancel</button>
+          <span id="geom-msg" class="save-msg"></span>
+        </div>
+      </div><!-- geom-left -->
+
+      <!-- Right: live canvas preview -->
+      <div class="geom-right">
+        <div class="geom-preview-hdr">Preview</div>
+        <canvas id="geom-preview-canvas"></canvas>
+        <div style="font-size:9px;color:var(--muted)">Updates as you edit. Nodes shown in XY plane.</div>
+      </div>
+
+    </div><!-- modal-body -->
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Study Name Modal
+═══════════════════════════════════════════════════════════════════════ -->
+<div id="study-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(92vw,380px)">
+    <div class="modal-header">
+      <span class="modal-title">Set Study Name</span>
+      <button class="modal-close" onclick="msCloseStudy()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="pref-row">
+        <label for="study-inp">Study name</label>
+        <input id="study-inp" type="text" placeholder="e.g. Guitar Bridge"
+               style="flex:1;max-width:200px"
+               onkeydown="if(event.key==='Enter') msConfirmStudy()">
+      </div>
+      <p class="pref-hint" style="margin-left:0">
+        Creates a folder inside the Data Folder. TRF and WAV files are saved here.
+      </p>
+      <div class="save-row">
+        <button class="act-btn accent" onclick="msConfirmStudy()">Set</button>
+        <button class="act-btn" onclick="msCloseStudy()">Cancel</button>
+        <span id="study-modal-msg" class="save-msg"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Position Complete Dialog
+═══════════════════════════════════════════════════════════════════════ -->
+<div id="pos-complete-modal" class="modal-overlay">
+  <div class="modal-box pos-complete-box">
+    <div class="pos-complete-label" id="pos-complete-label">Node Complete</div>
+    <p class="pos-complete-hint">Space bar → Next Node</p>
+    <div class="pos-complete-btns">
+      <button class="act-btn" onclick="msRepeatPosition()">↺ Repeat Node</button>
+      <button class="act-btn" onclick="msPausePosition()">⏸ Pause</button>
+      <button id="pos-complete-next-btn" class="act-btn accent" onclick="msNextPosition()">Next Node →</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Preferences Modal
+═══════════════════════════════════════════════════════════════════════ -->
+<div id="prefs-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(92vw,540px);max-height:90vh">
+    <div class="modal-header">
+      <span class="modal-title">Modal Analysis Settings</span>
+      <button class="modal-close" onclick="msClosePrefs()">✕</button>
+    </div>
+    <div class="modal-body" style="overflow-y:auto">
+
+      <div class="pref-section">Audio Device</div>
+      <div class="pref-row">
+        <label for="prefs-device">Input device</label>
+        <select id="prefs-device" style="flex:1;max-width:260px"></select>
+      </div>
+
+      <div class="pref-section">Acquisition</div>
+      <div class="pref-row">
+        <label for="inp-taps">Hits per node</label>
+        <input id="inp-taps" type="number" value="5" min="1" max="20" style="max-width:80px">
+      </div>
+
+      <div class="pref-section">Hit Detection</div>
+      <div class="pref-row">
+        <label for="inp-threshold">Trigger threshold</label>
+        <input id="inp-threshold" type="number" value="0.05" step="0.005" min="0.001" max="1" style="max-width:80px">
+        <span class="pref-unit">V</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-pre">Time before hit</label>
+        <input id="inp-pre" type="number" value="0.01" step="0.005" min="0.001" max="0.5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-post">Time after hit</label>
+        <input id="inp-post" type="number" value="0.30" step="0.05" min="0.05" max="5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-ham-cut">Hammer time cutoff</label>
+        <input id="inp-ham-cut" type="number" value="0.30" step="0.001" min="0.001" max="5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-mic-cut">Accel time cutoff</label>
+        <input id="inp-mic-cut" type="number" value="0.30" step="0.001" min="0.001" max="5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+
+      <div class="pref-section">Calibration</div>
+      <div class="pref-row">
+        <label for="inp-ham-cal">Hammer calibration</label>
+        <input id="inp-ham-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px">
+        <span class="pref-unit">N/V</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-mic-cal">Accelerometer cal</label>
+        <input id="inp-mic-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px">
+        <span class="pref-unit">g/V</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-swap-channels">Hammer on right channel</label>
+        <input id="inp-swap-channels" type="checkbox">
+      </div>
+
+      <div class="pref-section">Audio Capture</div>
+      <div class="pref-row">
+        <label for="inp-sample-rate">Sample rate</label>
+        <input id="inp-sample-rate" type="number" value="48000" step="1000" min="8000" max="192000" style="max-width:80px">
+        <span class="pref-unit">Hz</span>
+      </div>
+
+      <div class="pref-section">Plot Settings</div>
+      <div class="pref-row">
+        <label for="inp-db-spread">FRF dB range</label>
+        <input id="inp-db-spread" type="number" value="38" step="1" min="5" max="120" style="max-width:80px">
+        <span class="pref-unit">dB</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-db-offset">dB offset</label>
+        <input id="inp-db-offset" type="number" value="0" step="1" min="-120" max="120" style="max-width:80px">
+        <span class="pref-unit">dB</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-frf-x-min">FRF x min</label>
+        <input id="inp-frf-x-min" type="number" value="200" step="50" min="1" max="22000" style="max-width:80px">
+        <span class="pref-unit">Hz</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-frf-x-max">FRF x max</label>
+        <input id="inp-frf-x-max" type="number" value="7000" step="500" min="100" max="22000" style="max-width:80px">
+        <span class="pref-unit">Hz</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-frf-y-min">FRF y min</label>
+        <input id="inp-frf-y-min" type="number" value="-10" step="5" min="-120" max="120" style="max-width:80px">
+        <span class="pref-unit">dB</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-frf-y-max">FRF y max</label>
+        <input id="inp-frf-y-max" type="number" value="30" step="5" min="-120" max="120" style="max-width:80px">
+        <span class="pref-unit">dB</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-line-width">FRF line width</label>
+        <input id="inp-line-width" type="number" value="0.5" step="0.1" min="0.1" max="10" style="max-width:80px">
+        <span class="pref-unit">px</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-ham-x-min">Hammer x min</label>
+        <input id="inp-ham-x-min" type="number" value="0" step="0.001" min="-5" max="5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-ham-x-max">Hammer x max</label>
+        <input id="inp-ham-x-max" type="number" value="0.05" step="0.01" min="0.001" max="5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-mic-x-min">Accel x min</label>
+        <input id="inp-mic-x-min" type="number" value="0" step="0.01" min="-5" max="5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-mic-x-max">Accel x max</label>
+        <input id="inp-mic-x-max" type="number" value="0.3" step="0.01" min="0.01" max="5" style="max-width:80px">
+        <span class="pref-unit">s</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-fft-x-min">FFT x min</label>
+        <input id="inp-fft-x-min" type="number" value="200" step="50" min="1" max="22000" style="max-width:80px">
+        <span class="pref-unit">Hz</span>
+      </div>
+      <div class="pref-row">
+        <label for="inp-fft-x-max">FFT x max</label>
+        <input id="inp-fft-x-max" type="number" value="10000" step="500" min="100" max="22000" style="max-width:80px">
+        <span class="pref-unit">Hz</span>
+      </div>
+
+      <div class="save-row">
+        <button class="act-btn accent" onclick="msSavePrefs()">Apply &amp; Save</button>
+        <button class="act-btn" onclick="msResetPrefs()">Reset defaults</button>
+        <span id="prefs-save-msg" class="save-msg"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Notes Modal
+═══════════════════════════════════════════════════════════════════════ -->
+<div id="notes-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(92vw,520px)">
+    <div class="modal-header">
+      <span class="modal-title">Session Notes</span>
+      <button class="modal-close" onclick="msCloseNotes()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:11px;color:var(--muted);margin-bottom:8px">
+        Notes are saved with the study name and persist in the browser.
+      </p>
+      <textarea id="ms-notes-textarea" rows="10"
+                placeholder="Enter notes about this measurement session…"></textarea>
+      <div class="save-row">
+        <button class="act-btn accent" onclick="msSaveNotes()">Save Notes</button>
+        <button class="act-btn" onclick="msCloseNotes()">Close</button>
+        <span id="notes-save-msg" class="save-msg"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Template Modal
+═══════════════════════════════════════════════════════════════════════ -->
+<div id="template-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(92vw,480px)">
+    <div class="modal-header">
+      <span class="modal-title">Templates</span>
+      <button class="modal-close" onclick="msCloseTemplate()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:11px;color:var(--muted);margin-bottom:10px">
+        Templates save measurement settings and geometry. They are stored in
+        <code>ObieAppSettings/Templates/</code> inside your Data Folder.
+      </p>
+      <div id="ms-tpl-list" class="tpl-list">
+        <div style="font-size:11px;color:var(--muted)">No templates found.</div>
+      </div>
+      <div class="save-row">
+        <button class="act-btn" onclick="msBrowseTemplate()">Browse…</button>
+        <button class="act-btn accent" onclick="msApplyTemplate()">Apply</button>
+        <button class="act-btn" onclick="msSaveAsTemplate()">Save as Template</button>
+        <button class="act-btn" onclick="msCloseTemplate()">Cancel</button>
+        <span id="tpl-save-msg" class="save-msg"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     LiveView Dialog
+═══════════════════════════════════════════════════════════════════════ -->
+<div id="lv-modal" class="modal-overlay">
+  <div class="lv-dialog-box">
+    <div class="modal-header">
+      <span class="modal-title">LiveView</span>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button id="lv-start-btn" class="act-btn accent" onclick="lvToggleCapture()">▶ Start</button>
+        <button class="modal-close" onclick="msCloseLV()">✕</button>
+      </div>
+    </div>
+    <div class="lv-body">
+
+      <!-- Left panel -->
+      <div class="lv-left">
+        <div>
+          <div class="lv-sect">Input Device</div>
+          <select id="lv-device-sel" style="width:100%;font-size:11px;margin-bottom:6px"
+                  onchange="lvRestartWithDevice()"></select>
+        </div>
+        <div>
+          <div class="lv-sect">Mode</div>
+          <div class="lv-mode-row">
+            <button class="lv-mode-btn active" id="lv-mode-live"    onclick="lvSetMode('live')">Live</button>
+            <button class="lv-mode-btn"        id="lv-mode-trigger" onclick="lvSetMode('trigger')">Trigger</button>
+          </div>
+        </div>
+        <div>
+          <div class="lv-sect">Trigger / Window</div>
+          <div class="lv-row">
+            <label>Threshold</label>
+            <input id="lv-inp-thr" type="number" value="0.05" step="0.005" min="0.001" max="1">
+            <span class="lv-unit">V</span>
+          </div>
+          <div class="lv-row">
+            <label>Pre-trig</label>
+            <input id="lv-inp-pre" type="number" value="0.01" step="0.005" min="0.001" max="0.5">
+            <span class="lv-unit">s</span>
+          </div>
+          <div class="lv-row">
+            <label>Post-trig</label>
+            <input id="lv-inp-post" type="number" value="0.20" step="0.05" min="0.02" max="2">
+            <span class="lv-unit">s</span>
+          </div>
+        </div>
+        <div>
+          <div class="lv-sect">Signal Levels</div>
+          <div id="lv-level-h" class="lv-stat">–</div>
+          <div style="font-size:9px;color:var(--muted);text-align:center">Hammer peak</div>
+          <div id="lv-level-m" class="lv-stat" style="color:#1565c0">–</div>
+          <div style="font-size:9px;color:var(--muted);text-align:center">Accel peak</div>
+        </div>
+        <div id="lv-status" class="lv-status">Starting…</div>
+      </div>
+
+      <!-- Right: canvases -->
+      <div class="lv-right">
+        <div class="lv-chart-wrap">
+          <div class="lv-chart-title" style="color:#7c2bc8">Hammer</div>
+          <canvas id="lv-hammer-canvas" class="lv-canvas"></canvas>
+        </div>
+        <div class="lv-chart-wrap">
+          <div class="lv-chart-title" style="color:#1565c0">Accelerometer</div>
+          <canvas id="lv-mic-canvas" class="lv-canvas"></canvas>
+        </div>
+        <div class="lv-chart-wrap">
+          <div class="lv-chart-title" style="color:#9c27b0">Hammer FFT</div>
+          <canvas id="lv-fft-canvas" class="lv-canvas"></canvas>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script type="py" src="./main.py" config="./pyscript.toml" async></script>
+</body>
+</html>
