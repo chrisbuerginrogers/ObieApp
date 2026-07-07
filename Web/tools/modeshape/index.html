@@ -124,6 +124,10 @@
         <option value="y">Y</option>
       </select>
       <div class="tb-flex"></div>
+      <span class="tb-lbl">View</span>
+      <button class="tb-btn active" id="ms-view-3d" onclick="msSetViewMode('3d')" title="Animated 3D surface">3D</button>
+      <button class="tb-btn"        id="ms-view-2d" onclick="msSetViewMode('2d')" title="Static 2D contour map">Contour</button>
+      <div style="width:8px"></div>
       <button class="tb-btn" id="ms-frf-panel-btn" onclick="msToggleRefFRF()" title="Show/hide FRF panel">◀ FRF</button>
     </div>
 
@@ -140,6 +144,23 @@
           Load a run and stencil to see mode shapes
         </div>
         <div id="ms-mode-plot" style="flex:1;min-height:0;width:100%;display:none"></div>
+
+        <div id="ms-view-cube" class="ms-view-cube" style="display:none" title="Click a face to snap the camera; arrows spin the cube">
+          <button class="mvc-arrow mvc-arrow-up"    onclick="msRotateViewCube('up')"    aria-label="Tilt up">▲</button>
+          <button class="mvc-arrow mvc-arrow-down"  onclick="msRotateViewCube('down')"  aria-label="Tilt down">▼</button>
+          <button class="mvc-arrow mvc-arrow-left"  onclick="msRotateViewCube('left')"  aria-label="Spin left">◀</button>
+          <button class="mvc-arrow mvc-arrow-right" onclick="msRotateViewCube('right')" aria-label="Spin right">▶</button>
+          <div class="mvc-scene">
+            <div class="mvc-cube" id="mvc-cube">
+              <div class="mvc-face mvc-front"  data-view="front">Front</div>
+              <div class="mvc-face mvc-back"   data-view="back">Back</div>
+              <div class="mvc-face mvc-right"  data-view="right">Right</div>
+              <div class="mvc-face mvc-left"   data-view="left">Left</div>
+              <div class="mvc-face mvc-top"    data-view="top">Top</div>
+              <div class="mvc-face mvc-bottom" data-view="bottom">Bottom</div>
+            </div>
+          </div>
+        </div>
       </div>
 
     </div>
