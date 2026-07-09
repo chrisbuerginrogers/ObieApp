@@ -8,6 +8,28 @@
 // ── Plotly configs ────────────────────────────────────────────────────────────
 const PCFG_HOVER = { responsive: true, displayModeBar: 'hover' };
 const PCFG_NONE  = { responsive: true, displayModeBar: false };
+// Only the animated 3-D mode plot gets the export button — the reference FRF
+// plot and the 2-D contour view have nothing to animate/export.
+// modeBarButtonsToAdd only ever appends a trailing group, so getting our
+// button to sit right next to the built-in "download as png" (toImage)
+// button requires the full modeBarButtons override instead — this also
+// drops "reset camera to last save" (its film-camera icon is reused below
+// instead of reusing Plotly.Icons.camera, which the toImage button already
+// uses, making the two indistinguishable at a glance).
+const PCFG_MODE_HOVER = {
+  ...PCFG_HOVER,
+  modeBarButtons: [
+    ['toImage', {
+      name: 'exportAnimation',
+      title: 'Export animation as video (.webm)',
+      icon: Plotly.Icons.movie,
+      click: () => msExportAnimationVideo(),
+    }],
+    ['zoom3d', 'pan3d', 'orbitRotation', 'tableRotation'],
+    ['resetCameraDefault3d'],
+    ['hoverClosest3d'],
+  ],
+};
 
 // ── Colour palette ────────────────────────────────────────────────────────────
 const PALETTE = [
@@ -57,6 +79,7 @@ let _animRafId   = null;
 let _animStart   = null;
 let _lastFrame   = 0;
 const _ANIM_HZ   = 0.4;
+let _exportingAnimation = false;   // guards against overlapping video-export runs
 
 // Bicubic spline surface state (precomputed per frequency change)
 let _reFine = null;   // Float64Array[][] [ny][nx] — normalised Re on fine grid
@@ -877,6 +900,98 @@ function _stopAnimation() {
   }
 }
 
+// Deterministic one-cycle capture: camera frozen wherever it is, stepped
+// frame-by-frame through exactly one oscillation and encoded to WebM with
+// the browser's native MediaRecorder — no third-party dependency.
+//
+// Frames are captured by blitting Plotly's own WebGL canvas directly rather
+// than going through Plotly.toImage() (an earlier version did this): toImage()
+// round-trips through a PNG encode/decode on every frame, which is slow
+// enough (100ms+/frame) to both crawl during export and — since MediaRecorder
+// records real elapsed wall-clock time — stretch the recorded video far
+// longer than the intended cycle length, making playback look too slow.
+// A direct canvas-to-canvas draw is comparatively instant.
+//
+// Trade-off: the title/colorbar/axis tick labels are drawn by Plotly in a
+// layer separate from the WebGL canvas, so they will NOT appear in the
+// exported video with this approach — only the raw 3D mesh/nodes. Revisit if
+// that's needed.
+window.msExportAnimationVideo = async function() {
+  if (_exportingAnimation) return;
+  const plotEl = document.getElementById('ms-mode-plot');
+  if (_viewMode !== '3d' || !plotEl || plotEl.style.display === 'none' ||
+      (plotEl._msBranch !== 'surface' && plotEl._msBranch !== 'scatter3d')) {
+    _setStatus('Load a run and switch to the 3D view before exporting.');
+    return;
+  }
+  const glCanvas = plotEl.querySelector('canvas.gl-canvas-focus') || plotEl.querySelector('canvas');
+  if (!glCanvas) {
+    _setStatus('⚠️ Could not find the 3D canvas to export.');
+    return;
+  }
+
+  _exportingAnimation = true;
+  const wasRunning = _animRunning;
+  if (wasRunning) _stopAnimation();
+  _setStatus('Exporting animation…');
+
+  try {
+    const width  = plotEl.clientWidth  || 640;
+    const height = plotEl.clientHeight || 480;
+    const canvas = document.createElement('canvas');
+    canvas.width  = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    const stream   = canvas.captureStream(30);
+    const chunks   = [];
+    const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    const stopped = new Promise(resolve => { recorder.onstop = resolve; });
+    recorder.start();
+
+    const fps         = 30;
+    const cycleSecs   = 1 / _ANIM_HZ;
+    const totalFrames = Math.round(fps * cycleSecs);
+    for (let i = 0; i < totalFrames; i++) {
+      const frameStart = performance.now();
+      const t = i / fps;
+      _renderModePlot(false, t, true);
+      // Give Plotly's restyle a paint cycle to actually land on the WebGL
+      // canvas before we copy it.
+      await new Promise(r => requestAnimationFrame(r));
+      ctx.drawImage(glCanvas, 0, 0, width, height);
+      // Pace to real time so the recorded video plays back at the correct
+      // speed, regardless of how fast the draw above actually ran.
+      const elapsed = performance.now() - frameStart;
+      const remaining = (1000 / fps) - elapsed;
+      if (remaining > 0) await new Promise(r => setTimeout(r, remaining));
+    }
+
+    recorder.stop();
+    await stopped;
+
+    const blob = new Blob(chunks, { type: 'video/webm' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `modeshape_${Math.round(_modeFreqHz)}Hz.webm`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    _setStatus('✓ Animation saved.');
+  } catch (e) {
+    console.error('Animation export failed:', e);
+    _setStatus('⚠️ Animation export failed: ' + e.message);
+  } finally {
+    _exportingAnimation = false;
+    if (wasRunning) _startAnimation();
+    else _renderModePlot(false, 0);
+  }
+};
+
 function _animLoop(now) {
   if (!_animRunning) return;
   _animRafId = requestAnimationFrame(_animLoop);
@@ -915,6 +1030,16 @@ function _wireInteractionGuard(plotEl) {
   window.addEventListener('mouseup', end);
   window.addEventListener('touchend', end);
 
+  // If the cursor leaves the browser window (or the window loses focus)
+  // mid-drag, the OS often never delivers a mouseup back to this page at
+  // all — window.addEventListener('mouseup', ...) above then never fires,
+  // leaving _userInteracting stuck true (animation permanently "paused")
+  // and _liveCamera() reading whatever Plotly's own drag state was frozen
+  // at when the gesture was interrupted. Treat leaving the document/window
+  // as an implicit end-of-gesture so our own state can't get stuck.
+  document.addEventListener('mouseleave', end);
+  window.addEventListener('blur', end);
+
   // Wheel/pinch-zoom and two-finger trackpad pan have no discrete "end" event,
   // so treat a short idle gap after the last wheel event as the gesture ending.
   plotEl.addEventListener('wheel', () => {
@@ -939,8 +1064,21 @@ const _VIEW_DIRS = {
   bottom: { dir: { x: 0,  y: 0,  z: -1}, up: { x: 0, y: 1, z: 0 } },
 };
 
+// Reads Plotly's own current camera straight from its live layout state,
+// rather than the plotly_relayout-updated _sceneCamera mirror — that mirror
+// is updated asynchronously by an event handler, which leaves a window where
+// it can lag the true live camera by a tick. A direct, synchronous read
+// can't be stale: whatever it returns IS the camera at this exact instant,
+// so re-asserting it back into a Plotly.react() layout is guaranteed to be
+// a no-op rather than an accidental reset. Falls back to _sceneCamera only
+// when the plot hasn't been laid out yet (e.g. very first render).
+function _liveCamera(plotEl) {
+  return plotEl?._fullLayout?.scene?.camera || _sceneCamera;
+}
+
 function _currentCameraDistance() {
-  const eye = _sceneCamera && _sceneCamera.eye;
+  const plotEl = document.getElementById('ms-mode-plot');
+  const eye = _liveCamera(plotEl)?.eye;
   if (!eye) return 2.2;
   const d = Math.sqrt(eye.x**2 + eye.y**2 + eye.z**2);
   return d > 0.05 ? d : 2.2;
@@ -962,14 +1100,18 @@ function _snapCameraToView(viewName) {
   // Treat the snap like any other camera gesture: pause the animation for its
   // duration, then resume without a visible time-jump.
   const wasInteracting = _userInteracting;
-  if (!wasInteracting) { _userInteracting = true; _interactionStarted = performance.now(); }
+  let myToken = null;
+  if (!wasInteracting) { _userInteracting = true; myToken = _interactionStarted = performance.now(); }
 
   _sceneCamera = camera;
   _sceneUiRev++;
   Plotly.relayout(plotEl, { 'scene.camera': camera, 'scene.uirevision': _sceneUiRev });
 
   requestAnimationFrame(() => {
-    if (wasInteracting) return;
+    // If a real drag/wheel gesture started in the brief window since the
+    // click (_interactionStarted no longer matches our own token), it now
+    // owns the interaction state — don't clobber it out from under it.
+    if (wasInteracting || _interactionStarted !== myToken) return;
     _userInteracting = false;
     if (_animStart != null && _interactionStarted != null) {
       _animStart += (performance.now() - _interactionStarted);
@@ -1152,6 +1294,15 @@ function _renderModePlot(resetCamera, t, isAnimFrame) {
       },
     ];
 
+    // On a genuine reset, use the fixed default. Otherwise, re-assert
+    // whatever the camera actually is *right now* (read fresh, synchronously
+    // — see _liveCamera) rather than a value cached by an async event
+    // listener, so there's no window where a stale value could get sent
+    // back to Plotly and visually reset the view.
+    const cameraPatch = resetCamera
+      ? { camera: (_sceneCamera = { eye: { x: 0, y: -1.8, z: 1.4 }, up: { x: 0, y: 0, z: 1 } }) }
+      : { camera: _liveCamera(plotEl) };
+
     const layout = {
       paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
       margin: { l: 0, r: 0, t: 30, b: 0 },
@@ -1171,14 +1322,12 @@ function _renderModePlot(resetCamera, t, isAnimFrame) {
           y: Math.max(0.3, spanY),
           z: Math.max(0.2, Math.min(spanX, spanY) * 0.6),
         },
-        camera: resetCamera
-          ? (_sceneCamera = { eye: { x: 0, y: -1.8, z: 1.4 }, up: { x: 0, y: 0, z: 1 } })
-          : _sceneCamera,
+        ...cameraPatch,
         uirevision: _sceneUiRev,
       },
     };
 
-    Plotly.react(plotEl, traces, layout, PCFG_HOVER);
+    Plotly.react(plotEl, traces, layout, PCFG_MODE_HOVER);
     plotEl._msBranch = 'surface';
     _wireInteractionGuard(plotEl);
 
@@ -1248,6 +1397,12 @@ function _renderModePlot(resetCamera, t, isAnimFrame) {
   const [mnZ, mxZ] = [Math.min(...allZ), Math.max(...allZ)];
   const pad = (Math.max(mxX-mnX, mxY-mnY, mxZ-mnZ) * 0.3) + 0.01;
 
+  // See the surface branch above for why the live-read camera is used here
+  // instead of the async-updated _sceneCamera mirror.
+  const cameraPatch = resetCamera
+    ? { camera: (_sceneCamera = { eye: { x: 1.5, y: 1.5, z: 1 } }) }
+    : { camera: _liveCamera(plotEl) };
+
   const layout = {
     paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
     margin: { l: 0, r: 0, t: 30, b: 0 },
@@ -1263,12 +1418,12 @@ function _renderModePlot(resetCamera, t, isAnimFrame) {
         y: Math.max(0.3, mxY-mnY+0.01),
         z: Math.max(0.3, mxZ-mnZ+0.1+_modeAmp),
       },
-      camera: resetCamera ? (_sceneCamera = { eye: { x: 1.5, y: 1.5, z: 1 } }) : _sceneCamera,
+      ...cameraPatch,
       uirevision: _sceneUiRev,
     },
   };
 
-  Plotly.react(plotEl, traces, layout, PCFG_HOVER);
+  Plotly.react(plotEl, traces, layout, PCFG_MODE_HOVER);
   plotEl._msBranch = 'scatter3d';
   _wireInteractionGuard(plotEl);
 
