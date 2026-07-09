@@ -33,6 +33,8 @@ let _watchInterval    = null;       // setInterval id
 let _watchCurrentNode = null;       // node id to hit next (null = not watching)
 let _watchDoneNodes   = new Set();  // node ids already recorded
 let _watchRunLabel    = '';         // "InstrumentA / run_001" for display
+let _watchTaps           = null;    // taps-per-position from the run's template.json; null = use file-existence fallback
+let _watchConfirmedDone  = new Set(); // position numbers (not node ids) already confirmed to have reached _watchTaps hits
 
 // ─── Canvas ───────────────────────────────────────────────────────────────────
 const _canvas = document.getElementById('tpl-canvas');
@@ -695,18 +697,29 @@ window.tplStartWatching = async function(i) {
   // Stop any existing watch first
   tplStopWatching(true);
 
-  _watchHandle     = run.trfHandle;
-  _watchTestHandle = run.testHandle;
-  _watchRunLabel   = run.label;
+  _watchHandle          = run.trfHandle;
+  _watchTestHandle      = run.testHandle;
+  _watchRunLabel        = run.label;
+  _watchTaps            = null;
+  _watchConfirmedDone   = new Set();
+
+  // Read template.json once per watch session (not per poll tick) — used both
+  // to merge the node layout in and to cache taps-per-position for _pollTRF's
+  // hit-count-based done-detection. Missing/invalid taps just means _pollTRF
+  // falls back to its old file-existence heuristic.
+  let existing = {};
+  if (_watchTestHandle) {
+    try {
+      const rfh = await _watchTestHandle.getFileHandle('template.json');
+      existing = JSON.parse(await (await rfh.getFile()).text());
+    } catch (_) {}
+    const t = Number(existing.taps);
+    _watchTaps = Number.isFinite(t) && t > 0 ? t : null;
+  }
 
   // Merge node layout into template.json (the unified run file)
   if (_nodes.length && _watchTestHandle) {
     try {
-      let existing = {};
-      try {
-        const rfh = await _watchTestHandle.getFileHandle('template.json');
-        existing = JSON.parse(await (await rfh.getFile()).text());
-      } catch (_) {}
       const stencilPatch = {
         ...((existing.stencil) ? existing.stencil : {}),
         name:  _currentName || existing.stencil?.name || 'Node Layout',
@@ -734,50 +747,111 @@ window.tplStartWatching = async function(i) {
 
 window.tplStopWatching = function(silent) {
   if (_watchInterval) { clearInterval(_watchInterval); _watchInterval = null; }
-  _watchHandle      = null;
-  _watchTestHandle  = null;
-  _watchRunLabel    = '';
-  _watchCurrentNode = null;
-  _watchDoneNodes   = new Set();
+  _watchHandle         = null;
+  _watchTestHandle     = null;
+  _watchRunLabel       = '';
+  _watchCurrentNode    = null;
+  _watchDoneNodes      = new Set();
+  _watchTaps           = null;
+  _watchConfirmedDone  = new Set();
   _updateWatchUI(false);
   _renderCanvas();
   _pushToProjection();
 };
 
+// Find the first occurrence of `needle` bytes within `hay`. Returns -1 if absent.
+function _findBytes(hay, needle) {
+  outer:
+  for (let i = 0; i <= hay.length - needle.length; i++) {
+    for (let j = 0; j < needle.length; j++) {
+      if (hay[i + j] !== needle[j]) continue outer;
+    }
+    return i;
+  }
+  return -1;
+}
+
+// Reads the plain-text metadata block Acquire appends after a TRF's binary
+// data (see Python/fileio/trf_fileio.py's OBIE_META marker/format). Returns
+// {} — never throws — if the block is missing (older TRF) or unreadable
+// (e.g. mid-write), so callers can treat that as "unknown, not yet done."
+async function _readTrfMeta(fileHandle) {
+  try {
+    const bytes  = new Uint8Array(await (await fileHandle.getFile()).arrayBuffer());
+    const MARKER = new TextEncoder().encode('\x00OBIE_META\n'); // 11 bytes
+    const idx    = _findBytes(bytes, MARKER);
+    if (idx === -1) return {};
+    const tail = new TextDecoder('utf-8').decode(bytes.subarray(idx + MARKER.length));
+    const meta = {};
+    for (const line of tail.split('\n')) {
+      const c = line.indexOf(':');
+      if (c > -1) meta[line.slice(0, c).trim()] = line.slice(c + 1).trim();
+    }
+    return meta;
+  } catch (_) { return {}; }
+}
+
 async function _pollTRF() {
   if (!_watchHandle) return;
 
-  // Acquire overwrites the TRF after every accepted hit, so a file exists as
-  // soon as position N starts — not just when it's finished. To avoid advancing
-  // the projector on the first hit, we treat the highest-numbered TRF as the
-  // position currently being collected. Only when a higher TRF appears does the
-  // previous one get marked done.
-  const positions = new Set();
+  // entry.name → position number, plus the entry (file) handle itself so we
+  // can read its metadata without a second directory lookup.
+  const byPos = new Map();
   try {
     for await (const entry of _watchHandle.values()) {
       if (entry.kind !== 'file') continue;
       const m = entry.name.match(/_(\d+)\.trf$/i);
-      if (m) positions.add(parseInt(m[1], 10));
+      if (m) byPos.set(parseInt(m[1], 10), entry);
     }
   } catch (_) { return; }
 
-  const sorted = [...positions].sort((a, b) => a - b);
+  const sorted = [...byPos.keys()].sort((a, b) => a - b);
 
   if (sorted.length === 0) {
     // No TRFs yet (fresh run or after Start Over) — show first node
     _watchDoneNodes   = new Set();
     _watchCurrentNode = _nodes.length ? 0 : null;
 
-  } else if (sorted.length > _nodes.length) {
-    // More TRF files than positions — all done (edge case after Start Over)
-    _watchDoneNodes   = new Set(sorted.map(p => p - 1));
-    _watchCurrentNode = null;
+  } else if (_watchTaps == null) {
+    // No taps count available (missing/malformed template.json) — fall back
+    // to the old file-existence heuristic so watch mode still degrades
+    // gracefully instead of breaking.
+    if (sorted.length > _nodes.length) {
+      _watchDoneNodes   = new Set(sorted.map(p => p - 1));
+      _watchCurrentNode = null;
+    } else {
+      const maxPos = sorted[sorted.length - 1];
+      _watchDoneNodes   = new Set(sorted.filter(p => p < maxPos).map(p => p - 1));
+      _watchCurrentNode = maxPos - 1;
+    }
 
   } else {
-    // Highest position = currently being collected; all lower = done
-    const maxPos = sorted[sorted.length - 1];
-    _watchDoneNodes   = new Set(sorted.filter(p => p < maxPos).map(p => p - 1));
-    _watchCurrentNode = maxPos - 1; // 0-indexed node id
+    // Real done-detection: a position is done once its OWN file reports
+    // n_hits >= taps — not merely because a later position's file exists.
+    // This is what kills the one-hit lag: the moment the final hit at a
+    // position lands, that position's own file already carries the
+    // completed count, so we can advance immediately.
+    const doneNodes = new Set();
+    for (const pos of sorted) {
+      if (_watchConfirmedDone.has(pos)) { doneNodes.add(pos - 1); continue; }
+      const meta   = await _readTrfMeta(byPos.get(pos));
+      const nHits  = parseInt(meta.n_hits, 10);
+      if (Number.isFinite(nHits) && nHits >= _watchTaps) {
+        doneNodes.add(pos - 1);
+        _watchConfirmedDone.add(pos);
+      }
+      // else: not done yet — leave it out of doneNodes, it's in progress.
+    }
+    _watchDoneNodes = doneNodes;
+
+    const firstNotDone = sorted.find(p => !doneNodes.has(p - 1));
+    if (firstNotDone != null) {
+      _watchCurrentNode = firstNotDone - 1;
+    } else {
+      // Every position we've seen a file for is done — advance to the next
+      // unseen node, or finish if that would run past the stencil's node count.
+      _watchCurrentNode = sorted.length < _nodes.length ? sorted.length : null;
+    }
   }
 
   _renderCanvas();
