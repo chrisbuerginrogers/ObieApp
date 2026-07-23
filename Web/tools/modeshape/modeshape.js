@@ -50,6 +50,12 @@ let _complexFRFs    = {};   // nodeIdx string → { freq[], real[], imag[] }
 let _trfPending     = 0;
 let _trfDone        = 0;
 let _selectedNodes  = new Set();  // highlighted in sidebar
+let _showAverageOnly = false;     // FRF View: show only the average trace, hiding individual nodes
+let _frfBandMin = null;           // FRF View: selected frequency band (Hz), null = full range/auto
+let _frfBandMax = null;
+let _lastPeaks = [];              // most recently detected peaks [{freq,mag}], shown on the Mode Shape tab too
+let _lastAverage = null;          // most recently computed average curve {freq,mag}, reused by the Mode Shape tab
+let _lastAvgIndices = [];         // node indices that fed the above, so the ref panel can gray the same ones
 
 // Stencil / geometry
 let _stencilName    = '';
@@ -68,18 +74,33 @@ let _modeAmp       = 1.0;
 let _deformAxis    = 'z';
 let _viewMode      = '3d';   // '3d' = animated surface | '2d' = static contour
 let _refFrfVisible = true;
-let _sceneCamera   = { eye: { x: 0, y: -1.8, z: 1.4 }, up: { x: 0, y: 0, z: 1 } };
+let _sceneCamera   = { eye: { x: 0, y: -18, z: 14 }, up: { x: 0, y: 0, z: 1 } };
 let _sceneUiRev    = 0;   // bumped only on a genuine reset so Plotly keeps the
                           // live camera/dragmode during animation-frame updates
 let _userInteracting    = false;  // true while a drag/wheel gesture owns the gl3d camera
 let _interactionStarted = null;
 let _wheelIdleTimer     = null;
+let _dragIdleTimer      = null;
 let _animRunning = false;
 let _animRafId   = null;
 let _animStart   = null;
 let _lastFrame   = 0;
 const _ANIM_HZ   = 0.4;
 let _exportingAnimation = false;   // guards against overlapping video-export runs
+let _hideContoursForAnim = false;  // true while playing — see _startAnimation
+// Synthetic width given to a single-row/column stencil so it renders as a
+// narrow interpolated ribbon instead of falling back to the node lattice.
+// Shared with _renderModePlot so it can size the 3-D box's Z dimension off
+// the ribbon's real length rather than this tiny synthetic width.
+const RIBBON_WIDTH_CM = 0.6;
+
+// Fraction of the plate's footprint diagonal used to size the 3-D scene's Z
+// box (see the aspectratio.z comment in _renderModePlot). Using the diagonal
+// instead of min/max(spanX,spanY) means one ratio works continuously across
+// any aspect ratio — square sheet, elongated rectangle, or thin ribbon —
+// with no shape detection or per-case constant to re-tune as new stencil
+// layouts get used.
+const Z_ASPECT_RATIO = 0.35;
 
 // Bicubic spline surface state (precomputed per frequency change)
 let _reFine = null;   // Float64Array[][] [ny][nx] — normalised Re on fine grid
@@ -324,12 +345,15 @@ function _computeModeSurface(freqHz) {
 
   const rows = [...new Set(_stencilNodes.map(n => n.row))].sort((a,b)=>a-b);
   const cols = [...new Set(_stencilNodes.map(n => n.col))].sort((a,b)=>a-b);
-  if (rows.length < 2 || cols.length < 2) return;
+  // Bail only when there's no real line/grid at all (every node at the same
+  // row AND col). A single row or single column is a 1-D line — handled
+  // below by synthesizing a matching second row/column, rather than here.
+  if (rows.length < 2 && cols.length < 2) return;
 
   const rowToY = {}, colToX = {};
   _stencilNodes.forEach(n => { rowToY[n.row] = (n.yMm||0)/10; colToX[n.col] = (n.xMm||0)/10; });
-  const rowYs = rows.map(r => rowToY[r]);
-  const colXs = cols.map(c => colToX[c]);
+  let rowYs = rows.map(r => rowToY[r]);
+  let colXs = cols.map(c => colToX[c]);
 
   // FRF values at freqHz for each node
   const H = _stencilNodes.map((_, i) => {
@@ -338,14 +362,31 @@ function _computeModeSurface(freqHz) {
   });
 
   // Build 2D Re/Im grids [row][col]
-  const Re2D = rows.map(r => cols.map(c => {
+  let Re2D = rows.map(r => cols.map(c => {
     const ni = _stencilNodes.findIndex(n => n.row===r && n.col===c);
     return ni >= 0 ? H[ni].re : 0;
   }));
-  const Im2D = rows.map(r => cols.map(c => {
+  let Im2D = rows.map(r => cols.map(c => {
     const ni = _stencilNodes.findIndex(n => n.row===r && n.col===c);
     return ni >= 0 ? H[ni].im : 0;
   }));
+
+  // A single row or column of nodes is a 1-D line. Rather than falling back
+  // to the plain node-lattice display, synthesize a second row/column a
+  // small distance away with identical Re/Im values (so the deformation is
+  // uniform across that synthetic width) — the existing bicubic surface
+  // machinery below then renders this unchanged as a narrow, smoothly
+  // interpolated ribbon along the real line of nodes, using the exact same
+  // animated/colored look as the full 2-D sheet.
+  if (cols.length < 2) {
+    colXs = [colXs[0] - RIBBON_WIDTH_CM / 2, colXs[0] + RIBBON_WIDTH_CM / 2];
+    Re2D  = Re2D.map(row => [row[0], row[0]]);
+    Im2D  = Im2D.map(row => [row[0], row[0]]);
+  } else if (rows.length < 2) {
+    rowYs = [rowYs[0] - RIBBON_WIDTH_CM / 2, rowYs[0] + RIBBON_WIDTH_CM / 2];
+    Re2D  = [Re2D[0], Re2D[0]];
+    Im2D  = [Im2D[0], Im2D[0]];
+  }
 
   // Fine grid — aspect-ratio aware (longer axis gets more samples)
   const spanX = colXs[colXs.length-1] - colXs[0];
@@ -592,6 +633,110 @@ function _updateNodeList() {
 // FRF plot (FRF View tab)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Minimum prominence (dB) a peak must stand out from its surrounding
+// shoulders to be reported, and the minimum log-frequency spacing enforced
+// between accepted peaks. No cap on the total count — a run can genuinely
+// show more resonances than a violin's ~7 named body modes (that reference
+// table, in Web/tools/explore/explore.js's INTERPRET_DICTS, is where the
+// 0.1 octave spacing floor below comes from: it's just under the closest
+// real pair in that table, CBR/B1- at ~0.15 octaves apart — wide enough to
+// reject single-bin noise spikes, never so wide it merges two genuinely
+// distinct peaks), so this scales to however many real peaks are present
+// rather than truncating to a fixed number.
+const PEAK_MIN_PROMINENCE_DB = 3;
+const PEAK_MIN_SPACING_OCTAVES = 0.1;
+
+// Prominence-based peak detection (same concept as scipy's find_peaks):
+// a point is a candidate if it's a strict local maximum, and its prominence
+// is how far it stands above the higher of the two valleys on either side
+// (walking outward until a taller point or the array edge). Ranking by
+// prominence rather than raw height means real resonances win out over
+// noise spikes even if a noise spike happens to be taller in an otherwise
+// quiet region. Every candidate clearing PEAK_MIN_PROMINENCE_DB is accepted,
+// highest-prominence first, skipping any that fall within
+// PEAK_MIN_SPACING_OCTAVES of an already-accepted peak.
+function _findPeaks(freq, mag) {
+  const n = freq.length;
+  if (n < 3) return [];
+
+  const candidates = [];
+  for (let i = 1; i < n - 1; i++) {
+    if (mag[i] > mag[i - 1] && mag[i] > mag[i + 1]) candidates.push(i);
+  }
+
+  const withProminence = candidates.map(i => {
+    let leftMin = mag[i];
+    for (let j = i - 1; j >= 0 && mag[j] <= mag[i]; j--) leftMin = Math.min(leftMin, mag[j]);
+    let rightMin = mag[i];
+    for (let j = i + 1; j < n && mag[j] <= mag[i]; j++) rightMin = Math.min(rightMin, mag[j]);
+    return { idx: i, prominence: mag[i] - Math.max(leftMin, rightMin) };
+  }).filter(p => p.prominence >= PEAK_MIN_PROMINENCE_DB);
+
+  withProminence.sort((a, b) => b.prominence - a.prominence);
+  const accepted = [];
+  for (const p of withProminence) {
+    const tooClose = accepted.some(a => Math.abs(Math.log2(freq[p.idx] / freq[a])) < PEAK_MIN_SPACING_OCTAVES);
+    if (!tooClose) accepted.push(p.idx);
+  }
+
+  accepted.sort((a, b) => freq[a] - freq[b]);
+  return accepted.map(i => ({ freq: freq[i], mag: mag[i] }));
+}
+
+// Pointwise average across the given nodes' FRFs. Converts each node's dB
+// magnitude to linear before averaging (an arithmetic mean of magnitudes)
+// and back to dB for display — averaging the dB values directly would give
+// a geometric mean instead, which understates peaks. Nodes whose frequency
+// axis doesn't match the reference length are skipped defensively (all
+// positions in one run share the same sample rate/FFT settings, so this
+// should never actually trigger in practice) rather than averaged in
+// misaligned, which would silently produce garbage.
+function _computeAverageFRF(idxList) {
+  if (!idxList.length) return null;
+  const ref = _frfData[idxList[0]];
+  if (!ref) return null;
+  const n = ref.freq.length;
+  const sums = new Float64Array(n);
+  let count = 0;
+  for (const idx of idxList) {
+    const d = _frfData[idx];
+    if (!d || d.mag.length !== n) {
+      console.warn('_computeAverageFRF: skipping node', idx, '— frequency axis mismatch');
+      continue;
+    }
+    for (let i = 0; i < n; i++) sums[i] += Math.pow(10, d.mag[i] / 20);
+    count++;
+  }
+  if (count === 0) return null;
+  const mag = Array.from(sums, s => 20 * Math.log10(s / count));
+  return { freq: ref.freq, mag };
+}
+
+window.msToggleAverageOnly = function() {
+  _showAverageOnly = !_showAverageOnly;
+  document.getElementById('ms-avg-btn')?.classList.toggle('active', _showAverageOnly);
+  document.getElementById('ms-ref-avg-btn')?.classList.toggle('active', _showAverageOnly);
+  _renderFRFPlot();
+  _renderRefFRF();
+};
+
+window.msSetFRFBand = function() {
+  const min = parseFloat(document.getElementById('ms-frf-band-min').value);
+  const max = parseFloat(document.getElementById('ms-frf-band-max').value);
+  if (!isFinite(min) || !isFinite(max) || min <= 0 || min >= max) return;
+  _frfBandMin = min;
+  _frfBandMax = max;
+  _renderFRFPlot();
+};
+
+window.msResetFRFBand = function() {
+  _frfBandMin = null;
+  _frfBandMax = null;
+  document.getElementById('ms-frf-band-min').value = '';
+  document.getElementById('ms-frf-band-max').value = '';
+  _renderFRFPlot();
+};
+
 function _renderFRFPlot() {
   const el = document.getElementById('ms-frf-plot');
   const indices = Object.keys(_frfData).map(Number).sort((a, b) => a - b);
@@ -601,19 +746,109 @@ function _renderFRFPlot() {
     return;
   }
 
-  const traces = indices.map(idx => {
-    const d = _frfData[idx];
-    const label = _stencilNodes[idx]?.label || String(idx + 1);
-    const color = PALETTE[idx % PALETTE.length];
-    const highlighted = _selectedNodes.size === 0 || _selectedNodes.has(idx);
-    return {
-      x: d.freq, y: d.mag,
-      type: 'scattergl', mode: 'lines',
-      name: 'Node ' + label,
-      line: { color, width: highlighted ? 1.2 : 0.5 },
-      opacity: highlighted ? 1 : 0.25,
-    };
-  });
+  const avgIndices = _selectedNodes.size > 0 ? indices.filter(i => _selectedNodes.has(i)) : indices;
+
+  // Computed unconditionally (not just when Average display is toggled on)
+  // so the Mode Shape tab's reference FRF plot always has fresh peaks/average
+  // to show, regardless of which view the FRF tab happens to be in.
+  const avg = _computeAverageFRF(avgIndices);
+  _lastPeaks     = avg ? _findPeaks(avg.freq, avg.mag) : [];
+  _lastAverage   = avg;
+  _lastAvgIndices = avgIndices;
+
+  let traces;
+
+  if (_showAverageOnly) {
+    // Average mode: gray background traces for just the nodes being
+    // averaged (context), with the average trace on top. Nodes excluded
+    // from the average (when a subset is selected) aren't shown at all.
+    traces = avgIndices.map(idx => {
+      const d = _frfData[idx];
+      const label = _stencilNodes[idx]?.label || String(idx + 1);
+      return {
+        x: d.freq, y: d.mag,
+        type: 'scattergl', mode: 'lines',
+        name: 'Node ' + label,
+        line: { color: '#999', width: 0.6 },
+        opacity: 0.45,
+        hoverinfo: 'skip',
+      };
+    });
+    if (avg) {
+      traces.push({
+        x: avg.freq, y: avg.mag,
+        type: 'scattergl', mode: 'lines',
+        name: `Average (${avgIndices.length})`,
+        line: { color: '#000', width: 2 },
+        hovertemplate: `Average (${avgIndices.length} nodes)<br>%{x:.1f} Hz, %{y:.1f} dB<extra></extra>`,
+      });
+
+      if (_lastPeaks.length) {
+        traces.push({
+          x: _lastPeaks.map(p => p.freq), y: _lastPeaks.map(p => p.mag),
+          type: 'scattergl', mode: 'markers+text',
+          text: _lastPeaks.map(p => `${Math.round(p.freq)} Hz`),
+          textposition: 'top center',
+          textfont: { size: 9, color: '#c62828' },
+          marker: { color: '#c62828', size: 7, symbol: 'triangle-down' },
+          name: 'Peaks',
+          hovertemplate: '%{text}<br>%{y:.1f} dB<extra></extra>',
+        });
+      }
+    }
+  } else {
+    // Draw grayed-out nodes first and highlighted ones last — Plotly paints
+    // traces in array order, so without this, a gray trace with a higher
+    // node index would render on top of and visually bury a selected line.
+    const orderedIndices = [...indices].sort((a, b) => {
+      const ah = _selectedNodes.size === 0 || _selectedNodes.has(a);
+      const bh = _selectedNodes.size === 0 || _selectedNodes.has(b);
+      return (ah === bh) ? 0 : (ah ? 1 : -1);
+    });
+
+    traces = orderedIndices.map(idx => {
+      const d = _frfData[idx];
+      const label = _stencilNodes[idx]?.label || String(idx + 1);
+      const highlighted = _selectedNodes.size === 0 || _selectedNodes.has(idx);
+      // Unselected nodes are both grayed out (a neutral color, not just the
+      // node's own color at lower opacity) and lightened, so a selected line
+      // stays clearly readable even over a dense haze of other traces.
+      const color = highlighted ? PALETTE[idx % PALETTE.length] : '#ccc';
+      return {
+        x: d.freq, y: d.mag,
+        type: 'scattergl', mode: 'lines',
+        name: 'Node ' + label,
+        line: { color, width: highlighted ? 1.2 : 0.5 },
+        opacity: highlighted ? 1 : 0.25,
+        // Unselected nodes are excluded from hover entirely once a selection
+        // is active, so hovering can only ever surface the node(s) picked.
+        hoverinfo: highlighted ? undefined : 'skip',
+        ...(highlighted ? { hovertemplate: 'Node ' + label + '<br>%{x:.1f} Hz, %{y:.1f} dB<extra></extra>' } : {}),
+      };
+    });
+  }
+
+  // A selected frequency band restricts the x-axis and, unlike Plotly's own
+  // zoom, also renormalizes the y-axis to fit only the data inside that
+  // band — otherwise the y-range stays sized for the full sweep, and a peak
+  // in a narrow band of interest can end up looking small.
+  let xRangePatch = {}, yRangePatch = {};
+  if (_frfBandMin != null && _frfBandMax != null) {
+    xRangePatch = { range: [Math.log10(_frfBandMin), Math.log10(_frfBandMax)] };
+    let yMin = Infinity, yMax = -Infinity;
+    for (const tr of traces) {
+      for (let i = 0; i < tr.x.length; i++) {
+        if (tr.x[i] >= _frfBandMin && tr.x[i] <= _frfBandMax) {
+          if (tr.y[i] < yMin) yMin = tr.y[i];
+          if (tr.y[i] > yMax) yMax = tr.y[i];
+        }
+      }
+    }
+    if (isFinite(yMin) && isFinite(yMax)) {
+      const pad = Math.max(1, (yMax - yMin) * 0.1);
+      yRangePatch = { range: [yMin - pad, yMax + pad] };
+    }
+  }
 
   const layout = {
     paper_bgcolor: 'transparent', plot_bgcolor: '#fcfcfc',
@@ -621,13 +856,25 @@ function _renderFRFPlot() {
     xaxis: {
       title: { text: 'Frequency (Hz)', font: { size: 11 } },
       type: 'log', gridcolor: '#e8e8e8', zeroline: false,
+      showspikes: true, spikemode: 'across', spikedash: 'dot',
+      spikecolor: '#999', spikethickness: 1,
+      ...xRangePatch,
     },
     yaxis: {
       title: { text: 'Magnitude (dB)', font: { size: 11 } },
       gridcolor: '#e8e8e8', zeroline: false,
+      showspikes: true, spikemode: 'across', spikedash: 'dot',
+      spikecolor: '#999', spikethickness: 1,
+      ...yRangePatch,
     },
     legend: { font: { size: 9 }, bgcolor: 'rgba(255,255,255,0.7)', x: 1.01, xanchor: 'left' },
-    hovermode: 'x unified',
+    // 'closest' shows a single small tooltip for whichever node/point you're
+    // nearest to (name + frequency + magnitude) instead of 'x unified''s
+    // stacked list of every node's value at that frequency, which became an
+    // unreadable, unscrollable wall of numbers once there were dozens of
+    // nodes. The spike line above gives a clear visual frequency anchor even
+    // when you're not hovering exactly on a line.
+    hovermode: 'closest',
   };
 
   Plotly.react(el, traces, layout, PCFG_HOVER);
@@ -637,22 +884,71 @@ function _renderFRFPlot() {
 // Ref FRF plot (Mode Shape tab) — click to set frequency
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Avoids Math.min(...arr)/Math.max(...arr): spreading an array as individual
+// function arguments throws "Maximum call stack size exceeded" once the
+// array is large enough to overflow the engine's call-argument limit — a
+// real risk here since arr can be every node's full frequency sweep
+// concatenated together. A plain loop has no such limit regardless of size.
+function _minMax(arr) {
+  let min = Infinity, max = -Infinity;
+  for (let i = 0; i < arr.length; i++) {
+    if (arr[i] < min) min = arr[i];
+    if (arr[i] > max) max = arr[i];
+  }
+  return [min, max];
+}
+
 function _renderRefFRF() {
   const el = document.getElementById('ms-ref-frf');
   const indices = Object.keys(_frfData).map(Number).sort((a, b) => a - b);
   if (indices.length === 0) { Plotly.purge(el); return; }
 
-  const traces = indices.map(idx => {
-    const d = _frfData[idx];
-    const color = PALETTE[idx % PALETTE.length];
-    return { x: d.freq, y: d.mag, type: 'scattergl', mode: 'lines',
-             name: 'Node ' + (_stencilNodes[idx]?.label || String(idx+1)),
-             line: { color, width: 0.8 }, showlegend: false };
-  });
+  let traces;
+  if (_showAverageOnly) {
+    // Same idea as the FRF View tab's Average mode: gray context traces for
+    // just the nodes that fed the average, so the average curve and peak
+    // labels stand out instead of getting lost in every node's own line.
+    traces = _lastAvgIndices.map(idx => {
+      const d = _frfData[idx];
+      return { x: d.freq, y: d.mag, type: 'scattergl', mode: 'lines',
+               line: { color: '#999', width: 0.5 }, opacity: 0.45,
+               hoverinfo: 'skip', showlegend: false };
+    });
+    if (_lastAverage) {
+      traces.push({
+        x: _lastAverage.freq, y: _lastAverage.mag,
+        type: 'scattergl', mode: 'lines',
+        line: { color: '#000', width: 1.5 }, showlegend: false, name: 'Average',
+      });
+    }
+  } else {
+    traces = indices.map(idx => {
+      const d = _frfData[idx];
+      const color = PALETTE[idx % PALETTE.length];
+      return { x: d.freq, y: d.mag, type: 'scattergl', mode: 'lines',
+               name: 'Node ' + (_stencilNodes[idx]?.label || String(idx+1)),
+               line: { color, width: 0.8 }, showlegend: false };
+    });
+  }
+
+  // Detected peaks (computed in the FRF View tab) — clicking one jumps the
+  // mode-shape frequency to exactly that peak, via the same plotly_click
+  // handler used for clicking anywhere else on this plot.
+  if (_lastPeaks.length) {
+    traces.push({
+      x: _lastPeaks.map(p => p.freq), y: _lastPeaks.map(p => p.mag),
+      type: 'scattergl', mode: 'markers+text',
+      text: _lastPeaks.map(p => `${Math.round(p.freq)}`),
+      textposition: 'top center',
+      textfont: { size: 7, color: '#c62828' },
+      marker: { color: '#c62828', size: 5, symbol: 'triangle-down' },
+      showlegend: false, name: 'Peaks',
+    });
+  }
 
   // Vertical frequency line
   const yAll = indices.flatMap(i => _frfData[i].mag);
-  const yMin = Math.min(...yAll), yMax = Math.max(...yAll);
+  const [yMin, yMax] = _minMax(yAll);
   traces.push({
     x: [_modeFreqHz, _modeFreqHz], y: [yMin, yMax],
     type: 'scatter', mode: 'lines',
@@ -665,7 +961,13 @@ function _renderRefFRF() {
     margin: { l: 44, r: 8, t: 10, b: 36 },
     xaxis: { type: 'log', gridcolor: '#e8e8e8', zeroline: false, title: { text: 'Hz', font: { size: 9 } } },
     yaxis: { gridcolor: '#e8e8e8', zeroline: false, title: { text: 'dB', font: { size: 9 } } },
-    hovermode: false,
+    // 'closest' (not false) — plotly_click is wired through the same hit-
+    // testing Plotly uses for hover, so disabling hover here silently
+    // disabled click-to-set-frequency too.
+    hovermode: 'closest',
+    // dragmode left at Plotly's cartesian default ('zoom'): double-click
+    // already resets the view natively, even with no modebar (PCFG_NONE),
+    // so drag-zoom doesn't need a way to undo beyond that.
   };
 
   Plotly.react(el, traces, layout, PCFG_NONE);
@@ -678,6 +980,12 @@ function _renderRefFRF() {
     }
   });
 }
+
+window.msResetRefZoom = function() {
+  const el = document.getElementById('ms-ref-frf');
+  if (!el || !el.data || el.data.length === 0) return;
+  Plotly.relayout(el, { 'xaxis.autorange': true, 'yaxis.autorange': true });
+};
 
 function _updateRefFRFLine() {
   const el = document.getElementById('ms-ref-frf');
@@ -701,7 +1009,22 @@ window.msSetTab = function(tab) {
   if (tab === 'mode') {
     _renderRefFRF();
     if (Object.keys(_complexFRFs).length > 0 && _geometry.nodes.length > 0) {
-      _renderModePlot(true, 0);
+      // false, not true: this fires on every switch back to this tab, not
+      // just the first ever render. _liveCamera() already falls back to the
+      // default eye position when the plot hasn't been laid out yet, so a
+      // genuine first render still gets a sensible camera — but resetCamera
+      // here would also blow away whatever the user had already set up on
+      // every subsequent visit to this tab.
+      _renderModePlot(false, 0);
+    }
+    // The panel was hidden (display:none) until the class toggle above ran
+    // in this same tick, so Plotly may have measured it before the browser
+    // finished laying it out at its real size. A follow-up resize on the
+    // next frame corrects that — same fix already used for the FRF-panel
+    // toggle below.
+    const modePlot = document.getElementById('ms-mode-plot');
+    if (modePlot && modePlot.style.display !== 'none') {
+      requestAnimationFrame(() => _resizeModePlotPreservingCamera(modePlot));
     }
   }
 };
@@ -860,10 +1183,13 @@ window.msToggleRefFRF = function() {
   const btn   = document.getElementById('ms-frf-panel-btn');
   if (panel) panel.style.display = _refFrfVisible ? '' : 'none';
   if (btn)   btn.textContent     = _refFrfVisible ? '◀ FRF' : '▶ FRF';
-  // Let Plotly resize the 3-D plot now that its container changed size
+  // The FRF panel is an absolute-positioned overlay now, not a flex sibling,
+  // so this toggle no longer actually changes the 3-D plot's own container
+  // size — kept as a defensive no-op resize in case anything else affects
+  // available width (e.g. a scrollbar appearing/disappearing).
   const modePlot = document.getElementById('ms-mode-plot');
   if (modePlot && modePlot.style.display !== 'none') {
-    requestAnimationFrame(() => Plotly.Plots.resize(modePlot));
+    requestAnimationFrame(() => _resizeModePlotPreservingCamera(modePlot));
   }
 };
 
@@ -883,10 +1209,20 @@ function _startAnimation() {
   // priciest part of a per-frame surface replot and adds nothing while the
   // shape is moving — drop it during playback to shrink each frame's JS cost,
   // which shortens the window where an in-flight replot can delay a gesture.
-  const plotEl = document.getElementById('ms-mode-plot');
-  if (plotEl && plotEl._msBranch === 'surface') {
-    Plotly.restyle(plotEl, { 'contours.z.show': false }, [0]);
-  }
+  //
+  // This used to be a standalone Plotly.restyle({'contours.z.show':...})
+  // call with a manual camera capture/reapply around it. That turned out to
+  // permanently break manual zoom/pan for the rest of the session (even
+  // across later pause/resume) — restyle()'ing `contours` on a gl3d surface
+  // trace is a "calc" edit that can tear down and rebuild the scene's camera
+  // controller, and no amount of re-applying `scene.camera` afterward fixed
+  // up the *new* controller instance. Routing the same toggle through the
+  // normal full Plotly.react() path (_renderModePlot's non-fast-path branch)
+  // avoids that entirely, since it already preserves the live camera via
+  // _liveCamera()/uirevision without ever touching `contours` through
+  // restyle().
+  _hideContoursForAnim = true;
+  _renderModePlot(false, 0);
   _animLoop();
 }
 
@@ -894,10 +1230,11 @@ function _stopAnimation() {
   _animRunning = false;
   if (_animRafId) { cancelAnimationFrame(_animRafId); _animRafId = null; }
   document.getElementById('ms-anim-btn').textContent = '▶ Animate';
-  const plotEl = document.getElementById('ms-mode-plot');
-  if (plotEl && plotEl._msBranch === 'surface') {
-    Plotly.restyle(plotEl, { 'contours.z.show': true }, [0]);
-  }
+  _hideContoursForAnim = false;
+  // Redraw at whatever phase the animation was actually paused at, not a
+  // reset to t=0, so the shown shape doesn't jump when contours reappear.
+  const t = _animStart != null ? (performance.now() - _animStart) / 1000 : 0;
+  _renderModePlot(false, t);
 }
 
 // Deterministic one-cycle capture: camera frozen wherever it is, stepped
@@ -1047,6 +1384,24 @@ function _wireInteractionGuard(plotEl) {
     clearTimeout(_wheelIdleTimer);
     _wheelIdleTimer = setTimeout(end, 200);
   }, { passive: true });
+
+  // A gl3d orbit drag never reaches the mousedown listener above: Plotly's
+  // own camera-drag handler is attached directly to the WebGL canvas and
+  // stops the event from bubbling to this container, so begin() was never
+  // firing for an actual camera rotate/pan/zoom — only for clicks that
+  // happened to land elsewhere on the plot. That left _userInteracting
+  // false for the whole gesture, so the animation loop kept restyling the
+  // surface's z-data 30x/sec underneath the user's drag the entire time,
+  // fighting it to a standstill. plotly_relayouting is dispatched by Plotly
+  // itself (not a raw DOM event) specifically while a gl3d camera is being
+  // actively dragged, so it can't be swallowed by stopPropagation — treat
+  // it the same way as the wheel case, with an idle-gap timeout standing in
+  // for the "drag end" event gl3d doesn't reliably fire.
+  plotEl.on('plotly_relayouting', () => {
+    begin();
+    clearTimeout(_dragIdleTimer);
+    _dragIdleTimer = setTimeout(end, 200);
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1074,6 +1429,19 @@ const _VIEW_DIRS = {
 // when the plot hasn't been laid out yet (e.g. very first render).
 function _liveCamera(plotEl) {
   return plotEl?._fullLayout?.scene?.camera || _sceneCamera;
+}
+
+// Plotly.Plots.resize() can itself reset a gl3d scene's camera as a side
+// effect in some cases — this is a separate risk from anything covered by
+// _liveCamera's use inside _renderModePlot's own Plotly.react() calls, since
+// resize doesn't go through that code path at all. Capturing the camera
+// immediately before resizing and re-applying it immediately after makes
+// resize a guaranteed no-op for the camera, regardless of what Plotly does
+// internally.
+function _resizeModePlotPreservingCamera(plotEl) {
+  const cam = _liveCamera(plotEl);
+  Plotly.Plots.resize(plotEl);
+  if (cam) Plotly.relayout(plotEl, { 'scene.camera': cam });
 }
 
 function _currentCameraDistance() {
@@ -1260,7 +1628,7 @@ function _renderModePlot(resetCamera, t, isAnimFrame) {
         },
         contours: {
           z: {
-            show: true,
+            show: !_hideContoursForAnim,
             usecolormap: false,
             color: 'rgba(0,0,0,0.28)',
             width: 1,
@@ -1300,7 +1668,7 @@ function _renderModePlot(resetCamera, t, isAnimFrame) {
     // listener, so there's no window where a stale value could get sent
     // back to Plotly and visually reset the view.
     const cameraPatch = resetCamera
-      ? { camera: (_sceneCamera = { eye: { x: 0, y: -1.8, z: 1.4 }, up: { x: 0, y: 0, z: 1 } }) }
+      ? { camera: (_sceneCamera = { eye: { x: 0, y: -18, z: 14 }, up: { x: 0, y: 0, z: 1 } }) }
       : { camera: _liveCamera(plotEl) };
 
     const layout = {
@@ -1320,7 +1688,9 @@ function _renderModePlot(resetCamera, t, isAnimFrame) {
         aspectratio: {
           x: Math.max(0.3, spanX),
           y: Math.max(0.3, spanY),
-          z: Math.max(0.2, Math.min(spanX, spanY) * 0.6),
+          // Sized off the footprint diagonal (not min/max of the two spans)
+          // so a single ratio holds for any aspect ratio — see Z_ASPECT_RATIO.
+          z: Math.max(0.2, Math.hypot(spanX, spanY) * Z_ASPECT_RATIO),
         },
         ...cameraPatch,
         uirevision: _sceneUiRev,
@@ -1341,7 +1711,7 @@ function _renderModePlot(resetCamera, t, isAnimFrame) {
     return;
   }
 
-  // ── Fallback: scatter3d lattice (< 3 nodes or degenerate geometry) ──────────
+  // ── Fallback: scatter3d lattice (fully degenerate — no real row or column) ──
   const xs = nodes.map((n, i) => n.x + (_deformAxis === 'x' ? defs[i] : 0));
   const ys = nodes.map((n, i) => n.y + (_deformAxis === 'y' ? defs[i] : 0));
   const zs = nodes.map((n, i) => n.z + (_deformAxis === 'z' ? defs[i] : 0));
@@ -1392,15 +1762,15 @@ function _renderModePlot(resetCamera, t, isAnimFrame) {
   ];
 
   const allX = xs.concat(gx), allY = ys.concat(gy), allZ = zs.concat(gz);
-  const [mnX, mxX] = [Math.min(...allX), Math.max(...allX)];
-  const [mnY, mxY] = [Math.min(...allY), Math.max(...allY)];
-  const [mnZ, mxZ] = [Math.min(...allZ), Math.max(...allZ)];
+  const [mnX, mxX] = _minMax(allX);
+  const [mnY, mxY] = _minMax(allY);
+  const [mnZ, mxZ] = _minMax(allZ);
   const pad = (Math.max(mxX-mnX, mxY-mnY, mxZ-mnZ) * 0.3) + 0.01;
 
   // See the surface branch above for why the live-read camera is used here
   // instead of the async-updated _sceneCamera mirror.
   const cameraPatch = resetCamera
-    ? { camera: (_sceneCamera = { eye: { x: 1.5, y: 1.5, z: 1 } }) }
+    ? { camera: (_sceneCamera = { eye: { x: 15, y: 15, z: 10 } }) }
     : { camera: _liveCamera(plotEl) };
 
   const layout = {

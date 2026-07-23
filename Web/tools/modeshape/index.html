@@ -89,6 +89,18 @@
 
       <!-- Main FRF plot -->
       <div class="ms-frf-main">
+        <div class="ms-frf-toolbar">
+          <button class="tb-btn" id="ms-avg-btn" onclick="msToggleAverageOnly()"
+                  title="Show only the average of the selected nodes (or all nodes, if none are selected)">📊 Average</button>
+          <span class="ms-frf-band-sep"></span>
+          <span class="tb-lbl">Band</span>
+          <input id="ms-frf-band-min" type="number" min="1" step="1" placeholder="Min Hz"
+                 class="tb-inp ms-frf-band-inp" onchange="msSetFRFBand()">
+          <span class="tb-lbl">–</span>
+          <input id="ms-frf-band-max" type="number" min="1" step="1" placeholder="Max Hz"
+                 class="tb-inp ms-frf-band-inp" onchange="msSetFRFBand()">
+          <button class="tb-btn" onclick="msResetFRFBand()" title="Reset to the full frequency/amplitude view">↺ Reset</button>
+        </div>
         <div id="ms-frf-plot" style="flex:1;min-height:0;width:100%"></div>
       </div>
 
@@ -100,6 +112,8 @@
 
     <!-- Controls bar -->
     <div class="ms-mode-controls">
+      <button class="tb-btn" id="ms-frf-panel-btn" onclick="msToggleRefFRF()" title="Show/hide FRF panel">◀ FRF</button>
+      <div style="width:8px"></div>
       <span class="tb-lbl">Freq</span>
       <input type="range" id="ms-freq-slider" class="ms-freq-slider"
              min="1" max="7000" step="1" value="1000"
@@ -127,15 +141,19 @@
       <span class="tb-lbl">View</span>
       <button class="tb-btn active" id="ms-view-3d" onclick="msSetViewMode('3d')" title="Animated 3D surface">3D</button>
       <button class="tb-btn"        id="ms-view-2d" onclick="msSetViewMode('2d')" title="Static 2D contour map">Contour</button>
-      <div style="width:8px"></div>
-      <button class="tb-btn" id="ms-frf-panel-btn" onclick="msToggleRefFRF()" title="Show/hide FRF panel">◀ FRF</button>
     </div>
 
     <!-- Mode body: ref FRF (left) + 3-D plot (right) -->
     <div class="ms-mode-body">
 
       <div class="ms-ref-frf-wrap">
-        <div class="ms-ref-title">Click to set frequency</div>
+        <div class="ms-ref-title">
+          <span>Click to set frequency</span>
+          <button class="ms-ref-title-close" id="ms-ref-avg-btn" onclick="msToggleAverageOnly()"
+                  title="Show only the average (or all nodes, if none are selected)">📊 Avg</button>
+          <button class="ms-ref-title-close" onclick="msResetRefZoom()" title="Reset zoom">↺ Reset</button>
+          <button class="ms-ref-title-close" onclick="msToggleRefFRF()" title="Hide this panel">✕</button>
+        </div>
         <div id="ms-ref-frf" style="flex:1;min-height:0"></div>
       </div>
 
