@@ -78,6 +78,30 @@ function _screenToPhys(sx, sy) {
   };
 }
 
+// _renderCanvas applies an *extra* -90° rotation around the true canvas
+// centre (via ctx.translate/rotate/translate) when _verticalMount is on, on
+// top of whatever _physToScreen already computes — so a node's actual drawn
+// position differs from plain _physToScreen's output whenever the mount is
+// flipped. Mouse events report real canvas pixels, unaffected by that ctx
+// transform, so hit-testing/dragging must apply the same extra rotation
+// themselves or clicks land on the node's un-rotated (invisible) position —
+// this is why dragging silently stopped working after flipping the mount.
+function _physToScreenMounted(xMm, yMm) {
+  const p = _physToScreen(xMm, yMm);
+  if (!_verticalMount) return p;
+  const cx = _canvas.width / 2, cy = _canvas.height / 2;
+  const dx = p.x - cx, dy = p.y - cy;
+  return { x: cx + dy, y: cy - dx };
+}
+
+function _screenToPhysMounted(sx, sy) {
+  if (!_verticalMount) return _screenToPhys(sx, sy);
+  const cx = _canvas.width / 2, cy = _canvas.height / 2;
+  const ox = -(sy - cy);
+  const oy = sx - cx;
+  return _screenToPhys(cx + ox, cy + oy);
+}
+
 // ─── Grid building ────────────────────────────────────────────────────────────
 function _buildGridNodes() {
   const { rows, cols, xSpacing, ySpacing } = _grid;
@@ -227,7 +251,7 @@ function _renderCanvas() {
 function _nodeAt(mx, my) {
   const HIT = _NODE_R + 6;
   return _nodes.find(n => {
-    const pos = _physToScreen(n.xMm, n.yMm);
+    const pos = _physToScreenMounted(n.xMm, n.yMm);
     return Math.hypot(pos.x - mx, pos.y - my) <= HIT;
   }) || null;
 }
@@ -262,8 +286,8 @@ document.addEventListener('mousemove', e => {
     const node = _nodes.find(n => n.id === _drag.nodeId);
     if (node) {
       // Convert drag delta to new physical position via the inverse transform
-      const startScreen = _physToScreen(_drag.startXmm, _drag.startYmm);
-      const newPhys = _screenToPhys(
+      const startScreen = _physToScreenMounted(_drag.startXmm, _drag.startYmm);
+      const newPhys = _screenToPhysMounted(
         startScreen.x + (mx - _drag.startMX),
         startScreen.y + (my - _drag.startMY)
       );
