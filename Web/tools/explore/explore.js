@@ -1811,6 +1811,7 @@
       const saved = JSON.parse(localStorage.getItem('obieExplore_plotState') || '{}');
       Object.assign(_S, saved);
     } catch(_) {}
+    _S.normMode = 'as_measured';  // always start on "As measured" — never carry over from last session
     _syncControls();
     _populateBandSel();  // build dropdown from _dynamicBandPresets (empty until folder loaded)
     render();
