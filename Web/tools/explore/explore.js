@@ -632,6 +632,33 @@
     el.innerHTML = html;
   }
 
+  // ── Instrument notes panel ───────────────────────────────────────────────
+  // Notes live at <instrument>/notes.txt (written by Acquire's Notes button —
+  // see CLAUDE.md's data-folder shared-handle pattern). d.path is relative to
+  // the data-folder root, e.g. "MyViolin/MyViolin_02/TRF/file.trf" — the first
+  // segment is the instrument folder. Files loaded outside the scanned folder
+  // (e.g. drag-dropped) have no '/' in their path, so there's nothing to look up.
+  let _notesInstrumentCache = {}; // instrument name → notes text (or null = confirmed absent)
+  async function _showInstrumentNotes(path) {
+    const panel = $('notes-panel'); if (!panel) return;
+    if (!_dataDir || !path || !path.includes('/')) return;
+    const instrument = path.split('/')[0];
+    let text = _notesInstrumentCache[instrument];
+    if (text === undefined) {
+      try {
+        const instrHandle = await _dataDir.getDirectoryHandle(instrument);
+        const file = await (await instrHandle.getFileHandle('notes.txt')).getFile();
+        text = (await file.text()).trim();
+      } catch (_) {
+        text = null;
+      }
+      _notesInstrumentCache[instrument] = text;
+    }
+    panel.innerHTML = text
+      ? `<div class="notes-panel-hdr">📝 ${_esc(instrument)} notes</div><div class="notes-panel-body">${_esc(text)}</div>`
+      : '';
+  }
+
   // ── Dataset list ───────────────────────────────────────────────────────
   function _renderList() {
     const box = $('dataset-list'); if (!box) return;
@@ -662,13 +689,16 @@
       _playDataset(+e.target.dataset.id);
     }));
 
-    // Hover: thicken the corresponding Plotly trace and show path tooltip
+    // Hover: thicken the corresponding Plotly trace, show path tooltip, and
+    // load that dataset's instrument notes.txt into the sidebar notes panel.
     box.querySelectorAll('.ds-row').forEach(row => {
       const id = +row.dataset.id;
       row.addEventListener('mouseenter', () => {
         const vis = _datasets.filter(d => d.visible);
         const idx = vis.findIndex(d => d.id === id);
         if (idx >= 0) Plotly.restyle('explore-plot', {'line.width': _S.lineWidth * 3}, [idx]);
+        const d = _datasets.find(x => x.id === id);
+        if (d) _showInstrumentNotes(d.path);
       });
       row.addEventListener('mouseleave', () => {
         const vis = _datasets.filter(d => d.visible);
@@ -855,6 +885,7 @@
     const st = $('explore-status');
     if (st) st.textContent = 'Scanning folder…';
     _dataDir = dir;
+    _notesInstrumentCache = {};
 
     // Load settings first — openObieAppSettings seeds Test_Samples on new folders,
     // so the scan must happen after to include those files.

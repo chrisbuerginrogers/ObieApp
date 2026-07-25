@@ -58,22 +58,14 @@
   <div class="acq-toolbar">
     <div class="tb-r">
 
-      <button class="tb-btn" onclick="acqPreferences()">Settings</button>
-
       <button class="tb-btn" onclick="acqNotes()">Notes</button>
       <button id="data-folder-btn" class="tb-btn" onclick="acqSetDataFolder()">📁 Data Folder</button>
-      <button id="instrument-btn" class="tb-btn" onclick="acqSetInstrument()">🎻 Instrument</button>
+      <button id="instrument-btn" class="tb-btn" onclick="acqSetInstrument()" title="Click to change instrument">🎻 <span id="instrument-btn-name">Instrument</span></button>
       <span id="save-status-ind" style="font-size:0.75rem;font-weight:600;margin-left:6px;cursor:pointer"
             title="Click to rename this test" onclick="acqRenameTest()"></span>
 
       <div class="tb-flex"></div>
 
-      <button class="tb-btn" onclick="acqTemplate()">Template…</button>
-      <select id="inp-input-device" onchange="acqSyncInputDevice()"
-              title="Input device type" style="font-size:0.78rem;padding:2px 5px;height:28px;border-radius:5px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:inherit;cursor:pointer">
-        <option value="microphone">🎙 Mic</option>
-        <option value="accelerometer">📡 Accel</option>
-      </select>
       <button id="lv-btn" class="tb-btn" onclick="acqLiveView()">LiveView</button>
       <button class="tb-btn" onclick="acqHelp()">Help</button>
       <button class="tb-btn" onclick="acqTips()">Tips</button>
@@ -81,17 +73,20 @@
     </div>
   </div>
 
-  <!-- ── Banner row: run meta + position tabs + template indicator ──────── -->
+  <!-- ── Banner row: template button + position tabs + stencil indicator ── -->
   <div class="acq-banner-row">
     <div class="acq-run-meta">
-      <span id="inp-instrument-banner" class="acq-meta-disp" title="Click 🎻 Instrument to change">—</span>
-      <span class="acq-meta-sep">/</span>
-      <span id="inp-test-banner" class="acq-meta-disp">—</span>
+      <button id="tpl-settings-btn" class="tb-btn" onclick="acqOpenTemplateSettings()">Template: <span id="tpl-settings-btn-name">none</span></button>
+      <!-- inp-instrument-banner / inp-test-banner: kept as hidden data holders —
+           lots of JS reads their textContent as the source of truth for the
+           current instrument/test name. Visible instrument name now lives on
+           the toolbar's Instrument button; test name is shown by save-status-ind. -->
+      <span id="inp-instrument-banner" class="acq-meta-disp" style="display:none">—</span>
+      <span id="inp-test-banner" class="acq-meta-disp" style="display:none">—</span>
     </div>
     <div id="pos-banner" class="acq-banner">
       <span style="font-size:10px;color:var(--muted);font-style:italic">Loading…</span>
     </div>
-    <div id="tpl-ind" class="acq-tpl-ind"></div>
     <div id="stencil-ind" class="acq-tpl-ind" style="color:var(--accent-3)"></div>
   </div>
 
@@ -216,206 +211,252 @@
 
 
 <!-- ═══════════════════════════════════════════════════════════════════════
-     Preferences modal
+     Template & Settings modal — combined Measurement Template / Node Stencil
+     / Input Device picker and all run + plot settings, in one place.
      ═══════════════════════════════════════════════════════════════════════ -->
-<div id="prefs-modal" class="modal-overlay">
-  <div class="modal-box" style="width:min(92vw,540px)">
+<div id="tpl-settings-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(96vw,980px);max-width:980px">
     <div class="modal-header">
-      <span class="modal-title">Acquire Preferences</span>
-      <button class="modal-close" onclick="acqClosePrefs()">✕</button>
+      <span class="modal-title">Template &amp; Settings</span>
+      <button class="modal-close" onclick="acqTplExitCancel()">✕</button>
     </div>
-    <div class="modal-body">
+    <div class="modal-body" style="display:flex;gap:14px;overflow:hidden;max-height:70vh">
 
-      <div class="pref-section">Load from File</div>
-      <div class="pref-row">
-        <label>Settings file</label>
-        <label class="file-btn" style="flex:1;max-width:220px">
-          Load Settings…
-          <input type="file" accept=".txt" onchange="acqLoadSettingsTxt(this)" style="display:none">
-        </label>
-        <span id="prefs-load-msg" class="save-msg" style="margin-left:8px"></span>
-      </div>
-      <p class="pref-hint">Select a Settings.txt from any existing run folder on your hard drive to populate all fields below.</p>
+      <!-- ── Column A: Input device + Template + Stencil ─────────────────── -->
+      <div style="width:280px;flex-shrink:0;overflow-y:auto;padding-right:10px;border-right:1px solid var(--border)">
 
-      <div class="pref-section">Audio Device</div>
-      <div class="pref-row">
-        <label for="prefs-device">Input device</label>
-        <select id="prefs-device" style="flex:1;max-width:220px"></select>
-        <button class="act-btn" style="margin-left:6px;white-space:nowrap" onclick="acqRecheckDevices()" title="Re-scan for audio input devices">⟳ Recheck</button>
-      </div>
+        <div class="setup-section-hdr">Input</div>
+        <div class="io-row">
+          <label>Type</label>
+          <select id="inp-input-device" onchange="acqSyncInputDevice()" title="Input device type">
+            <option value="microphone">🎙 Mic</option>
+            <option value="accelerometer">📡 Accel</option>
+          </select>
+        </div>
+        <div class="io-row">
+          <label for="prefs-device">Device</label>
+          <button class="io-recheck-btn" onclick="acqRecheckDevices()" title="Recheck devices">⟳</button>
+          <select id="prefs-device"></select>
+        </div>
 
-      <div class="pref-section">Run Settings</div>
-      <div class="pref-row">
-        <label for="inp-taps">Hits per position</label>
-        <input id="inp-taps" type="number" value="5" min="1" max="20" style="max-width:80px">
-      </div>
-      <div class="pref-row">
-        <label for="inp-positions">Number of positions</label>
-        <input id="inp-positions" type="number" value="12" min="1" max="40" style="max-width:80px">
-      </div>
-      <div class="pref-row">
-        <label for="inp-prefix">Position prefix</label>
-        <input id="inp-prefix" type="text" value="H" maxlength="3" style="max-width:60px">
-      </div>
+        <div class="save-row" style="margin-bottom:14px">
+          <label class="act-btn" style="cursor:pointer;margin:0">
+            Load Settings…
+            <input type="file" accept=".txt" onchange="acqLoadSettingsTxt(this)" style="display:none">
+          </label>
+          <span id="prefs-load-msg" class="save-msg"></span>
+        </div>
 
-      <div class="pref-section">Hit Detection</div>
-      <div class="pref-row">
-        <label for="inp-threshold">Trigger threshold</label>
-        <input id="inp-threshold" type="number" value="0.05" step="0.005" min="0.001" max="1" style="max-width:80px">
-        <span class="pref-unit">V</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-pre">Time before hit</label>
-        <input id="inp-pre" type="number" value="0.01" step="0.005" min="0.001" max="0.5" style="max-width:80px">
-        <span class="pref-unit">s</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-post">Time after hit</label>
-        <input id="inp-post" type="number" value="0.30" step="0.05" min="0.05" max="5" style="max-width:80px">
-        <span class="pref-unit">s</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-time-cutoff">Hammer time cutoff (green line)</label>
-        <input id="inp-time-cutoff" type="number" value="0.30" step="0.001" min="0.001" max="5" style="max-width:80px">
-        <span class="pref-unit">s</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-mic-time-cutoff">Mic time cutoff (green line)</label>
-        <input id="inp-mic-time-cutoff" type="number" value="0.30" step="0.001" min="0.001" max="5" style="max-width:80px">
-        <span class="pref-unit">s</span>
-      </div>
-      <p class="pref-hint">Signal is zeroed after this time post-trigger.</p>
+        <div class="setup-section-hdr">Measurement Template</div>
+        <p style="font-size:10px;color:var(--muted);margin-bottom:6px;line-height:1.4">
+          Click a template to apply it — the numbers to the right update immediately.
+        </p>
+        <div id="tpl-list" class="tpl-list" style="max-height:180px;margin-bottom:8px"></div>
+        <div class="save-row" style="margin-bottom:14px">
+          <button id="tpl-undo-btn" class="act-btn" onclick="acqUndoTemplateApply()" style="display:none">↺ Undo</button>
+        </div>
 
-      <div class="pref-section">Calibration</div>
-      <div class="pref-row">
-        <label for="inp-ham-cal">Hammer calibration factor</label>
-        <input id="inp-ham-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px">
-        <span class="pref-unit">N/V</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-mic-cal" id="lbl-mic-cal">Microphone calibration factor</label>
-        <input id="inp-mic-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px">
-        <span class="pref-unit">Pa/V</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-swap-channels">Swap inputs (hammer on right channel)</label>
-        <input id="inp-swap-channels" type="checkbox">
+        <div class="setup-section-hdr">Node Stencil</div>
+        <p style="font-size:10px;color:var(--muted);margin-bottom:6px;line-height:1.4">
+          Build stencils in <strong>Stencil Builder</strong>. Applied stencil is saved with each run.
+        </p>
+        <div class="save-row" style="margin-bottom:10px">
+          <button class="act-btn" onclick="acqOpenStencilBuilder()">🔧 Build Stencil</button>
+        </div>
+        <div id="stencil-list" class="tpl-list" style="max-height:110px">
+          <div style="font-size:11px;color:var(--muted)">No stencils loaded — set a Data Folder.</div>
+        </div>
+        <div class="save-row" style="margin-top:10px;margin-bottom:14px">
+          <button class="act-btn accent" onclick="acqApplyStencil()">Apply Stencil</button>
+          <span id="stencil-applied-msg" class="save-msg"></span>
+        </div>
       </div>
 
-      <div class="pref-section">Audio Capture</div>
-      <div class="pref-row">
-        <label for="inp-sample-rate">Sample rate</label>
-        <input id="inp-sample-rate" type="number" value="48000" step="1000" min="8000" max="192000" style="max-width:80px">
-        <span class="pref-unit">Hz</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-bit-depth">Bit depth</label>
-        <input id="inp-bit-depth" type="number" value="24" step="1" min="8" max="32" style="max-width:80px">
-        <span class="pref-unit">bit</span>
+      <!-- ── Column B: Common (per-session) settings ─────────────────────── -->
+      <div style="width:230px;flex-shrink:0;overflow-y:auto;padding-right:10px;border-right:1px solid var(--border)">
+        <div class="pref-section">Run Settings</div>
+        <div class="pref-row">
+          <label for="inp-taps" title="Hits per position">Hits/position</label>
+          <input id="inp-taps" type="number" value="5" min="1" max="20" style="max-width:80px">
+        </div>
+        <div class="pref-row">
+          <label for="inp-positions" title="Number of positions">Positions</label>
+          <input id="inp-positions" type="number" value="12" min="1" max="40" style="max-width:80px">
+        </div>
+        <div class="pref-row">
+          <label for="inp-prefix">Position prefix</label>
+          <input id="inp-prefix" type="text" value="H" maxlength="3" style="max-width:60px">
+        </div>
+
+        <div class="pref-section">Hit Detection</div>
+        <div class="pref-row">
+          <label for="inp-threshold">Trigger threshold</label>
+          <input id="inp-threshold" type="number" value="0.05" step="0.005" min="0.001" max="1" style="max-width:80px">
+          <span class="pref-unit">V</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-pre">Time before hit</label>
+          <input id="inp-pre" type="number" value="0.01" step="0.005" min="0.001" max="0.5" style="max-width:80px">
+          <span class="pref-unit">s</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-post">Time after hit</label>
+          <input id="inp-post" type="number" value="0.30" step="0.05" min="0.05" max="5" style="max-width:80px">
+          <span class="pref-unit">s</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-time-cutoff" title="Hammer time cutoff (green line)">Hammer cutoff</label>
+          <input id="inp-time-cutoff" type="number" value="0.30" step="0.001" min="0.001" max="5" style="max-width:80px">
+          <span class="pref-unit">s</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-mic-time-cutoff" title="Mic time cutoff (green line)">Mic cutoff</label>
+          <input id="inp-mic-time-cutoff" type="number" value="0.30" step="0.001" min="0.001" max="5" style="max-width:80px">
+          <span class="pref-unit">s</span>
+        </div>
+        <p class="pref-hint">Signal is zeroed after this time post-trigger.</p>
       </div>
 
-      <div class="pref-section">Plot Settings</div>
-      <div class="pref-row">
-        <label for="inp-db-spread">FRF dB range</label>
-        <input id="inp-db-spread" type="number" value="38" step="1" min="5" max="120" style="max-width:80px">
-        <span class="pref-unit">dB</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-db-offset">dB offset</label>
-        <input id="inp-db-offset" type="number" value="0" step="1" min="-120" max="120" style="max-width:80px">
-        <span class="pref-unit">dB</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-frf-x-min">FRF x min</label>
-        <input id="inp-frf-x-min" type="number" value="200" step="50" min="1" max="22000" style="max-width:80px">
-        <span class="pref-unit">Hz</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-frf-x-max">FRF x max</label>
-        <input id="inp-frf-x-max" type="number" value="7000" step="500" min="100" max="22000" style="max-width:80px">
-        <span class="pref-unit">Hz</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-frf-y-min">FRF y min</label>
-        <input id="inp-frf-y-min" type="number" value="-10" step="5" min="-120" max="120" style="max-width:80px" placeholder="auto">
-        <span class="pref-unit">dB</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-frf-y-max">FRF y max</label>
-        <input id="inp-frf-y-max" type="number" value="30" step="5" min="-120" max="120" style="max-width:80px" placeholder="auto">
-        <span class="pref-unit">dB</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-line-width">FRF line width</label>
-        <input id="inp-line-width" type="number" value="0.5" step="0.1" min="0.1" max="10" style="max-width:80px">
-        <span class="pref-unit">px</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-ham-x-min">Hammer x min</label>
-        <input id="inp-ham-x-min" type="number" value="0" step="0.001" min="-5" max="5" style="max-width:80px">
-        <span class="pref-unit">s</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-ham-x-max">Hammer x max</label>
-        <input id="inp-ham-x-max" type="number" value="0.05" step="0.01" min="0.001" max="5" style="max-width:80px">
-        <span class="pref-unit">s</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-ham-y-min">Hammer y min</label>
-        <input id="inp-ham-y-min" type="number" value="-0.1" step="0.1" min="-10" max="10" style="max-width:80px">
-        <span class="pref-unit">V</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-ham-y-max">Hammer y max</label>
-        <input id="inp-ham-y-max" type="number" value="1" step="0.1" min="-10" max="10" style="max-width:80px">
-        <span class="pref-unit">V</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-mic-x-min">Mic x min</label>
-        <input id="inp-mic-x-min" type="number" value="0" step="0.01" min="-5" max="5" style="max-width:80px">
-        <span class="pref-unit">s</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-mic-x-max">Mic x max</label>
-        <input id="inp-mic-x-max" type="number" value="0.3" step="0.01" min="0.01" max="5" style="max-width:80px">
-        <span class="pref-unit">s</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-mic-y-min">Mic y min</label>
-        <input id="inp-mic-y-min" type="number" value="-1" step="0.1" min="-10" max="10" style="max-width:80px">
-        <span class="pref-unit">V</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-mic-y-max">Mic y max</label>
-        <input id="inp-mic-y-max" type="number" value="1" step="0.1" min="-10" max="10" style="max-width:80px">
-        <span class="pref-unit">V</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-fft-x-min">FFT x min</label>
-        <input id="inp-fft-x-min" type="number" value="200" step="50" min="1" max="22000" style="max-width:80px">
-        <span class="pref-unit">Hz</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-fft-x-max">FFT x max</label>
-        <input id="inp-fft-x-max" type="number" value="10000" step="500" min="100" max="22000" style="max-width:80px">
-        <span class="pref-unit">Hz</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-fft-y-min">FFT y min</label>
-        <input id="inp-fft-y-min" type="number" value="-25" step="5" min="-120" max="0" style="max-width:80px">
-        <span class="pref-unit">dB</span>
-      </div>
-      <div class="pref-row">
-        <label for="inp-fft-y-max">FFT y max</label>
-        <input id="inp-fft-y-max" type="number" value="0" step="5" min="-60" max="60" style="max-width:80px">
-        <span class="pref-unit">dB</span>
+      <!-- ── Column C: Advanced settings ──────────────────────────────────── -->
+      <div style="flex:1;min-width:220px;overflow-y:auto">
+        <div class="pref-section">Calibration</div>
+        <div class="pref-row">
+          <label for="inp-ham-cal" title="Hammer calibration factor">Hammer cal.</label>
+          <input id="inp-ham-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px">
+          <span class="pref-unit">N/V</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-mic-cal" id="lbl-mic-cal" title="Microphone calibration factor">Microphone cal.</label>
+          <input id="inp-mic-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px">
+          <span class="pref-unit">Pa/V</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-swap-channels" title="Swap inputs (hammer on right channel)">Swap channels</label>
+          <input id="inp-swap-channels" type="checkbox">
+        </div>
+
+        <div class="pref-section">Audio Capture</div>
+        <div class="pref-row">
+          <label for="inp-sample-rate">Sample rate</label>
+          <input id="inp-sample-rate" type="number" value="48000" step="1000" min="8000" max="192000" style="max-width:80px">
+          <span class="pref-unit">Hz</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-bit-depth">Bit depth</label>
+          <input id="inp-bit-depth" type="number" value="24" step="1" min="8" max="32" style="max-width:80px">
+          <span class="pref-unit">bit</span>
+        </div>
+
+        <div class="pref-section">Plot Settings</div>
+        <div class="pref-row">
+          <label for="inp-db-spread">FRF dB range</label>
+          <input id="inp-db-spread" type="number" value="38" step="1" min="5" max="120" style="max-width:80px">
+          <span class="pref-unit">dB</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-db-offset">dB offset</label>
+          <input id="inp-db-offset" type="number" value="0" step="1" min="-120" max="120" style="max-width:80px">
+          <span class="pref-unit">dB</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-frf-x-min">FRF x min</label>
+          <input id="inp-frf-x-min" type="number" value="200" step="50" min="1" max="22000" style="max-width:80px">
+          <span class="pref-unit">Hz</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-frf-x-max">FRF x max</label>
+          <input id="inp-frf-x-max" type="number" value="7000" step="500" min="100" max="22000" style="max-width:80px">
+          <span class="pref-unit">Hz</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-frf-y-min">FRF y min</label>
+          <input id="inp-frf-y-min" type="number" value="-10" step="5" min="-120" max="120" style="max-width:80px" placeholder="auto">
+          <span class="pref-unit">dB</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-frf-y-max">FRF y max</label>
+          <input id="inp-frf-y-max" type="number" value="30" step="5" min="-120" max="120" style="max-width:80px" placeholder="auto">
+          <span class="pref-unit">dB</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-line-width">FRF line width</label>
+          <input id="inp-line-width" type="number" value="0.5" step="0.1" min="0.1" max="10" style="max-width:80px">
+          <span class="pref-unit">px</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-ham-x-min">Hammer x min</label>
+          <input id="inp-ham-x-min" type="number" value="0" step="0.001" min="-5" max="5" style="max-width:80px">
+          <span class="pref-unit">s</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-ham-x-max">Hammer x max</label>
+          <input id="inp-ham-x-max" type="number" value="0.05" step="0.01" min="0.001" max="5" style="max-width:80px">
+          <span class="pref-unit">s</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-ham-y-min">Hammer y min</label>
+          <input id="inp-ham-y-min" type="number" value="-0.1" step="0.1" min="-10" max="10" style="max-width:80px">
+          <span class="pref-unit">V</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-ham-y-max">Hammer y max</label>
+          <input id="inp-ham-y-max" type="number" value="1" step="0.1" min="-10" max="10" style="max-width:80px">
+          <span class="pref-unit">V</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-mic-x-min">Mic x min</label>
+          <input id="inp-mic-x-min" type="number" value="0" step="0.01" min="-5" max="5" style="max-width:80px">
+          <span class="pref-unit">s</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-mic-x-max">Mic x max</label>
+          <input id="inp-mic-x-max" type="number" value="0.3" step="0.01" min="0.01" max="5" style="max-width:80px">
+          <span class="pref-unit">s</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-mic-y-min">Mic y min</label>
+          <input id="inp-mic-y-min" type="number" value="-1" step="0.1" min="-10" max="10" style="max-width:80px">
+          <span class="pref-unit">V</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-mic-y-max">Mic y max</label>
+          <input id="inp-mic-y-max" type="number" value="1" step="0.1" min="-10" max="10" style="max-width:80px">
+          <span class="pref-unit">V</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-fft-x-min">FFT x min</label>
+          <input id="inp-fft-x-min" type="number" value="200" step="50" min="1" max="22000" style="max-width:80px">
+          <span class="pref-unit">Hz</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-fft-x-max">FFT x max</label>
+          <input id="inp-fft-x-max" type="number" value="10000" step="500" min="100" max="22000" style="max-width:80px">
+          <span class="pref-unit">Hz</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-fft-y-min">FFT y min</label>
+          <input id="inp-fft-y-min" type="number" value="-25" step="5" min="-120" max="0" style="max-width:80px">
+          <span class="pref-unit">dB</span>
+        </div>
+        <div class="pref-row">
+          <label for="inp-fft-y-max">FFT y max</label>
+          <input id="inp-fft-y-max" type="number" value="0" step="5" min="-60" max="60" style="max-width:80px">
+          <span class="pref-unit">dB</span>
+        </div>
       </div>
 
-      <div class="save-row">
-        <button class="act-btn accent" onclick="acqSavePrefs()">Apply &amp; Save</button>
-        <button class="act-btn" onclick="acqResetPrefs()">Reset defaults</button>
-        <span id="prefs-save-msg" class="save-msg"></span>
-      </div>
+    </div>
+
+    <div class="save-row" style="padding:10px 18px;border-top:1px solid var(--border);margin-top:0;flex-wrap:wrap">
+      <button class="act-btn" onclick="acqResetPrefs()">↺ Reset defaults</button>
+      <button class="act-btn" onclick="acqResetDefaultTemplates()">↺ Reset Default Templates</button>
+      <span id="tpl-reset-msg" class="save-msg"></span>
+      <span id="prefs-save-msg" class="save-msg"></span>
+      <div style="flex:1"></div>
+      <button class="act-btn" onclick="acqTplExitCancel()">Cancel</button>
+      <button class="act-btn" onclick="acqTplExitUseOnce()">Use for this run only</button>
+      <button class="act-btn" onclick="acqTplExitCreateTemplate()">Create New Template</button>
+      <button id="tpl-update-btn" class="act-btn accent" onclick="acqTplExitUpdateTemplate()">Update Template</button>
     </div>
   </div>
 </div>
@@ -459,7 +500,8 @@
     </div>
     <div class="modal-body">
       <p style="font-size:11px;color:var(--muted);margin-bottom:8px">
-        Notes are saved per run folder name and persist in the browser.
+        Notes are saved to <code>notes.txt</code> in this instrument's folder on your Data Folder,
+        and shown in Explore for any file from this instrument.
       </p>
       <textarea id="notes-textarea" rows="12" placeholder="Enter notes about this measurement session…"></textarea>
       <div class="save-row" style="margin-top:10px">
@@ -472,57 +514,6 @@
 </div>
 
 
-<!-- ══════════════════════════════════════════════════════════════════════
-     Setup modal — Measurement Template + Node Stencil
-     ══════════════════════════════════════════════════════════════════════ -->
-<div id="setup-modal" class="modal-overlay">
-  <div class="modal-box" style="width:min(92vw,520px)">
-    <div class="modal-header">
-      <span class="modal-title">Setup</span>
-      <button class="modal-close" onclick="acqCloseSetup()">✕</button>
-    </div>
-    <div class="modal-body">
-
-      <!-- ── Section: Measurement Template ───────────────────────────── -->
-      <div class="setup-section-hdr">Measurement Template</div>
-      <p style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5">
-        Templates store your measurement setup (soundcard, threshold, calibration
-        factors, etc.). Loaded from <code>ObieAppSettings/Templates/</code>.
-      </p>
-      <div id="tpl-list" class="tpl-list" style="max-height:140px"></div>
-
-      <div style="margin-bottom:10px">
-        <p id="tpl-json-lbl" style="font-size:10px;color:var(--muted);margin-bottom:4px;font-style:italic">
-          Select a template above to preview its settings
-        </p>
-        <pre id="tpl-json" style="font-size:9px;background:var(--bg-deep);padding:6px;border-radius:4px;color:var(--muted);overflow:auto;max-height:120px;margin:0"></pre>
-      </div>
-
-      <div class="save-row" style="margin-bottom:16px">
-        <button class="act-btn" onclick="acqBrowseTemplate()">Browse…</button>
-        <button class="act-btn accent" onclick="acqApplyTemplate()">Apply Template</button>
-        <button class="act-btn" onclick="acqSaveAsTemplate()">Save as Template</button>
-        <button class="act-btn" onclick="acqExportLVTemplate()">Export LabVIEW…</button>
-      </div>
-
-      <!-- ── Section: Node Stencil ────────────────────────────────────── -->
-      <div class="setup-section-hdr">Node Stencil</div>
-      <p style="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5">
-        Stencils define the node layout and auto-set measurement positions.
-        Build stencils in <strong>Stencil Builder</strong>. The applied stencil
-        is saved with each run so Modal Analysis loads it automatically.
-      </p>
-      <div id="stencil-list" class="tpl-list" style="max-height:140px">
-        <div style="font-size:11px;color:var(--muted)">No stencils loaded — set a Data Folder.</div>
-      </div>
-      <div class="save-row" style="margin-top:10px">
-        <button class="act-btn accent" onclick="acqApplyStencil()">Apply Stencil</button>
-        <span id="stencil-applied-msg" class="save-msg"></span>
-      </div>
-
-    </div>
-  </div>
-</div>
 
 <!-- ── LiveView Dialog ──────────────────────────────────────────────────── -->
 <div id="lv-dialog" class="modal-overlay">
@@ -530,6 +521,7 @@
     <div class="modal-header">
       <span class="modal-title">LiveView</span>
       <div style="display:flex;gap:6px;align-items:center">
+        <button class="act-btn" onclick="acqOpenLiveViewStandalone()" title="Open LiveView in its own tab — handy for a second monitor">↗ Open Standalone</button>
         <button id="lv-start-btn" class="act-btn accent" onclick="lvToggleCapture()">▶ Start</button>
         <button class="modal-close" onclick="acqLiveView()">✕</button>
       </div>

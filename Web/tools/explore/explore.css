@@ -181,6 +181,22 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
   text-align: center; line-height: 1.5;
 }
 
+/* ── Instrument notes panel (shown on dataset hover) ─────────────────── */
+.notes-panel:empty { display: none; }
+.notes-panel {
+  border-top: 1px solid var(--border);
+  padding: 5px 6px; flex-shrink: 0;
+  overflow-y: auto; max-height: 120px;
+}
+.notes-panel-hdr {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.4px; color: var(--muted); margin-bottom: 3px;
+}
+.notes-panel-body {
+  font-size: 10px; color: var(--text); line-height: 1.4;
+  white-space: pre-wrap;
+}
+
 /* ── Band table in sidebar ────────────────────────────────────────────── */
 .band-area {
   border-top: 1px solid var(--border);

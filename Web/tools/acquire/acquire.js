@@ -602,10 +602,22 @@ window.acqRescaleFFT = function() {
   });
 };
 
-function _clearTemplateName() {
-  _currentTemplateName = '';
-  const tplInd = document.getElementById('tpl-ind');
-  if (tplInd) tplInd.textContent = '';
+function _setTemplateName(name) {
+  _currentTemplateName = name || '';
+  const btnName = document.getElementById('tpl-settings-btn-name');
+  if (btnName) btnName.textContent = _currentTemplateName || 'none';
+  const updateBtn = document.getElementById('tpl-update-btn');
+  if (updateBtn) updateBtn.disabled = !_currentTemplateName;
+}
+function _clearTemplateName() { _setTemplateName(''); }
+
+// The toolbar's Instrument button shows the instrument name in place of the
+// literal word "Instrument". inp-instrument-banner remains the hidden source
+// of truth (read all over this file) — call this right after writing it.
+function _mirrorInstrumentName() {
+  const name = document.getElementById('inp-instrument-banner')?.textContent?.trim();
+  const btnName = document.getElementById('instrument-btn-name');
+  if (btnName) btnName.textContent = (name && name !== '—') ? name : 'Instrument';
 }
 
 window.acqApplyThreshold = function(val) {
@@ -746,11 +758,6 @@ function _updateEditBtns(s) {
 }
 
 
-window.acqPreferences = function() {
-  document.getElementById('prefs-modal')?.classList.add('open');
-  _populatePrefsForm();
-};
-
 window.acqHelp = function() { window.open('../../Docs/index.html', '_blank'); };
 window.acqTips = function() { window.open('../../Docs/shortcuts.html', '_blank'); };
 
@@ -865,8 +872,8 @@ window.acqSaveCustomPalette = function() {
 };
 
 
-window.acqClosePrefs = function() {
-  document.getElementById('prefs-modal')?.classList.remove('open');
+window.acqCloseTemplateSettings = function() {
+  document.getElementById('tpl-settings-modal')?.classList.remove('open');
 };
 
 window.acqLoadSettingsTxt = async function(input) {
@@ -934,6 +941,7 @@ function _populatePrefsForm(overridePrefs, skipPlotSync) {
   const instrVal = prefs.instrument || 'scratch';
   const instrDisp = document.getElementById('inp-instrument-banner');
   if (instrDisp) instrDisp.textContent = instrVal;
+  _mirrorInstrumentName();
   set('inp-line-width',  prefs.line_width);
   // Read mini-plot ranges from Plotly's layout — ground truth after user zoom.
   const hamDiv = document.getElementById('plot-hammer');
@@ -1010,7 +1018,12 @@ function _loadPrefs() {
   }
 }
 
-window.acqSavePrefs = function() {
+// Parse and validate every field in the Template & Settings modal into a prefs
+// object, without applying or saving anything. Returns null (after alerting)
+// on validation failure. Shared by all three "commit" exit paths — Use for
+// this run only / Update Template / Create New Template — so the same fields
+// feed a live run, an existing template file, or a brand-new template file.
+function _buildPrefsFromForm() {
   const g = id => document.getElementById(id)?.value ?? '';
   // Only read device fields from the select when the list has been populated
   // (options.length > 1 means real devices were enumerated, not just the placeholder).
@@ -1032,7 +1045,7 @@ window.acqSavePrefs = function() {
   const formHamMax = parseFloat(g('inp-ham-x-max'));
   if (!isNaN(formHamMin) && !isNaN(formHamMax) && formHamMax > 0.001) {
     if (formHamMin < 0 || formHamMin >= formHamMax) {
-      alert('Hammer time range is invalid: Min must be ≥ 0 and less than Max.'); return;
+      alert('Hammer time range is invalid: Min must be ≥ 0 and less than Max.'); return null;
     }
     _hamXRange = [formHamMin, formHamMax];
   }
@@ -1040,7 +1053,7 @@ window.acqSavePrefs = function() {
   const formMicMax = parseFloat(g('inp-mic-x-max'));
   if (!isNaN(formMicMin) && !isNaN(formMicMax) && formMicMax > 0.001) {
     if (formMicMin < 0 || formMicMin >= formMicMax) {
-      alert('Mic time range is invalid: Min must be ≥ 0 and less than Max.'); return;
+      alert('Mic time range is invalid: Min must be ≥ 0 and less than Max.'); return null;
     }
     _micXRange = [formMicMin, formMicMax];
   }
@@ -1048,7 +1061,7 @@ window.acqSavePrefs = function() {
   const formFrfMax = parseFloat(g('inp-frf-x-max'));
   if (!isNaN(formFrfMin) && !isNaN(formFrfMax)) {
     if (formFrfMin <= 0 || formFrfMin >= formFrfMax) {
-      alert('FRF frequency range is invalid: Min must be > 0 and less than Max.'); return;
+      alert('FRF frequency range is invalid: Min must be > 0 and less than Max.'); return null;
     }
   }
   if (!isNaN(formFrfMin) && formFrfMin > 0) _S.xMin = formFrfMin;
@@ -1066,8 +1079,8 @@ window.acqSavePrefs = function() {
   if (!isNaN(formFrfYMin) && !isNaN(formFrfYMax)) { _S.yMin = formFrfYMin; _S.yMax = formFrfYMax; }
   const micCal = parseFloat(g('inp-mic-cal'));
   const hamCal = parseFloat(g('inp-ham-cal'));
-  if (!isFinite(micCal) || micCal === 0) { alert('Mic calibration must be a non-zero number.'); return; }
-  if (!isFinite(hamCal) || hamCal === 0) { alert('Hammer calibration must be a non-zero number.'); return; }
+  if (!isFinite(micCal) || micCal === 0) { alert('Mic calibration must be a non-zero number.'); return null; }
+  if (!isFinite(hamCal) || hamCal === 0) { alert('Hammer calibration must be a non-zero number.'); return null; }
   const prefs = {
     threshold:     parseFloat(g('inp-threshold'))   || 0.05,
     frf_x_min:     Math.round(_S.xMin ?? 100),
@@ -1106,16 +1119,98 @@ window.acqSavePrefs = function() {
     sample_rate:   parseInt(g('inp-sample-rate'))   || 48000,
   };
   const deviceChanged = devReady && deviceId !== existing.deviceId;
+  return { prefs, deviceChanged };
+}
+
+// Apply a prefs object (from _buildPrefsFromForm) to the live run: save to
+// localStorage + acquire.json, push into Python, refresh the soundcard
+// display, and restart audio if the device changed mid-session. Does NOT
+// touch any template file on disk and does NOT close the modal — callers
+// (the three commit exit-buttons) handle that themselves.
+function _applyPrefsToRun(prefs, deviceChanged) {
   localStorage.setItem('obieAcquire_prefs', JSON.stringify(prefs));
   _saveAcqSettings();
   _pushSettingsFromPrefs(prefs);
   _updateSoundcardDisplay();
-  _clearTemplateName();
-  acqClosePrefs();
-  // If the audio device changed while the stream was open, restart it immediately.
   if (deviceChanged && audioCtx) {
     _stopAudio().then(() => _startAudio());
   }
+}
+
+// ── Template & Settings modal — the four exit paths ─────────────────────────
+window.acqTplExitUseOnce = function() {
+  const built = _buildPrefsFromForm();
+  if (!built) return;
+  _applyPrefsToRun(built.prefs, built.deviceChanged);
+  _clearTemplateName();
+  acqCloseTemplateSettings();
+};
+
+window.acqTplExitUpdateTemplate = async function() {
+  if (!_currentTemplateName) {
+    alert('No template is currently applied — use "Create New Template" instead.');
+    return;
+  }
+  const t = _templates.find(x => x.name === _currentTemplateName);
+  if (!t || !t._file || !_templatesHandle) {
+    alert('Could not find this template\'s file on disk — use "Create New Template" instead.');
+    return;
+  }
+  const built = _buildPrefsFromForm();
+  if (!built) return;
+  const notes = (document.getElementById('notes-textarea')?.value || localStorage.getItem(_notesKey()) || '').trim();
+  const tpl = { name: t.name, ...(t.description ? { description: t.description } : {}),
+                settings: built.prefs, ...(notes ? { notes } : {}) };
+  try {
+    const fh = await _templatesHandle.getFileHandle(t._file, { create: true });
+    const w  = await fh.createWritable();
+    await w.write(JSON.stringify(tpl, null, 2));
+    await w.close();
+  } catch (e) {
+    alert('Failed to update template: ' + e.message);
+    return;
+  }
+  Object.assign(t, tpl);
+  _renderTemplateList();
+  _applyPrefsToRun(built.prefs, built.deviceChanged);
+  acqCloseTemplateSettings();
+};
+
+window.acqTplExitCreateTemplate = async function() {
+  if (!_templatesHandle) {
+    alert('Set a Data Folder first — templates are saved to ObieAppSettings/Templates/ inside it.');
+    return;
+  }
+  const built = _buildPrefsFromForm();
+  if (!built) return;
+  const name = prompt('Template name:', _currentTemplateName || '');
+  if (!name?.trim()) return;
+  const notes = (document.getElementById('notes-textarea')?.value || localStorage.getItem(_notesKey()) || '').trim();
+  const tpl = {
+    name:        name.trim(),
+    description: `${built.prefs.instrument || ''}  ${new Date().toISOString().slice(0, 10)}`.trim(),
+    settings:    built.prefs,
+    ...(notes ? { notes } : {}),
+  };
+  const safeName = name.trim().replace(/[\\/:*?"<>|]/g, '_') + '.json';
+  try {
+    const fh = await _templatesHandle.getFileHandle(safeName, { create: true });
+    const w  = await fh.createWritable();
+    await w.write(JSON.stringify(tpl, null, 2));
+    await w.close();
+  } catch (e) {
+    alert('Failed to save template: ' + e.message);
+    return;
+  }
+  _templates.push({ ...tpl, _file: safeName });
+  _setTemplateName(tpl.name);
+  _renderTemplateList();
+  _applyPrefsToRun(built.prefs, built.deviceChanged);
+  acqCloseTemplateSettings();
+};
+
+window.acqTplExitCancel = function() {
+  acqCloseTemplateSettings();
 };
 
 function _resetAxisRanges(prefs) {
@@ -1261,22 +1356,56 @@ async function _enumeratePrefsDevices() {
 // Notes modal
 // ════════════════════════════════════════════════════════════════════════════
 
-function _notesKey() { return 'obieAcquire_notes_' + (_pendingTestName || _runName || 'default'); }
+function _currentInstrumentName() {
+  const t = (document.getElementById('inp-instrument-banner')?.textContent || '').trim();
+  return (t && t !== '—') ? t : '';
+}
 
-window.acqNotes = function() {
+// Notes are saved at the instrument level (<instrument>/notes.txt> in the Data
+// Folder, via _testsHandle — the instrument's own directory), not per-run, so
+// they carry across every test session for that instrument. localStorage is
+// kept only as an offline draft cache (and as the target for "scratch" mode,
+// where there's no instrument folder to write into).
+function _notesKey() { return 'obieAcquire_notes_' + (_currentInstrumentName() || 'default'); }
+
+window.acqNotes = async function() {
   document.getElementById('notes-modal')?.classList.add('open');
   const ta = document.getElementById('notes-textarea');
-  if (ta) ta.value = localStorage.getItem(_notesKey()) || '';
+  const st = document.getElementById('notes-save-msg');
+  if (st) st.textContent = '';
+  let text = localStorage.getItem(_notesKey()) || '';
+  if (_testsHandle) {
+    try {
+      const file = await (await _testsHandle.getFileHandle('notes.txt')).getFile();
+      text = await file.text();
+      localStorage.setItem(_notesKey(), text);
+    } catch (_) { /* no notes.txt on disk yet — fall back to local draft */ }
+  }
+  if (ta) ta.value = text;
 };
 
 window.acqCloseNotes = function() {
   document.getElementById('notes-modal')?.classList.remove('open');
 };
 
-window.acqSaveNotes = function() {
+window.acqSaveNotes = async function() {
   const val = document.getElementById('notes-textarea')?.value || '';
+  const st = document.getElementById('notes-save-msg');
   localStorage.setItem(_notesKey(), val);
-  acqCloseNotes();
+  if (!_testsHandle) {
+    if (st) { st.textContent = 'Saved locally — name an instrument to also save to disk'; setTimeout(() => st.textContent = '', 2500); }
+    return;
+  }
+  try {
+    const fh = await _testsHandle.getFileHandle('notes.txt', { create: true });
+    const w  = await fh.createWritable();
+    await w.write(val);
+    await w.close();
+    if (st) { st.textContent = '✓ Saved to Data Folder'; setTimeout(() => st.textContent = '', 2500); }
+  } catch (e) {
+    if (_isFolderGoneError(e)) _handleFolderGone();
+    if (st) { st.textContent = '⚠ Save failed: ' + e.message; setTimeout(() => st.textContent = '', 2500); }
+  }
 };
 
 
@@ -1284,13 +1413,14 @@ window.acqSaveNotes = function() {
 // Template modal
 // ════════════════════════════════════════════════════════════════════════════
 
-window.acqSetup = async function() {
-  document.getElementById('setup-modal')?.classList.add('open');
+window.acqOpenTemplateSettings = async function() {
+  document.getElementById('tpl-settings-modal')?.classList.add('open');
+  _populatePrefsForm();
+  _enumeratePrefsDevices();
   _selectedTpl = null;
-  const pre = document.getElementById('tpl-json');
-  const lbl = document.getElementById('tpl-json-lbl');
-  if (pre) pre.textContent = '';
-  if (lbl) lbl.textContent = 'Select a template above to preview its settings';
+  _tplUndoSnapshot = null;
+  const undoBtn = document.getElementById('tpl-undo-btn');
+  if (undoBtn) undoBtn.style.display = 'none';
   _templates = [];
   _stencils  = [];
   _selectedStencil = null;
@@ -1301,14 +1431,29 @@ window.acqSetup = async function() {
     _renderTemplateList();
     _renderStencilList();
   }
+  const updateBtn = document.getElementById('tpl-update-btn');
+  if (updateBtn) updateBtn.disabled = !_currentTemplateName;
 };
-// Keep old name as alias so any existing callers still work
-window.acqTemplate = window.acqSetup;
 
-window.acqCloseTemplate = function() {
-  document.getElementById('setup-modal')?.classList.remove('open');
+// Re-fetch the three built-in default templates from GitHub and overwrite
+// any same-named files in ObieAppSettings/Templates/. User-created templates
+// with other names are left untouched.
+window.acqResetDefaultTemplates = async function() {
+  const st = document.getElementById('tpl-reset-msg');
+  if (!_templatesHandle) {
+    alert('Set a Data Folder first.');
+    return;
+  }
+  if (!confirm('Reset the built-in default templates?\n\nThis re-downloads "HV 24 Obie Rig", "ScratchPad", and "Scratchpad Obie 26" from GitHub and overwrites any local edits to templates with those exact names. Other templates you\'ve created are not affected.')) return;
+
+  const failures = await _seedFiles(_templatesHandle, _TEMPLATE_SEEDS);
+  await _loadTemplatesFromFolder(_templatesHandle);
+  _renderTemplateList();
+  if (st) {
+    st.textContent = failures > 0 ? '⚠ Some templates failed to download' : '✓ Default templates restored';
+    setTimeout(() => st.textContent = '', 2500);
+  }
 };
-window.acqCloseSetup = window.acqCloseTemplate;
 
 let _templates = [];
 let _selectedTpl = null;
@@ -1355,7 +1500,7 @@ function _renderTemplateList() {
   // Synthetic "Current Settings" entry always at the top
   const curSel = _selectedTpl === -1;
   const currentItem = `
-    <div class="tpl-item${curSel ? ' selected' : ''}" onclick="acqSelectTpl(-1)"
+    <div class="tpl-item${curSel ? ' selected' : ''}" onclick="acqSelectAndApplyTpl(-1)"
          style="border-color:#1565c0;${curSel ? 'background:#e8f0fe;' : ''}">
       <div class="tpl-name" style="color:#1565c0">Current Settings</div>
       <div class="tpl-desc">${_tplMeta(_loadPrefs())}</div>
@@ -1366,7 +1511,7 @@ function _renderTemplateList() {
         const s = t.settings || t.run || t;
         const meta = _tplMeta(s);
         return `
-          <div class="tpl-item${_selectedTpl === i ? ' selected' : ''}" style="display:flex;align-items:center;gap:6px" onclick="acqSelectTpl(${i})">
+          <div class="tpl-item${_selectedTpl === i ? ' selected' : ''}" style="display:flex;align-items:center;gap:6px" onclick="acqSelectAndApplyTpl(${i})">
             <div style="flex:1;min-width:0">
               <div class="tpl-name">${t.name || 'Unnamed'}</div>
               ${meta ? `<div class="tpl-desc">${meta}</div>` : ''}
@@ -1374,7 +1519,7 @@ function _renderTemplateList() {
             <button class="tpl-del-btn" title="Delete template" onclick="acqDeleteTpl(${i},event)">🗑</button>
           </div>`;
       }).join('')
-    : '<div style="font-size:11px;color:var(--muted);padding:4px 0">No saved templates — set a Data Folder to load from <code>ObieAppSettings/Templates/</code>, or use Browse.</div>';
+    : '<div style="font-size:11px;color:var(--muted);padding:4px 0">No saved templates — set a Data Folder to load from <code>ObieAppSettings/Templates/</code>, or use Load Settings… above.</div>';
 
   container.innerHTML = currentItem + list;
 }
@@ -1398,76 +1543,62 @@ window.acqDeleteTpl = async function(i, event) {
   _renderTemplateList();
 };
 
-window.acqSelectTpl = function(i) {
+// Every field id that a template/"Load Settings…" apply can touch — used to
+// snapshot/restore the form for the one-level Undo button.
+const _TPL_APPLY_FIELD_IDS = [
+  'inp-threshold', 'inp-pre', 'inp-post', 'inp-taps', 'inp-positions', 'inp-prefix',
+  'inp-mic-cal', 'inp-ham-cal', 'inp-line-width',
+  'inp-ham-x-min', 'inp-ham-x-max', 'inp-ham-y-min', 'inp-ham-y-max',
+  'inp-mic-x-min', 'inp-mic-x-max', 'inp-mic-y-min', 'inp-mic-y-max',
+  'inp-fft-x-min', 'inp-fft-x-max', 'inp-fft-y-min', 'inp-fft-y-max',
+  'inp-frf-x-min', 'inp-frf-x-max', 'inp-frf-y-min', 'inp-frf-y-max',
+  'inp-db-spread', 'inp-db-offset', 'inp-bit-depth', 'inp-sample-rate',
+];
+
+let _tplUndoSnapshot = null;
+
+function _snapshotTplFields() {
+  const fields = {};
+  for (const id of _TPL_APPLY_FIELD_IDS) {
+    const el = document.getElementById(id);
+    if (el) fields[id] = el.value;
+  }
+  return { fields, templateName: _currentTemplateName, notes: document.getElementById('notes-textarea')?.value ?? null };
+}
+
+function _restoreTplSnapshot(snap) {
+  for (const id of Object.keys(snap.fields)) {
+    const el = document.getElementById(id);
+    if (el) el.value = snap.fields[id];
+  }
+  _setTemplateName(snap.templateName);
+  if (snap.notes != null) {
+    const ta = document.getElementById('notes-textarea');
+    if (ta) ta.value = snap.notes;
+    localStorage.setItem(_notesKey(), snap.notes);
+  }
+}
+
+// Clicking a template in the list applies it immediately — the settings
+// fields in columns B/C update right away, no separate "Apply" step. One
+// level of Undo is kept in case the click was accidental; fields are only
+// written to disk/pushed to the live run when the user exits the modal via
+// Use for this run only / Update Template / Create New Template.
+window.acqSelectAndApplyTpl = function(i) {
   _selectedTpl = i;
   _renderTemplateList();
-  const pre = document.getElementById('tpl-json');
-  const lbl = document.getElementById('tpl-json-lbl');
-  if (!pre) return;
+  if (i === -1) return;  // Current Settings = no-op, nothing to apply
+  const t = _templates[i];
+  if (!t) return;
 
-  if (i === -1) {
-    // Current Settings
-    const p = { ..._loadPrefs() };
-    delete p.deviceLabel; delete p.deviceId;
-    pre.textContent = JSON.stringify(p, null, 2);
-    if (lbl) lbl.textContent = 'Current Settings (device excluded):';
-  } else if (_templates[i]) {
-    const t = _templates[i];
-    const s = { ...(t.settings || t.run || t) };
-    delete s.deviceLabel; delete s.deviceId;
-    const display = { name: t.name || 'Unnamed' };
-    if (t.description) display.description = t.description;
-    display.settings = s;
-    pre.textContent = JSON.stringify(display, null, 2);
-    if (lbl) lbl.textContent = `${t.name || 'Template'} — settings (device excluded):`;
-  } else {
-    pre.textContent = '';
-    if (lbl) lbl.textContent = 'Select a template above to preview its settings';
-  }
-};
+  _tplUndoSnapshot = _snapshotTplFields();
 
-window.acqBrowseTemplate = async function() {
-  const input = document.createElement('input');
-  input.type = 'file'; input.accept = '.txt,.json';
-  input.onchange = async () => {
-    const file = input.files[0]; if (!file) return;
-    try {
-      const text = await file.text();
-      let tpl;
-      if (file.name.toLowerCase().endsWith('.txt')) {
-        const fields   = JSON.parse(window.pyParseLabviewTxt(text));
-        const tplName  = file.name.replace(/_template\.txt$/i, '').replace(/_/g, ' ').trim();
-        const tplNotes = (fields['Default Notes'] || '').trim();
-        tpl = { name: tplName, settings: _lvFieldsToSettings(fields),
-                ...(tplNotes ? { notes: tplNotes } : {}) };
-      } else {
-        const data = JSON.parse(text);
-        tpl = Array.isArray(data) ? data[0] : data;
-      }
-      _templates = [tpl];
-      _selectedTpl = 0;
-      _renderTemplateList();
-    } catch (e) {
-      alert('Could not load template: ' + e.message);
-    }
-  };
-  input.click();
-};
-
-window.acqApplyTemplate = function() {
-  if (_selectedTpl === null) { alert('Select a template first.'); return; }
-  if (_selectedTpl === -1) { window.acqCloseTemplate(); return; }  // Current Settings = no-op
-  if (!_templates[_selectedTpl]) { alert('Select a template first.'); return; }
-  const t = _templates[_selectedTpl];
   const s = t.settings || t.run || t;
-  // Apply to prefs form
   const set = (id, val) => {
     const el = document.getElementById(id);
     if (el && val != null) el.value = val;
   };
   if (s.threshold   != null) set('inp-threshold',  s.threshold);
-  if (s.frf_x_min   != null) set('inp-frf-x-min',  s.frf_x_min);
-  if (s.frf_x_max   != null) set('inp-frf-x-max',  s.frf_x_max);
   if (s.pre_trig_s  != null) set('inp-pre',        s.pre_trig_s);
   if (s.post_trig_s != null) set('inp-post',       s.post_trig_s);
   if (s.taps        != null) set('inp-taps',       s.taps);
@@ -1490,8 +1621,6 @@ window.acqApplyTemplate = function() {
   if (s.fft_x_max   != null) set('inp-fft-x-max',   s.fft_x_max);
   if (s.fft_y_min   != null) set('inp-fft-y-min',   s.fft_y_min);
   if (s.fft_y_max   != null) set('inp-fft-y-max',   s.fft_y_max);
-  if (s.frf_x_min   != null) set('inp-frf-x-min',   s.frf_x_min);
-  if (s.frf_x_max   != null) set('inp-frf-x-max',   s.frf_x_max);
   const frfYMinEl = document.getElementById('inp-frf-y-min');
   const frfYMaxEl = document.getElementById('inp-frf-y-max');
   if (frfYMinEl) frfYMinEl.value = s.frf_y_min != null ? s.frf_y_min : '';
@@ -1501,111 +1630,33 @@ window.acqApplyTemplate = function() {
   if (s.bit_depth   != null) set('inp-bit-depth',   s.bit_depth);
   if (s.sample_rate != null) set('inp-sample-rate', s.sample_rate);
   // device selection intentionally skipped — keep the current device on import
-  _currentTemplateName = t.name || '';
-  const tplInd = document.getElementById('tpl-ind');
-  if (tplInd) tplInd.textContent = _currentTemplateName;
-  window.acqSavePrefs();
+  _setTemplateName(t.name || '');
   // Copy template's default notes into the run notes, if present
   if (t.notes) {
     localStorage.setItem(_notesKey(), t.notes);
     const ta = document.getElementById('notes-textarea');
     if (ta) ta.value = t.notes;
   }
-  window.acqCloseTemplate();
+  // Fields are populated above for review — nothing is applied to the live run
+  // or written to disk yet. The user commits via one of the modal's exit
+  // buttons (Use for this run only / Update Template / Create New Template).
   frfCache = {}; tapCache = {};
   renderFRF(); _clearTrigPlots();
   window.pyResetAll?.();
   _refreshOverlays();
-  document.getElementById('prefs-modal')?.classList.add('open');
+
+  const undoBtn = document.getElementById('tpl-undo-btn');
+  if (undoBtn) undoBtn.style.display = '';
 };
 
-window.acqSaveAsTemplate = async function() {
-  if (!_templatesHandle) {
-    alert('Set a Data Folder first — templates are saved to ObieAppSettings/Templates/ inside it.');
-    return;
-  }
-  const name = prompt('Template name:');
-  if (!name?.trim()) return;
-  const prefs = _loadPrefs();
-  const currentNotes = (document.getElementById('notes-textarea')?.value ||
-                        localStorage.getItem(_notesKey()) || '').trim();
-  const tpl = {
-    name:        name.trim(),
-    description: `${prefs.instrument || ''}  ${new Date().toISOString().slice(0, 10)}`.trim(),
-    settings:    prefs,
-    ...(currentNotes ? { notes: currentNotes } : {}),
-  };
-  const safeName = name.trim().replace(/[\\/:*?"<>|]/g, '_') + '.json';
-  try {
-    const fh = await _templatesHandle.getFileHandle(safeName, { create: true });
-    const w  = await fh.createWritable();
-    await w.write(JSON.stringify(tpl, null, 2));
-    await w.close();
-    _templates.push(tpl);
-    _renderTemplateList();
-  } catch (e) { alert('Failed to save template: ' + e.message); }
-};
-
-// Build a LabVIEW Key=<value/> string from current settings
-function _buildLVTxt() {
-  const p = _loadPrefs();
-  const notes = (document.getElementById('notes-textarea')?.value ||
-                 localStorage.getItem(_notesKey()) || '').trim();
-  const instrName = (document.getElementById('inp-instrument-banner')?.textContent || '').trim();
-  const runName   = _runName || _pendingTestName || '';
-  const testName  = instrName ? `${instrName}--${runName}` : runName;
-  const fields = {
-    'Name of test':     testName,
-    'Date':             new Date().toISOString().slice(0, 10),
-    'Template':         _currentTemplateName || '',
-    'Soundcard':        p.deviceLabel || '',
-    'resolution':       p.bit_depth    ?? 24,
-    'Sampling rate':    p.sample_rate  ?? 48000,
-    'Sample time (s)':  p.post_trig_s  ?? 0.30,
-    'Pre-trigger (s)':  p.pre_trig_s   ?? 0.01,
-    'Hammer Threshold': p.threshold    ?? 0.05,
-    'Positions':        p.positions    ?? 12,
-    'Taps/Position':    p.taps         ?? 5,
-    'Set Names':        p.prefix       ?? 'H',
-    'Hammer cutoff':    p.time_cutoff_s     ?? 0.30,
-    'Mic cutoff':       p.mic_time_cutoff_s ?? 0.30,
-    'Hammer Cal':       p.ham_cal      ?? 1.0,
-    'Mic Cal':          p.mic_cal      ?? 1.0,
-    'dB Offset':        p.db_offset    ?? 0,
-    'dB Spread':        p.db_spread    ?? 38,
-    'flip?':            p.swap_channels ? 'true' : 'false',
-    'Default Notes':    notes,
-  };
-  return Object.entries(fields).map(([k, v]) => {
-    const s = String(v);
-    return s.includes('\n') ? `${k}=<${s}\n/>` : `${k}=<${s}/>`;
-  }).join('\n') + '\n';
-}
-
-window.acqExportLVTemplate = async function() {
-  const txt  = _buildLVTxt();
-  const instr = (document.getElementById('inp-instrument-banner')?.textContent || '').trim() || 'template';
-  const defaultName = (instr + '_template.txt').replace(/[\\/:*?"<>|]/g, '_');
-  try {
-    if (window.showSaveFilePicker) {
-      const fh = await window.showSaveFilePicker({
-        suggestedName: defaultName,
-        types: [{ description: 'LabVIEW Template (.txt)', accept: { 'text/plain': ['.txt'] } }],
-      });
-      const w = await fh.createWritable();
-      await w.write(txt);
-      await w.close();
-    } else {
-      // Fallback for browsers without save picker
-      const blob = new Blob([txt], { type: 'text/plain' });
-      const url  = URL.createObjectURL(blob);
-      const a    = Object.assign(document.createElement('a'), { href: url, download: defaultName });
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-  } catch (e) {
-    if (e.name !== 'AbortError') alert('Could not export: ' + e.message);
-  }
+window.acqUndoTemplateApply = function() {
+  if (!_tplUndoSnapshot) return;
+  _restoreTplSnapshot(_tplUndoSnapshot);
+  _tplUndoSnapshot = null;
+  _selectedTpl = null;
+  _renderTemplateList();
+  const undoBtn = document.getElementById('tpl-undo-btn');
+  if (undoBtn) undoBtn.style.display = 'none';
 };
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -1787,6 +1838,7 @@ async function _refreshInstrumentFolder(instrumentName) {
 
     const instrDisp = document.getElementById('inp-instrument-banner');
     if (instrDisp) instrDisp.textContent = instrumentName;
+    _mirrorInstrumentName();
     _patchPrefs({ instrument: instrumentName });
     const testDisp = document.getElementById('inp-test-banner');
     if (testDisp) testDisp.textContent = _pendingTestName;
@@ -1855,6 +1907,7 @@ async function _applyDataFolder(dirHandle) {
   // Set up instrument folder (creates test subfolder + raw/TRF, sets _rawHandle)
   const instrBannerEl = document.getElementById('inp-instrument-banner');
   if (instrBannerEl) instrBannerEl.textContent = instrument;
+  _mirrorInstrumentName();
   if (instrument !== 'scratch') {
     await _refreshInstrumentFolder(instrument);
   } else {
@@ -2022,12 +2075,6 @@ function _renderStencilList() {
   }).join('');
 }
 
-window.acqStencil = window.acqSetup;
-
-window.acqCloseStencil = function() {
-  document.getElementById('setup-modal')?.classList.remove('open');
-};
-
 window.acqSelectStencil = function(i) {
   _selectedStencil = i;
   _renderStencilList();
@@ -2050,7 +2097,6 @@ window.acqApplyStencil = async function() {
   _currentStencilData = stencilData;
   const ind = document.getElementById('stencil-ind');
   if (ind) ind.textContent = _currentStencilName ? `📐 ${_currentStencilName}` : '';
-  window.acqSavePrefs();
   // Persist stencil to current run folder so Modal Analysis can find it
   await _saveStencilToRun();
   // Show confirmation
@@ -2080,7 +2126,7 @@ function _applyInputDeviceLabels() {
   const titleEl = document.getElementById('mini-title-response');
   if (titleEl) titleEl.textContent = label;
   const calEl = document.getElementById('lbl-mic-cal');
-  if (calEl) calEl.textContent = `${label} calibration factor`;
+  if (calEl) { calEl.textContent = `${label} cal.`; calEl.title = `${label} calibration factor`; }
   const lvEl = document.getElementById('lv-mic-ch-title');
   if (lvEl) lvEl.textContent = `${label} — Channel L`;
   const frfEl = document.getElementById('lv-frf-title');
@@ -2567,6 +2613,14 @@ window.acqLvSyncNo = function() {
   _lvSyncPending = null;
 };
 
+window.acqOpenLiveViewStandalone = function() {
+  window.open('../liveview/index.html', '_blank');
+};
+
+window.acqOpenStencilBuilder = function() {
+  window.open('../template/index.html', '_blank');
+};
+
 window.acqLiveView = function() {
   const dlg = document.getElementById('lv-dialog');
   if (!dlg) return;
@@ -3020,6 +3074,7 @@ window.addEventListener('load', () => {
   _micXRange      = [prefs.mic_x_min ?? 0,  prefs.mic_x_max ?? 0.3];
   const instrEl = document.getElementById('inp-instrument-banner');
   if (instrEl && instrEl.textContent.trim() === '—') instrEl.textContent = prefs.instrument || 'scratch';
+  _mirrorInstrumentName();
   try { _initPlots(); } catch (e) { console.warn('Plotly not available — plots disabled:', e); }
   _initResizer();
   _updateStopBtn();
