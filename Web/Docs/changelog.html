@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Changelog — ObieWebApp</title>
+  <link rel="stylesheet" href="../css/theme.css">
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+
+    .obie-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; background: var(--bg-card);
+      border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; }
+    .brand h1 { font-size: 1rem; margin: 0; font-weight: 700; }
+    .logo-icon { font-size: 1.3rem; }
+    .crumb { font-size: 0.85rem; color: var(--muted); }
+    .gap { flex: 1; }
+    .back-btn {
+      font-size: 0.75rem; padding: 3px 9px; border-radius: 4px;
+      background: var(--bg-deep); border: 1px solid var(--border);
+      color: var(--fg); text-decoration: none; cursor: pointer;
+    }
+    .back-btn:hover { background: var(--border); }
+
+    .doc-main { max-width: 820px; margin: 0 auto; padding: 32px 20px 60px; }
+
+    h2.doc-title { font-size: 1.5rem; margin: 0 0 6px; }
+    p.doc-lead { color: var(--muted); margin: 0 0 32px; font-size: 0.95rem; }
+
+    /* ── One entry per version. Newest first — add new entries directly
+         below this comment, above the previous newest one. Each entry is a
+         self-contained <section class="log-entry">; nothing else on the page
+         needs to change when you add one. ── */
+    .log-entry { margin-bottom: 40px; }
+    .log-hdr {
+      display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+      border-bottom: 2px solid var(--accent); padding-bottom: 8px; margin-bottom: 14px;
+    }
+    .log-hdr h2 { font-size: 1.15rem; margin: 0; }
+    .log-tag {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em;
+      padding: 2px 8px; border-radius: 4px; text-transform: uppercase;
+    }
+    .log-tag.beta   { background: #f3e8ff; color: #7c3aed; }
+    .log-tag.stable { background: #fdf0dd; color: var(--accent); }
+    .log-date { font-size: 0.8rem; color: var(--muted); margin-left: auto; }
+
+    .log-group { margin: 0 0 14px; }
+    .log-group h3 {
+      font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--muted); margin: 0 0 6px;
+    }
+    .log-group ul { margin: 0; padding-left: 20px; }
+    .log-group li { font-size: 0.9rem; line-height: 1.6; margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+
+<header class="obie-header">
+  <a class="brand" href="../index.html">
+    <div class="logo-icon">🎻</div>
+    <h1>ObieWebApp</h1>
+  </a>
+  <span class="crumb">· Changelog</span>
+  <div class="gap"></div>
+  <a class="back-btn" href="./index.html">Documentation</a>
+  <a class="back-btn" href="../index.html">← All tools</a>
+</header>
+
+<main class="doc-main">
+
+  <h2 class="doc-title">Changelog</h2>
+  <p class="doc-lead">Log of fixes and features per version. Newest first.</p>
+
+  <!-- ══════════════════════════════════════════════════════════════════
+       v1.1.7-beta — ADD FUTURE ENTRIES ABOVE THIS COMMENT, BELOW THE HEADER
+       ══════════════════════════════════════════════════════════════════ -->
+  <section class="log-entry">
+    <div class="log-hdr">
+      <h2>v1.1.7-beta</h2>
+      <span class="log-tag beta">Beta</span>
+      <span class="log-date">2026-07-25</span>
+    </div>
+
+    <div class="log-group">
+      <h3>Acquire</h3>
+      <ul>
+        <li>New standalone <strong>LiveView</strong> tool — the real-time hammer/mic monitor and live FRF estimate now also opens in its own tab (handy for a second monitor), reachable from Acquire's LiveView dialog or the main page. The original in-Acquire LiveView is unchanged.</li>
+        <li>Merged the separate Settings and Template dialogs into one <strong>Template &amp; Settings</strong> modal: input device, template list, node stencil, and all run/plot settings together in one place.</li>
+        <li>Clicking a template now applies it immediately (fields update right away) instead of requiring a separate preview-then-Apply step; an <strong>Undo</strong> button reverts an accidental click.</li>
+        <li>New exit flow when leaving Template &amp; Settings: <em>Cancel</em>, <em>Use for this run only</em>, <em>Update Template</em>, or <em>Create New Template</em>.</li>
+        <li>Added <strong>Reset Default Templates</strong> to re-download the 3 built-in templates without touching custom ones.</li>
+        <li>Session <strong>Notes now save to disk</strong> (<code>notes.txt</code> in the instrument's folder) instead of the browser only, and are shown in Explore.</li>
+        <li>The Instrument toolbar button now shows the instrument's own name; the Template button moved to the banner row.</li>
+        <li>Added a <strong>Build Stencil</strong> shortcut (opens Stencil Builder) in the Node Stencil section.</li>
+      </ul>
+    </div>
+
+    <div class="log-group">
+      <h3>Explore</h3>
+      <ul>
+        <li>Fixed the normalization dropdown not always resetting to "As measured" on reload — it was carrying over the Real/Complex average selection from the previous session.</li>
+        <li>New: hovering a dataset now shows that instrument's saved notes (written from Acquire) in a panel near the band table.</li>
+      </ul>
+    </div>
+
+    <div class="log-group">
+      <h3>Site-wide</h3>
+      <ul>
+        <li>Fixed a 404 when navigating Explore → Acquire from the archived v1.1.6 snapshot (a leftover nested-version link from the promotion process).</li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+</body>
+</html>
