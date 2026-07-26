@@ -214,7 +214,7 @@
         <tr><td>↕Y</td><td>Autoscale the Y axis to fit the visible FRF data — only looks at data within the current X range, so off-screen spikes don't inflate the scale.</td></tr>
         <tr><td>dB range field</td><td>Type a number to set the total Y span in dB (e.g. <code>38</code> for a 38 dB window).</td></tr>
         <tr><td>X=log / X=lin</td><td>Toggle the frequency axis between log and linear scale.</td></tr>
-        <tr><td>Coh checkbox</td><td>Show or hide the coherence overlay (γ²) for any loaded TRF files that include coherence data. Scaled to the bottom third of the Y range.</td></tr>
+        <tr><td>Coh checkbox</td><td>Show or hide the coherence overlay (γ²) for any loaded TRF or .mat files that include coherence data. Scaled to the bottom third of the Y range.</td></tr>
       </tbody>
     </table>
 
@@ -223,8 +223,13 @@
       <thead><tr><th>Button</th><th>What it does</th></tr></thead>
       <tbody>
         <tr><td>↕Y</td><td>Autoscale the main FRF plot Y axis.</td></tr>
-        <tr><td>X=log / X=lin</td><td>Toggle the frequency axis.</td></tr>
         <tr><td>dB range field</td><td>Set the Y span in dB for the FRF plot.</td></tr>
+        <tr><td>X=log / X=lin</td><td>Toggle the frequency axis.</td></tr>
+        <tr><td>Colors</td><td>Choose the line color palette used for position traces.</td></tr>
+        <tr><td>Show History</td><td>Show individual tap FRFs behind the position average, faded. Use ↑/↓ to adjust their opacity.</td></tr>
+        <tr><td>↩ Undo Hit</td><td>Delete the last accepted hit at the current position.</td></tr>
+        <tr><td>🗑 Clear</td><td>Clear all hits for the current position and start it over (button label shows the position, e.g. "Clear H01").</td></tr>
+        <tr><td>↺ Start over</td><td>Clear every position in the current run.</td></tr>
       </tbody>
     </table>
 

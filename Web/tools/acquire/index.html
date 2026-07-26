@@ -298,12 +298,12 @@
           <input id="inp-taps" type="number" value="5" min="1" max="20" style="max-width:80px" title="Number of hammer taps to average at each position">
         </div>
         <div class="pref-row">
-          <label for="inp-positions" title="Number of positions">Positions</label>
-          <input id="inp-positions" type="number" value="12" min="1" max="40" style="max-width:80px" title="Total number of test positions in this run">
+          <label for="inp-positions" title="Positions per prefix group">Positions</label>
+          <input id="inp-positions" type="number" value="12" min="1" max="40" style="max-width:80px" title="Positions per prefix group — with prefix H,V, 12 here gives 24 positions total (H01–H12, V01–V12)">
         </div>
         <div class="pref-row">
-          <label for="inp-prefix" title="Prefix used to label each position (e.g. H1, H2, …)">Position prefix</label>
-          <input id="inp-prefix" type="text" value="H" maxlength="3" style="max-width:60px" title="Prefix used to label each position (e.g. H1, H2, …)">
+          <label for="inp-prefix" title="Position prefix — comma-separate for multiple groups (e.g. H,V)">Position prefix</label>
+          <input id="inp-prefix" type="text" value="H" maxlength="3" style="max-width:60px" title="Prefix used to label each position (e.g. H01, H02, …). Comma-separate for multiple groups, e.g. H,V gives H01–H12 then V01–V12">
         </div>
 
         <div class="pref-section">Hit Detection</div>

@@ -243,7 +243,7 @@
         <tr><td>X = log / lin</td><td>Toggles the X (frequency) axis between log and linear.</td></tr>
         <tr><td>γ² checkbox</td><td>Show or hide coherence traces for all datasets that carry coherence data.</td></tr>
         <tr><td>Smoothing</td><td>Applies fractional-octave smoothing from ¼ semitone to one full octave.</td></tr>
-        <tr><td>Normalization</td><td>As measured, normalize by peak, or normalize by average over a custom Hz range.</td></tr>
+        <tr><td>Normalization</td><td>As measured, normalize by peak, normalize by average over a custom Hz range, or overlay a <strong>Complex average</strong> / <strong>Real average</strong> trace across all visible datasets (see Group averaging below).</td></tr>
       </tbody>
     </table>
 
@@ -251,7 +251,7 @@
     <table class="key-table">
       <thead><tr><th>Button / control</th><th>What it does</th></tr></thead>
       <tbody>
-        <tr><td>Eye icon (👁)</td><td>Show or hide an individual dataset on the plot.</td></tr>
+        <tr><td>Checkbox</td><td>Show or hide an individual dataset on the plot.</td></tr>
         <tr><td>▶ (play)</td><td>Convolves the dataset's FRF with your saved sound snippet and plays it back in real time.</td></tr>
         <tr><td>Color swatch</td><td>Click to change the line color for that dataset.</td></tr>
         <tr><td>See All / See None</td><td>Show or hide all datasets at once.</td></tr>
@@ -268,6 +268,21 @@
       of results <em>per visible dataset</em> — average dB level and spectral centroid for each
       band, in each dataset's colour. Toggle <strong>shade</strong> to highlight the band regions
       on the plot. Click <strong>Excel</strong> to export all datasets' band data as a CSV file.
+    </p>
+
+    <h4>Group averaging &amp; saving</h4>
+    <p>
+      Set the <strong>Normalization</strong> dropdown to <strong>Complex average</strong> or
+      <strong>Real average</strong> to overlay one averaged trace across all currently visible
+      datasets. Complex average converts each dataset's dB magnitude to linear amplitude before
+      averaging (then back to dB); Real average takes the arithmetic mean of the dB values
+      directly. <em>Complex average</em> is only selectable when at least one visible dataset
+      carries complex/phase data (e.g. loaded from an AvC or a complex TRF).
+    </p>
+    <p>
+      With one of those modes active, <strong>right-click the plot</strong> for a
+      <em>💾 Save to Group Averages…</em> option — name the average and save it as a CSV or an
+      AvR file into a <code>Group Averages</code> folder created at the root of your Data Folder.
     </p>
 
     <h4>Interpret</h4>
@@ -337,8 +352,8 @@
         select any WAV file (mono or stereo). Use <em>▶ Play WAV</em> to confirm the dry signal.
       </li>
       <li>
-        <strong>Set the output gain.</strong> Drag the <em>Output gain</em> slider (−24 to +24 dB)
-        to avoid clipping or to match levels.
+        <strong>(Optional) Pick an output device.</strong> Under <em>Settings</em>, choose where
+        playback should go from the <em>Output device</em> dropdown.
       </li>
       <li>
         <strong>Convolve.</strong> Click <em>⚡ Convolve</em>. The button is enabled only once
@@ -406,13 +421,14 @@
     <p>
       Acquire turns your laptop and a USB audio interface into an impact-hammer FRF measurement
       system. It records hammer and microphone signals simultaneously, detects hits automatically,
-      averages multiple hits per position, and saves each position as an AvR CSV file.
+      averages multiple hits per position, and saves a TRF per position plus AvR/AvC averages at
+      completion (see <a href="#what-gets-saved" style="color:var(--accent)">What gets saved</a> below).
     </p>
 
     <h3>Hardware setup</h3>
     <ol class="steps">
       <li>Connect your USB audio interface (e.g. Focusrite Scarlett 2i2) before opening the page.</li>
-      <li>By default, plug the impact hammer into <strong>Input 1 (left)</strong> and the microphone into <strong>Input 2 (right)</strong>. Enable <em>Swap inputs</em> in Settings if your hardware is wired the other way around.</li>
+      <li>By default, plug the impact hammer into <strong>Input 1 (left)</strong> and the microphone into <strong>Input 2 (right)</strong>. Enable <em>Swap channels</em> in Template &amp; Settings if your hardware is wired the other way around.</li>
       <li>Use Chrome or Edge — Safari and Firefox do not support the required audio APIs.</li>
     </ol>
 
@@ -445,7 +461,7 @@
         <tr><td>Hits per position</td><td>Number of good hits to average before the app considers a position complete.</td></tr>
         <tr><td>Number of positions</td><td>Total positions per prefix group (e.g. 12 gives H01–H12).</td></tr>
         <tr><td>Position prefix</td><td>Label prepended to position names. Enter a comma-separated list (e.g. <code>H,V</code>) to create multiple groups — <code>H,V</code> with 12 positions per group gives H01–H12 then V01–V12.</td></tr>
-        <tr><td>Swap inputs</td><td>Moves the hammer trigger to the right input channel (Input 2). Use when the hammer is physically wired to Input 2.</td></tr>
+        <tr><td>Swap channels</td><td>Moves the hammer trigger to the right input channel (Input 2). Use when the hammer is physically wired to Input 2.</td></tr>
       </tbody>
     </table>
 
@@ -494,11 +510,11 @@
           for a fresh start) or <strong>Repeat</strong> to re-do the current position.</li>
       <li>Use <strong>↩ Undo Hit</strong> to remove a bad last hit, or <strong>🗑 Clear H01</strong>
           to restart the current position. <strong>↺ Start over</strong> clears all positions.</li>
-      <li>When all positions are complete, an AvR file is saved automatically and a <em>Run complete</em> banner appears.</li>
+      <li>When all positions are complete, AvR/AvC averages are saved automatically (per prefix group, plus a combined set if you used more than one — see <a href="#what-gets-saved" style="color:var(--accent)">What gets saved</a> below) and a <em>Run complete</em> banner appears.</li>
       <li>To start the next run on the same instrument, click <strong>▶ Start</strong> again — the test name increments automatically (e.g. <code>Violin_01</code> → <code>Violin_02</code>) and all positions reset.</li>
     </ol>
 
-    <div class="callout">
+    <div class="callout" id="what-gets-saved">
       <strong>What gets saved</strong>
       Each position saves one <code>.trf</code> file (updated after every hit, named by its
       resolved position label, e.g. <code>H03.trf</code> or <code>V07.trf</code>) and one
@@ -570,9 +586,10 @@
 
     <div class="callout">
       <strong>Tip — adjusting the threshold on the fly</strong>
-      You can change the trigger threshold directly in the Hammer mini-plot header without
-      opening Settings. Edit the number next to <em>V</em> and press Enter. The purple dotted
-      threshold line on the Hammer time plot updates in real time.
+      You can change the trigger threshold and hammer/mic time cutoffs directly in the mini-plot
+      headers without opening Template &amp; Settings. Edit the number next to <em>V</em> (threshold)
+      or <em>s</em> (cutoff) and press Enter. The purple dotted threshold line and green cutoff line
+      update in real time.
     </div>
   </section>
 
