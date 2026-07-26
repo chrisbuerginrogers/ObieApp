@@ -445,6 +445,12 @@ canvas.lv-canvas {
 }
 
 .agenda-list { padding: 4px 8px 6px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.agenda-group-hdr {
+  font-size: 8px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.4px; color: var(--muted);
+  margin: 6px 0 1px;
+}
+.agenda-group-hdr:first-child { margin-top: 0; }
 .agenda-item {
   display: flex; align-items: flex-start; gap: 5px;
   font-size: 9px; color: var(--text); padding: 2px 0;

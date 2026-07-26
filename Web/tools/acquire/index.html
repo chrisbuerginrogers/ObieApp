@@ -203,9 +203,11 @@
     <div id="acq-info-panel" class="acq-info-panel">
       <div class="info-hdr">Agenda</div>
       <div id="agenda-list" class="agenda-list" title="Checklist resets when you hit Start on a new run">
-        <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="1" onchange="acqAgendaToggle(this)"><span>Check data folder</span></label>
-        <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="2" onchange="acqAgendaToggle(this)"><span>Soundcard check (4 green lights)</span></label>
-        <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="3" onchange="acqAgendaToggle(this)"><span>Right soundcard name in blue</span></label>
+        <div class="agenda-group-hdr">Soundcard</div>
+        <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="1" onchange="acqAgendaToggle(this)"><span>4 green lights on</span></label>
+        <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="2" onchange="acqAgendaToggle(this)"><span>Selected (in blue)</span></label>
+        <div class="agenda-group-hdr">Software</div>
+        <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="3" onchange="acqAgendaToggle(this)"><span>Data folder</span></label>
         <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="4" onchange="acqAgendaToggle(this)"><span>Name instrument</span></label>
         <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="5" onchange="acqAgendaToggle(this)"><span>Rename test (if you want)</span></label>
         <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="6" onchange="acqAgendaToggle(this)"><span>Choose template</span></label>
