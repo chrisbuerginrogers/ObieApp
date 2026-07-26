@@ -68,8 +68,8 @@ def apply_settings(thr_js, pre_js, post_js, ham_time_cutoff_js,
     _threshold      = max(0.001, float(thr_js))
     _pre_trig_s        = max(0.001, float(pre_js))
     _post_trig_s       = max(0.05,  float(post_js))
-    _ham_time_cutoff_s = max(0.01,  float(ham_time_cutoff_js))
-    _mic_time_cutoff_s = max(0.01,  float(mic_time_cutoff_js)) if mic_time_cutoff_js is not None else _mic_time_cutoff_s
+    _ham_time_cutoff_s = max(0.001, float(ham_time_cutoff_js))
+    _mic_time_cutoff_s = max(0.001, float(mic_time_cutoff_js)) if mic_time_cutoff_js is not None else _mic_time_cutoff_s
     _n_taps         = max(1,     int(taps_js))
     parts = [p.strip()[:3].upper() for p in str(prefix_js).split(',') if p.strip()]
     _prefixes       = parts or ["H"]
@@ -85,8 +85,12 @@ def apply_settings(thr_js, pre_js, post_js, ham_time_cutoff_js,
     if new_n != _n_positions or not _pos_hits:
         _init_internal(new_n)
     else:
-        for i in range(_n_positions):
-            _recompute_frf(i)
+        # Only recompute the position being viewed — recomputing every position
+        # would repopulate the JS frfCache for positions finished earlier in the
+        # run, making all of them reappear on the plot instead of just the
+        # current one (they still get recomputed correctly if the user jumps
+        # back to them via jump_to_position).
+        _recompute_frf(_cur_pos)
         _emit_banner()
         _emit_state()
 

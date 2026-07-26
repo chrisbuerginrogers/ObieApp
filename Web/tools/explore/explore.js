@@ -737,7 +737,10 @@
   window.expSeeAll   = () => { _saveUndo(); _datasets.forEach(d=>d.visible=true);  _renderList(); render(); };
   window.expSeeNone  = () => { _saveUndo(); _datasets.forEach(d=>d.visible=false); _renderList(); render(); };
   window.expReduce   = () => { _saveUndo(); _datasets=_datasets.filter(d=>d.visible); _renderList(); render(); };
-  window.expClearAll = () => { _saveUndo(); _datasets=[]; _renderList(); render(); };
+  window.expClearAll = () => {
+    _saveUndo(); _datasets=[]; _renderList(); render();
+    const panel = $('notes-panel'); if (panel) panel.innerHTML = '';
+  };
   window.expUndo     = () => {
     if (!_undoStack.length) return;
     _datasets = _undoStack.pop(); _syncUndoBtn(); _renderList(); render();

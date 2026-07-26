@@ -636,7 +636,7 @@ window.acqApplyThreshold = function(val) {
 };
 
 window.acqApplyHamCutoff = function(val) {
-  const v = Math.max(0.01, parseFloat(val) || 0.30);
+  const v = Math.max(0.001, parseFloat(val) || 0.30);
   const el = document.getElementById('inp-ham-cut-disp');
   if (el) el.value = v.toFixed(3);
   const pref = document.getElementById('inp-time-cutoff');
@@ -649,7 +649,7 @@ window.acqApplyHamCutoff = function(val) {
 };
 
 window.acqApplyMicCutoff = function(val) {
-  const v = Math.max(0.01, parseFloat(val) || 0.30);
+  const v = Math.max(0.001, parseFloat(val) || 0.30);
   const el = document.getElementById('inp-mic-cut-disp');
   if (el) el.value = v.toFixed(3);
   const pref = document.getElementById('inp-mic-time-cutoff');

@@ -10,7 +10,7 @@
     "mic_time_cutoff_s": 0.25,
     "taps": 5,
     "positions": 12,
-    "prefix": "H",
+    "prefix": "H,V",
     "ham_cal": 1,
     "mic_cal": 1,
     "swap_channels": false,
