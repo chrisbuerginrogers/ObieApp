@@ -759,6 +759,14 @@ function _updateEditBtns(s) {
 window.acqHelp = function() { window.open('../../Docs/index.html', '_blank'); };
 window.acqTips = function() { window.open('../../Docs/shortcuts.html', '_blank'); };
 
+// Opens a fresh Claude.ai chat with a question pre-filled (Claude.ai's
+// documented ?q= prefill parameter for /new) so the user just finishes
+// typing and hits send — nothing is sent automatically.
+window.acqAskClaude = function() {
+  const prompt = 'Using the documentation at https://chrisbuerginrogers.github.io/ObieApp/Web/index.html, can you tell me how to do ';
+  window.open('https://claude.ai/new?q=' + encodeURIComponent(prompt), '_blank', 'noopener');
+};
+
 
 // ── Color palette ─────────────────────────────────────────────────────────────
 

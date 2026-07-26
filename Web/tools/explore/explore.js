@@ -1575,6 +1575,14 @@
     URL.revokeObjectURL(url);
   };
 
+  // Opens a fresh Claude.ai chat with a question pre-filled (Claude.ai's
+  // documented ?q= prefill parameter for /new) so the user just finishes
+  // typing and hits send — nothing is sent automatically.
+  window.expAskClaude = function() {
+    const prompt = 'Using the documentation at https://chrisbuerginrogers.github.io/ObieApp/Web/index.html, can you tell me how to do ';
+    window.open('https://claude.ai/new?q=' + encodeURIComponent(prompt), '_blank', 'noopener');
+  };
+
   // ── Print ────────────────────────────────────────────────────────────
   // Snapshots the plot to a PNG and opens it in a new page where the user
   // can add a title/notes before printing — kept separate from the app page

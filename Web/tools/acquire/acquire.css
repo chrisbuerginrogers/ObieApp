@@ -444,6 +444,14 @@ canvas.lv-canvas {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
+.ask-claude-btn {
+  display: block; width: 100%; box-sizing: border-box;
+  padding: 5px 0; font-size: 10px; font-weight: 700; text-align: center;
+  border: 1px solid var(--accent); border-radius: 5px;
+  background: var(--bg-deep); color: var(--accent); cursor: pointer;
+}
+.ask-claude-btn:hover { background: var(--accent); color: #fff; }
+
 .agenda-list { padding: 4px 8px 6px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .agenda-group-hdr {
   font-size: 8px; font-weight: 700; text-transform: uppercase;
