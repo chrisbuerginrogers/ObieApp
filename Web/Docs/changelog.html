@@ -89,13 +89,19 @@
       <h3>Acquire</h3>
       <ul>
         <li>New standalone <strong>LiveView</strong> tool — the real-time hammer/mic monitor and live FRF estimate now also opens in its own tab (handy for a second monitor), reachable from Acquire's LiveView dialog or the main page. The original in-Acquire LiveView is unchanged.</li>
-        <li>Merged the separate Settings and Template dialogs into one <strong>Template &amp; Settings</strong> modal: input device, template list, node stencil, and all run/plot settings together in one place.</li>
+        <li>Merged the separate Settings and Template dialogs into one <strong>Template &amp; Settings</strong> modal: input device, template list, node stencil, and all run/plot settings together in one place. Its three columns can be dragged wider or narrower via the handles between them.</li>
         <li>Clicking a template now applies it immediately (fields update right away) instead of requiring a separate preview-then-Apply step; an <strong>Undo</strong> button reverts an accidental click.</li>
-        <li>New exit flow when leaving Template &amp; Settings: <em>Cancel</em>, <em>Use for this run only</em>, <em>Update Template</em>, or <em>Create New Template</em>.</li>
+        <li>The dialog's primary exit button is now a single smart button: it reads <strong>Use Template</strong> normally, and switches to <strong>Update and Use Template</strong> the moment you edit any setting away from the applied template's values (falls back to <strong>Use Settings</strong> when no template is applied). This replaces the earlier separate "Use for this run only" / "Update Template" buttons.</li>
         <li>Added <strong>Reset Default Templates</strong> to re-download the 3 built-in templates without touching custom ones.</li>
-        <li>Session <strong>Notes now save to disk</strong> (<code>notes.txt</code> in the instrument's folder) instead of the browser only, and are shown in Explore.</li>
+        <li>Plot Settings now shows one combined <strong>X axis range</strong> and <strong>Y axis range</strong> row per plot instead of four separate min/max rows; Hit Detection fields now show their units directly in the label (e.g. "Time before hit (s)"); number fields no longer show spinner arrows; mouseover help was added throughout the dialog.</li>
+        <li>Selecting a device in the Template &amp; Settings dialog now applies immediately instead of waiting for a commit button, so hitting Cancel afterward no longer discards an intentional device change. Clicking the <strong>Device:</strong> indicator in the status row also opens a quick device picker for the same purpose.</li>
+        <li>The <strong>hammer/mic time cutoff</strong> (the green line on the mini plots) can now be set as low as <strong>0.001 s</strong> — it was previously floored at 0.01 s.</li>
+        <li>Fixed: changing a setting like the cutoff or threshold no longer redraws FRF traces for positions you already finished earlier in the run — only the position you're currently viewing is recomputed.</li>
+        <li>Session <strong>Notes now save to disk</strong> (<code>notes.txt</code> in the instrument's folder) instead of the browser only, and are shown in Explore. The Notes button moved next to the Template button. An empty notes file is now pre-filled with a fill-in-the-blanks template (date/time, location, experiment, researchers, instrument info, measurement info). Added a <strong>Delete Notes &amp; Start Again</strong> button (with a confirmation prompt) and the ability to attach photos, which are saved to a <code>photos</code> folder inside the instrument's folder.</li>
+        <li>The built-in-microphone warning is now a plain OK alert instead of a yes/no confirm, and acquisition no longer starts after it's shown — previously choosing "Start anyway" would begin a run with an unsuitable mic.</li>
         <li>The Instrument toolbar button now shows the instrument's own name; the Template button moved to the banner row.</li>
         <li>Added a <strong>Build Stencil</strong> shortcut (opens Stencil Builder) in the Node Stencil section.</li>
+        <li>Fixed the default <strong>HV 24 Obie Rig</strong> template only measuring 12 positions (prefix "H") instead of the intended 24 (prefix "H,V", 12 H + 12 V) — it now matches the original LabVIEW template it was ported from.</li>
       </ul>
     </div>
 
@@ -104,6 +110,7 @@
       <ul>
         <li>Fixed the normalization dropdown not always resetting to "As measured" on reload — it was carrying over the Real/Complex average selection from the previous session.</li>
         <li>New: hovering a dataset now shows that instrument's saved notes (written from Acquire) in a panel near the band table.</li>
+        <li>Fixed: the instrument notes panel stayed visible after clicking <strong>Clear All</strong> — it's now cleared along with the dataset list.</li>
       </ul>
     </div>
 

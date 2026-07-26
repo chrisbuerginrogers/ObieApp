@@ -431,15 +431,15 @@
       unnamed (scratch) mode.
     </div>
 
-    <h3>First-time setup (Settings)</h3>
-    <p>Click <strong>Settings</strong> in the toolbar and configure:</p>
+    <h3>First-time setup (Template &amp; Settings)</h3>
+    <p>Click <strong>Template:</strong> in the toolbar to open the <strong>Template &amp; Settings</strong> dialog and configure:</p>
     <table class="key-table">
       <thead><tr><th>Setting</th><th>Notes</th></tr></thead>
       <tbody>
-        <tr><td>Input device</td><td>Choose your audio interface from the dropdown.</td></tr>
+        <tr><td>Input device</td><td>Choose your audio interface from the dropdown — takes effect immediately. You can also click the <strong>Device:</strong> indicator in the status row at any time for a quick device picker without opening the full dialog.</td></tr>
         <tr><td>Ham trigger threshold</td><td>Voltage level (V) that triggers a hit. Lower values catch lighter taps; raise it to ignore ambient noise.</td></tr>
         <tr><td>Time before / after hit</td><td>Pre- and post-trigger capture window in seconds.</td></tr>
-        <tr><td>Hammer / Mic time cutoff</td><td>Signal is zeroed after this time — suppresses late reflections. Shown as a green line on the mini plots.</td></tr>
+        <tr><td>Hammer / Mic time cutoff</td><td>Signal is zeroed after this time (0.001–5 s) — suppresses late reflections. Shown as a green line on the mini plots.</td></tr>
         <tr><td>Hammer calibration (N/V)</td><td>Converts raw voltage to Newtons. Enter the value from your hammer's calibration sheet.</td></tr>
         <tr><td>Mic calibration (Pa/V)</td><td>Converts raw voltage to Pascals. Enter the value from your microphone calibration sheet.</td></tr>
         <tr><td>Hits per position</td><td>Number of good hits to average before the app considers a position complete.</td></tr>
@@ -449,16 +449,16 @@
       </tbody>
     </table>
 
-    <h4>Plot Settings (inside Settings)</h4>
-    <p>The lower half of the Settings dialog controls the axis limits for all four plots:</p>
+    <h4>Plot Settings (inside Template &amp; Settings)</h4>
+    <p>The Plot Settings column controls the axis limits for all four plots, each shown as a single
+      <strong>X axis range</strong> and <strong>Y axis range</strong> row (min – max):</p>
     <table class="key-table">
       <thead><tr><th>Fields</th><th>Controls</th></tr></thead>
       <tbody>
-        <tr><td>FRF x min / max</td><td>Frequency range shown on the main FRF plot (Hz).</td></tr>
-        <tr><td>FRF y min / max</td><td>Fixed dB limits for the FRF y axis. Leave blank to use auto-scale (controlled by the dB range field).</td></tr>
-        <tr><td>Hammer x/y min/max</td><td>Time window (s) and voltage range (V) for the Hammer time plot.</td></tr>
-        <tr><td>Mic x/y min/max</td><td>Time window (s) and voltage range (V) for the Microphone time plot.</td></tr>
-        <tr><td>FFT x/y min/max</td><td>Frequency range (Hz) and dB range for the Hammer FFT plot.</td></tr>
+        <tr><td>FRF X / Y range</td><td>Frequency range (Hz) shown on the main FRF plot, and fixed dB limits for its Y axis. Leave Y blank to use auto-scale (controlled by the dB range field).</td></tr>
+        <tr><td>Hammer X / Y range</td><td>Time window (s) and voltage range (V) for the Hammer time plot.</td></tr>
+        <tr><td>Mic X / Y range</td><td>Time window (s) and voltage range (V) for the Microphone time plot.</td></tr>
+        <tr><td>FFT X / Y range</td><td>Frequency range (Hz) and dB range for the Hammer FFT plot.</td></tr>
       </tbody>
     </table>
     <p>These axis limits are saved with your settings and are part of templates — loading a template restores all axis ranges.</p>
@@ -505,15 +505,17 @@
       <code>ObieAppSettings/Templates/</code> inside your Data Folder.
     </p>
     <ol class="steps">
-      <li>Click <strong>Template…</strong> to open the template manager.</li>
-      <li>Select a template from the list, then click <strong>Apply</strong>. All settings and axis ranges are restored. The applied template name is shown below the Start button.</li>
-      <li>To save current settings as a new template, click <strong>Save as Template</strong>.</li>
+      <li>Click <strong>Template:</strong> in the toolbar to open the Template &amp; Settings dialog.</li>
+      <li>Click a template in the list — it applies immediately (fields update right away). An <strong>Undo</strong> button reverts an accidental click.</li>
+      <li>The primary button at the bottom reads <strong>Use Template</strong> when your settings still match the applied template. Editing any field switches it to <strong>Update and Use Template</strong>, which saves your changes back into that template as well as applying them. With no template applied, it reads <strong>Use Settings</strong> and applies your changes to this run only.</li>
+      <li>To save the current settings as a brand-new template, click <strong>Create New Template</strong>.</li>
+      <li><strong>Reset Default Templates</strong> re-downloads the built-in templates ("HV 24 Obie Rig", "ScratchPad", "Scratchpad Obie 26") without touching your custom ones.</li>
     </ol>
     <div class="callout">
-      <strong>Template name is cleared on manual changes</strong>
-      If you edit any setting (threshold, cutoffs, axis ranges, etc.) after loading a template,
-      the template name indicator is cleared. This signals that the current settings no longer
-      match any saved template.
+      <strong>Primary button label tracks unsaved changes</strong>
+      If you edit any setting (threshold, cutoffs, axis ranges, etc.) after loading a template, the
+      primary button switches to "Update and Use Template" so it's clear the current settings no
+      longer match the saved template until you save them back into it.
     </div>
 
     <h3>Audio device disconnect</h3>
@@ -526,8 +528,17 @@
 
     <h3>Session Notes</h3>
     <p>
-      Click <strong>Notes</strong> to open the Notes panel. Enter any free-text observations about
-      the session. Notes are saved per run name and persist across reloads.
+      Click <strong>Notes</strong> (next to the Template button) to open the Notes panel and enter
+      free-text observations about the session. Notes save to <code>notes.txt</code> in the
+      instrument's folder and are shown in Explore when you hover that instrument's datasets.
+      The first time you open Notes for an instrument with no existing file, it's pre-filled with
+      a fill-in-the-blanks template (date/time, location, experiment, researchers, instrument info,
+      measurement info) to fill in or delete as needed.
+    </p>
+    <p>
+      Use <strong>🗑 Delete Notes &amp; Start Again</strong> (with a confirmation prompt) to clear the
+      notes and remove <code>notes.txt</code> from disk. <strong>📷 Add Photos…</strong> attaches one
+      or more images to the instrument, saved into a <code>photos</code> folder alongside the notes.
     </p>
 
     <h3>LiveView</h3>
