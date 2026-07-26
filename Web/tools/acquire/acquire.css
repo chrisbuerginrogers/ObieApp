@@ -229,6 +229,9 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 }
 .acq-resizer:hover, .acq-resizer.dragging { background: var(--accent); }
 
+/* Draggable dividers between the Template & Settings modal's columns. */
+.tpl-col-resizer { border-radius: 2px; }
+
 /* ── Main plot wrap ──────────────────────────────────────────────────── */
 .acq-plot-wrap {
   flex: 1; display: flex; flex-direction: column; overflow: hidden;
@@ -294,6 +297,19 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 .pref-row input, .pref-row select { flex: 1; max-width: 160px; }
 .pref-unit { font-size: 10px; color: var(--muted); }
 .pref-hint { font-size: 10px; color: var(--muted); font-style: italic; margin: -4px 0 8px 160px; }
+
+/* Plot Settings: one title per plot, then a single "X axis range" and
+   "Y axis range" row each (min – max on one line) instead of 4 separate rows. */
+.plot-range-title { font-size: 10px; font-weight: 700; color: var(--text); margin: 12px 0 4px; }
+.plot-range-title:first-of-type { margin-top: 14px; }
+.range-row label { min-width: 90px; }
+.range-inp { max-width: 65px; }
+.range-dash { font-size: 11px; color: var(--muted); }
+
+/* Number inputs: hide the browser's up/down spinner arrows everywhere in Acquire. */
+input[type="number"] { -moz-appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 
 /* Compact input-device rows (Type / Device, in the narrow Template & Settings
    modal's left column) — .pref-row's 150px label min-width is far too wide

@@ -1004,7 +1004,7 @@ function _loadPrefs() {
     time_cutoff_s: 0.30, mic_time_cutoff_s: 0.30,
     taps: 5, positions: 12, prefix: 'H',
     mic_cal: 1.0, ham_cal: 1.0, swap_channels: false,
-    frf_x_min: 200, frf_x_max: 7000, frf_y_min: -10, frf_y_max: 30,
+    frf_x_min: 40, frf_x_max: 7000, frf_y_min: -10, frf_y_max: 30,
     deviceLabel: '', instrument: 'scratch', deviceId: '', line_width: 0.5,
     ham_x_min: 0, ham_x_max: 0.05, ham_y_min: -0.1, ham_y_max: 1,
     mic_x_min: 0, mic_x_max: 0.3,  mic_y_min: -1,   mic_y_max: 1,
@@ -1215,7 +1215,7 @@ window.acqTplExitCancel = function() {
 
 function _resetAxisRanges(prefs) {
   const p = prefs || {};
-  _S.xMin     = p.frf_x_min  ?? 200;   _S.xMax     = p.frf_x_max  ?? 7000;
+  _S.xMin     = p.frf_x_min  ?? 40;    _S.xMax     = p.frf_x_max  ?? 7000;
   _S.yMin     = p.frf_y_min  ?? -10;   _S.yMax     = p.frf_y_max  ?? 30;
   _hamXRange  = [p.ham_x_min ?? 0,    p.ham_x_max ?? 0.05];
   _hamYRange  = [p.ham_y_min ?? -0.1, p.ham_y_max ?? 1];
@@ -1254,7 +1254,7 @@ function _pushSettingsFromPrefs(prefs, skipRangeSync = false) {
   _preTrigS        = prefs.pre_trig_s        ?? 0.01;
   _lineWidth       = prefs.line_width        ?? 0.5;
   if (!skipRangeSync) {
-    _S.xMin        = prefs.frf_x_min        ?? 200;
+    _S.xMin        = prefs.frf_x_min        ?? 40;
     _S.xMax        = prefs.frf_x_max        ?? 7000;
     _S.yMin        = prefs.frf_y_min        ?? -10;
     _S.yMax        = prefs.frf_y_max        ?? 30;
@@ -1315,14 +1315,18 @@ function _updateInfoPanel() {
   ).join('');
 }
 
-window.acqRecheckDevices = function() { _enumeratePrefsDevices(); };
+window.acqRecheckDevices = function() { _enumerateDevicesInto('prefs-device'); };
 
-async function _enumeratePrefsDevices() {
+function _enumeratePrefsDevices() { return _enumerateDevicesInto('prefs-device'); }
+
+// Shared by the Template & Settings modal's Device select and the quick
+// Device Picker popup — both list the same input devices the same way.
+async function _enumerateDevicesInto(selectId) {
   try {
     const tmp = await navigator.mediaDevices.getUserMedia({ audio: true });
     tmp.getTracks().forEach(t => t.stop());
     const devices = await navigator.mediaDevices.enumerateDevices();
-    const sel = document.getElementById('prefs-device');
+    const sel = document.getElementById(selectId);
     if (!sel) return;
     const saved = _loadPrefs().deviceId;
     sel.innerHTML = '<option value="">Default device</option>';
@@ -1351,6 +1355,36 @@ async function _enumeratePrefsDevices() {
   } catch (_) {}
 }
 
+// Applies the device selected in either select immediately — saves to
+// prefs/disk, refreshes the toolbar indicator, detaches from the current
+// template (a live setting changed outside its saved values), and restarts
+// the audio stream on the new device if a run is already in progress.
+function _applyDeviceChangeFromSelect(selectId) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  const deviceId    = sel.value;
+  const deviceLabel = sel.value ? (sel.selectedOptions[0]?.text || '') : '';
+  _patchPrefs({ deviceId, deviceLabel });
+  _updateSoundcardDisplay();
+  _clearTemplateName();
+  if (audioCtx) _stopAudio().then(() => _startAudio());
+}
+
+window.acqApplyDeviceSelection = function() { _applyDeviceChangeFromSelect('prefs-device'); };
+
+window.acqOpenDevicePicker = async function() {
+  document.getElementById('device-picker-modal')?.classList.add('open');
+  await _enumerateDevicesInto('device-picker-select');
+};
+
+window.acqCloseDevicePicker = function() {
+  document.getElementById('device-picker-modal')?.classList.remove('open');
+};
+
+window.acqRecheckDevicePicker = function() { _enumerateDevicesInto('device-picker-select'); };
+
+window.acqApplyDevicePickerSelection = function() { _applyDeviceChangeFromSelect('device-picker-select'); };
+
 
 // ════════════════════════════════════════════════════════════════════════════
 // Notes modal
@@ -1368,24 +1402,68 @@ function _currentInstrumentName() {
 // where there's no instrument folder to write into).
 function _notesKey() { return 'obieAcquire_notes_' + (_currentInstrumentName() || 'default'); }
 
+// Pre-filled prompt shown the first time Notes is opened for an instrument
+// that has no notes.txt yet (and no local draft) — a fill-in-the-blanks
+// template so researchers capture the same fields every session.
+function _defaultNotesText() {
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  return `date: ${stamp}
+location (e.g., JC workshop, Oberlin acoustics, etc.)
+name of experiment (if applicable)
+names of researchers
+
+Instrument Information:
+instrument (e.g., violin, viola, cello, guitar, mandolin, etc.)
+model (e.g., Titian Strad, Guadagnini, personal, etc.)
+maker name
+maker ID (e.g., serial number)
+year built (4 digits)
+country of origin
+session (e.g. Oberlin 2017, VSA 2008)
+making school (e.g. Old Italian)
+
+Measurement Information:
+type (Radiation, admittance, modal analysis, taptones, etc.)
+protocol (HV24, etc.)
+`;
+}
+
 window.acqNotes = async function() {
   document.getElementById('notes-modal')?.classList.add('open');
   const ta = document.getElementById('notes-textarea');
   const st = document.getElementById('notes-save-msg');
   if (st) st.textContent = '';
   let text = localStorage.getItem(_notesKey()) || '';
+  let foundOnDisk = false;
   if (_testsHandle) {
     try {
       const file = await (await _testsHandle.getFileHandle('notes.txt')).getFile();
       text = await file.text();
+      foundOnDisk = true;
       localStorage.setItem(_notesKey(), text);
     } catch (_) { /* no notes.txt on disk yet — fall back to local draft */ }
   }
+  if (!text.trim() && !foundOnDisk) text = _defaultNotesText();
   if (ta) ta.value = text;
+  _renderNotesPhotoList();
 };
 
 window.acqCloseNotes = function() {
   document.getElementById('notes-modal')?.classList.remove('open');
+};
+
+window.acqDeleteNotes = async function() {
+  if (!confirm('Delete these notes and start again?\n\nThis clears the notes box and, if notes.txt exists on disk, deletes it. This cannot be undone.')) return;
+  const ta = document.getElementById('notes-textarea');
+  const st = document.getElementById('notes-save-msg');
+  localStorage.removeItem(_notesKey());
+  if (_testsHandle) {
+    try { await _testsHandle.removeEntry('notes.txt'); } catch (_) { /* file may not exist */ }
+  }
+  if (ta) ta.value = _defaultNotesText();
+  if (st) { st.textContent = '✓ Notes cleared'; setTimeout(() => st.textContent = '', 2500); }
 };
 
 window.acqSaveNotes = async function() {
@@ -1402,6 +1480,55 @@ window.acqSaveNotes = async function() {
     await w.write(val);
     await w.close();
     if (st) { st.textContent = '✓ Saved to Data Folder'; setTimeout(() => st.textContent = '', 2500); }
+  } catch (e) {
+    if (_isFolderGoneError(e)) _handleFolderGone();
+    if (st) { st.textContent = '⚠ Save failed: ' + e.message; setTimeout(() => st.textContent = '', 2500); }
+  }
+};
+
+// Photos are saved into a "photos" subfolder inside the instrument's own
+// folder (alongside notes.txt), via _testsHandle — the same handle used for
+// notes so they end up in the same place on disk.
+async function _renderNotesPhotoList() {
+  const container = document.getElementById('notes-photo-list');
+  if (!container) return;
+  if (!_testsHandle) {
+    container.innerHTML = '<div style="font-size:11px;color:var(--muted)">Name an instrument to save photos to disk.</div>';
+    return;
+  }
+  try {
+    const photosHandle = await _testsHandle.getDirectoryHandle('photos');
+    const names = [];
+    for await (const [name, h] of photosHandle.entries()) {
+      if (h.kind === 'file') names.push(name);
+    }
+    container.innerHTML = names.length
+      ? names.sort().map(n => `<div class="tpl-item" style="cursor:default">${n}</div>`).join('')
+      : '<div style="font-size:11px;color:var(--muted)">No photos yet.</div>';
+  } catch (_) {
+    container.innerHTML = '<div style="font-size:11px;color:var(--muted)">No photos yet.</div>';
+  }
+}
+
+window.acqAddNotesPhotos = async function(input) {
+  const files = Array.from(input.files || []);
+  input.value = '';
+  if (!files.length) return;
+  const st = document.getElementById('notes-photo-msg');
+  if (!_testsHandle) {
+    if (st) { st.textContent = 'Name an instrument first to save photos to disk'; setTimeout(() => st.textContent = '', 2500); }
+    return;
+  }
+  try {
+    const photosHandle = await _testsHandle.getDirectoryHandle('photos', { create: true });
+    for (const file of files) {
+      const fh = await photosHandle.getFileHandle(file.name, { create: true });
+      const w  = await fh.createWritable();
+      await w.write(file);
+      await w.close();
+    }
+    if (st) { st.textContent = `✓ Added ${files.length} photo${files.length > 1 ? 's' : ''}`; setTimeout(() => st.textContent = '', 2500); }
+    _renderNotesPhotoList();
   } catch (e) {
     if (_isFolderGoneError(e)) _handleFolderGone();
     if (st) { st.textContent = '⚠ Save failed: ' + e.message; setTimeout(() => st.textContent = '', 2500); }
@@ -2679,13 +2806,12 @@ window.acqToggleAcquire = async function() {
     // Only warn pre-start when we already know the device name — if they chose
     // "Default device" we don't know the label yet and will check post-open.
     if (label && _isBuiltInMic(label)) {
-      const name = label;
-      const ok   = confirm(
-        `"${name}" looks like a built-in microphone.\n\n` +
-        `Impact hammer measurements need a directional external mic.\n\n` +
-        `Start anyway?`
+      alert(
+        `"${label}" looks like a built-in microphone.\n\n` +
+        `Impact hammer measurements need a directional external mic. ` +
+        `Choose a different device in Template & Settings, then press Start again.`
       );
-      if (!ok) return;
+      return;
     }
     // Starting a brand-new run after completion — clear stale plot data and banner.
     // Do NOT clear when starting from idle after a Pause (frfCache holds completed positions).
@@ -2795,23 +2921,14 @@ async function _startAudio() {
       if (!prefs.deviceId && _isBuiltInMic(actualLabel)) {
         mediaStream.getTracks().forEach(t => t.stop());
         mediaStream = null;
-        const ok = confirm(
+        audioCtx.close();
+        audioCtx = null;
+        alert(
           `"${actualLabel}" looks like a built-in microphone.\n\n` +
-          `Impact hammer measurements need a directional external mic.\n\n` +
-          `Start anyway?`
+          `Impact hammer measurements need a directional external mic. ` +
+          `Choose a different device in Template & Settings, then press Start again.`
         );
-        if (!ok) { audioCtx.close(); audioCtx = null; return; }
-        // Re-open with same constraints — user confirmed
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            deviceId:         undefined,
-            channelCount:     { ideal: 2 },
-            sampleRate:       { ideal: prefs.sample_rate ?? 48000 },
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl:  false,
-          },
-        });
+        return;
       }
     } catch (_) {}
 
@@ -2940,6 +3057,47 @@ function _initResizer() {
   });
 }
 
+// Template & Settings modal: draggable dividers between columns A/B/C.
+// rightIsFlex=true means the right column has flex:1 (Column C) and just
+// absorbs whatever width the left column doesn't take — only the left
+// column's width needs to be set explicitly in that case.
+function _initTplColumnResizer() {
+  const colA = document.getElementById('tpl-col-a');
+  const colB = document.getElementById('tpl-col-b');
+  const colC = document.getElementById('tpl-col-c');
+  const rzAB = document.getElementById('tpl-resizer-ab');
+  const rzBC = document.getElementById('tpl-resizer-bc');
+  if (!colA || !colB || !colC || !rzAB || !rzBC) return;
+
+  function makeDraggable(resizer, leftCol, rightCol, rightIsFlex) {
+    let dragging = false, startX = 0, startLeftW = 0, startRightW = 0;
+    resizer.addEventListener('mousedown', e => {
+      dragging = true; startX = e.clientX;
+      startLeftW = leftCol.offsetWidth;
+      startRightW = rightCol.offsetWidth;
+      resizer.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    });
+    document.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      leftCol.style.width = Math.max(160, startLeftW + dx) + 'px';
+      if (!rightIsFlex) rightCol.style.width = Math.max(160, startRightW - dx) + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      resizer.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
+  }
+
+  makeDraggable(rzAB, colA, colB, false);
+  makeDraggable(rzBC, colB, colC, true);
+}
+
 
 // ════════════════════════════════════════════════════════════════════════════
 // Initialisation
@@ -3060,7 +3218,7 @@ window.addEventListener('load', () => {
   _hamTimeCutoffS = prefs.time_cutoff_s     ?? prefs.post_trig_s ?? 0.30;
   _micTimeCutoffS = prefs.mic_time_cutoff_s ?? prefs.time_cutoff_s ?? prefs.post_trig_s ?? 0.30;
   _lineWidth      = prefs.line_width        ?? 0.5;
-  _S.xMin         = prefs.frf_x_min ?? 200;
+  _S.xMin         = prefs.frf_x_min ?? 40;
   _S.xMax         = prefs.frf_x_max ?? 7000;
   _S.yMin         = prefs.frf_y_min ?? -10;
   _S.yMax         = prefs.frf_y_max ?? 30;
@@ -3077,6 +3235,7 @@ window.addEventListener('load', () => {
   _mirrorInstrumentName();
   try { _initPlots(); } catch (e) { console.warn('Plotly not available — plots disabled:', e); }
   _initResizer();
+  _initTplColumnResizer();
   _updateStopBtn();
   _updateEditBtns({ hit_n: 0 });
   _updateSoundcardDisplay();

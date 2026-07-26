@@ -58,7 +58,6 @@
   <div class="acq-toolbar">
     <div class="tb-r">
 
-      <button class="tb-btn" onclick="acqNotes()">Notes</button>
       <button id="data-folder-btn" class="tb-btn" onclick="acqSetDataFolder()">📁 Data Folder</button>
       <button id="instrument-btn" class="tb-btn" onclick="acqSetInstrument()" title="Click to change instrument">🎻 <span id="instrument-btn-name">Instrument</span></button>
       <span id="save-status-ind" style="font-size:0.75rem;font-weight:600;margin-left:6px;cursor:pointer"
@@ -77,6 +76,7 @@
   <div class="acq-banner-row">
     <div class="acq-run-meta">
       <button id="tpl-settings-btn" class="tb-btn" onclick="acqOpenTemplateSettings()">Template: <span id="tpl-settings-btn-name">none</span></button>
+      <button class="tb-btn" onclick="acqNotes()" title="Session notes for this instrument">Notes</button>
       <!-- inp-instrument-banner / inp-test-banner: kept as hidden data holders —
            lots of JS reads their textContent as the source of truth for the
            current instrument/test name. Visible instrument name now lives on
@@ -94,7 +94,7 @@
   <div class="acq-status-row">
     <span id="status-bar" class="acq-status-txt">Idle — press Start to begin acquisition</span>
     <span id="acq-count" class="acq-count-txt"></span>
-    <span id="soundcard-ind" style="font-size:10px;color:#1565c0;font-weight:600;white-space:nowrap;margin-left:6px"></span>
+    <span id="soundcard-ind" onclick="acqOpenDevicePicker()" style="font-size:10px;color:#1565c0;font-weight:600;white-space:nowrap;margin-left:6px;cursor:pointer" title="Click to change input device"></span>
   </div>
 
   <!-- ── Main body ────────────────────────────────────────────────────────── -->
@@ -218,16 +218,16 @@
   <div class="modal-box" style="width:min(96vw,980px);max-width:980px">
     <div class="modal-header">
       <span class="modal-title">Template &amp; Settings</span>
-      <button class="modal-close" onclick="acqTplExitCancel()">✕</button>
+      <button class="modal-close" onclick="acqTplExitCancel()" title="Close without saving changes">✕</button>
     </div>
-    <div class="modal-body" style="display:flex;gap:14px;overflow:hidden;max-height:70vh">
+    <div class="modal-body" style="display:flex;gap:8px;overflow:hidden;max-height:70vh">
 
       <!-- ── Column A: Input device + Template + Stencil ─────────────────── -->
-      <div style="width:280px;flex-shrink:0;overflow-y:auto;padding-right:10px;border-right:1px solid var(--border)">
+      <div id="tpl-col-a" style="width:280px;flex-shrink:0;overflow-y:auto;padding-right:10px">
 
-        <div class="setup-section-hdr">Input</div>
+        <div class="setup-section-hdr">Input <span style="font-weight:400;font-style:italic;text-transform:none;color:var(--muted)">(changes happen immediately)</span></div>
         <div class="io-row">
-          <label>Type</label>
+          <label title="Input device type">Type</label>
           <select id="inp-input-device" onchange="acqSyncInputDevice()" title="Input device type">
             <option value="microphone">🎙 Mic</option>
             <option value="accelerometer">📡 Accel</option>
@@ -236,11 +236,11 @@
         <div class="io-row">
           <label for="prefs-device">Device</label>
           <button class="io-recheck-btn" onclick="acqRecheckDevices()" title="Recheck devices">⟳</button>
-          <select id="prefs-device"></select>
+          <select id="prefs-device" onchange="acqApplyDeviceSelection()" title="Audio input device to record from — takes effect immediately"></select>
         </div>
 
         <div class="save-row" style="margin-bottom:14px">
-          <label class="act-btn" style="cursor:pointer;margin:0">
+          <label class="act-btn" style="cursor:pointer;margin:0" title="Load run settings from a previously exported .txt file">
             Load Settings…
             <input type="file" accept=".txt" onchange="acqLoadSettingsTxt(this)" style="display:none">
           </label>
@@ -251,9 +251,9 @@
         <p style="font-size:10px;color:var(--muted);margin-bottom:6px;line-height:1.4">
           Click a template to apply it — the numbers to the right update immediately.
         </p>
-        <div id="tpl-list" class="tpl-list" style="max-height:180px;margin-bottom:8px"></div>
+        <div id="tpl-list" class="tpl-list" style="max-height:180px;margin-bottom:8px" title="Click a saved template to apply its settings"></div>
         <div class="save-row" style="margin-bottom:14px">
-          <button id="tpl-undo-btn" class="act-btn" onclick="acqUndoTemplateApply()" style="display:none">↺ Undo</button>
+          <button id="tpl-undo-btn" class="act-btn" onclick="acqUndoTemplateApply()" style="display:none" title="Revert the settings you just applied by clicking a template">↺ Undo</button>
         </div>
 
         <div class="setup-section-hdr">Node Stencil</div>
@@ -261,186 +261,174 @@
           Build stencils in <strong>Stencil Builder</strong>. Applied stencil is saved with each run.
         </p>
         <div class="save-row" style="margin-bottom:10px">
-          <button class="act-btn" onclick="acqOpenStencilBuilder()">🔧 Build Stencil</button>
+          <button class="act-btn" onclick="acqOpenStencilBuilder()" title="Open Stencil Builder in a new tab to create or edit a node stencil">🔧 Build Stencil</button>
         </div>
-        <div id="stencil-list" class="tpl-list" style="max-height:110px">
+        <div id="stencil-list" class="tpl-list" style="max-height:110px" title="Click a saved stencil to select it">
           <div style="font-size:11px;color:var(--muted)">No stencils loaded — set a Data Folder.</div>
         </div>
         <div class="save-row" style="margin-top:10px;margin-bottom:14px">
-          <button class="act-btn accent" onclick="acqApplyStencil()">Apply Stencil</button>
+          <button class="act-btn accent" onclick="acqApplyStencil()" title="Apply the selected node stencil to this run">Apply Stencil</button>
           <span id="stencil-applied-msg" class="save-msg"></span>
         </div>
       </div>
 
+      <div id="tpl-resizer-ab" class="acq-resizer tpl-col-resizer" title="Drag to resize columns"></div>
+
       <!-- ── Column B: Common (per-session) settings ─────────────────────── -->
-      <div style="width:230px;flex-shrink:0;overflow-y:auto;padding-right:10px;border-right:1px solid var(--border)">
+      <div id="tpl-col-b" style="width:240px;flex-shrink:0;overflow-y:auto;padding-right:10px">
         <div class="pref-section">Run Settings</div>
         <div class="pref-row">
           <label for="inp-taps" title="Hits per position">Hits/position</label>
-          <input id="inp-taps" type="number" value="5" min="1" max="20" style="max-width:80px">
+          <input id="inp-taps" type="number" value="5" min="1" max="20" style="max-width:80px" title="Number of hammer taps to average at each position">
         </div>
         <div class="pref-row">
           <label for="inp-positions" title="Number of positions">Positions</label>
-          <input id="inp-positions" type="number" value="12" min="1" max="40" style="max-width:80px">
+          <input id="inp-positions" type="number" value="12" min="1" max="40" style="max-width:80px" title="Total number of test positions in this run">
         </div>
         <div class="pref-row">
-          <label for="inp-prefix">Position prefix</label>
-          <input id="inp-prefix" type="text" value="H" maxlength="3" style="max-width:60px">
+          <label for="inp-prefix" title="Prefix used to label each position (e.g. H1, H2, …)">Position prefix</label>
+          <input id="inp-prefix" type="text" value="H" maxlength="3" style="max-width:60px" title="Prefix used to label each position (e.g. H1, H2, …)">
         </div>
 
         <div class="pref-section">Hit Detection</div>
         <div class="pref-row">
-          <label for="inp-threshold">Trigger threshold</label>
-          <input id="inp-threshold" type="number" value="0.05" step="0.005" min="0.001" max="1" style="max-width:80px">
+          <label for="inp-threshold" title="Hammer voltage level that triggers a hit">Trigger threshold (V)</label>
+          <input id="inp-threshold" type="number" value="0.05" step="0.005" min="0.001" max="1" style="max-width:80px" title="Hammer voltage level that triggers a hit">
           <span class="pref-unit">V</span>
         </div>
         <div class="pref-row">
-          <label for="inp-pre">Time before hit</label>
-          <input id="inp-pre" type="number" value="0.01" step="0.005" min="0.001" max="0.5" style="max-width:80px">
+          <label for="inp-pre" title="How much signal to keep before the trigger point">Time before hit (s)</label>
+          <input id="inp-pre" type="number" value="0.01" step="0.005" min="0.001" max="0.5" style="max-width:80px" title="How much signal to keep before the trigger point">
           <span class="pref-unit">s</span>
         </div>
         <div class="pref-row">
-          <label for="inp-post">Time after hit</label>
-          <input id="inp-post" type="number" value="0.30" step="0.05" min="0.05" max="5" style="max-width:80px">
+          <label for="inp-post" title="How much signal to keep after the trigger point">Time after hit (s)</label>
+          <input id="inp-post" type="number" value="0.30" step="0.05" min="0.05" max="5" style="max-width:80px" title="How much signal to keep after the trigger point">
           <span class="pref-unit">s</span>
         </div>
         <div class="pref-row">
-          <label for="inp-time-cutoff" title="Hammer time cutoff (green line)">Hammer cutoff</label>
-          <input id="inp-time-cutoff" type="number" value="0.30" step="0.001" min="0.001" max="5" style="max-width:80px">
+          <label for="inp-time-cutoff" title="Hammer time cutoff (green line)">Hammer cutoff (s)</label>
+          <input id="inp-time-cutoff" type="number" value="0.30" step="0.001" min="0.001" max="5" style="max-width:80px" title="Hammer time cutoff (green line) — signal zeroed after this time">
           <span class="pref-unit">s</span>
         </div>
         <div class="pref-row">
-          <label for="inp-mic-time-cutoff" title="Mic time cutoff (green line)">Mic cutoff</label>
-          <input id="inp-mic-time-cutoff" type="number" value="0.30" step="0.001" min="0.001" max="5" style="max-width:80px">
+          <label for="inp-mic-time-cutoff" title="Mic time cutoff (green line)">Mic cutoff (s)</label>
+          <input id="inp-mic-time-cutoff" type="number" value="0.30" step="0.001" min="0.001" max="5" style="max-width:80px" title="Mic time cutoff (green line) — signal zeroed after this time">
           <span class="pref-unit">s</span>
         </div>
         <p class="pref-hint">Signal is zeroed after this time post-trigger.</p>
       </div>
 
+      <div id="tpl-resizer-bc" class="acq-resizer tpl-col-resizer" title="Drag to resize columns"></div>
+
       <!-- ── Column C: Advanced settings ──────────────────────────────────── -->
-      <div style="flex:1;min-width:220px;overflow-y:auto">
+      <div id="tpl-col-c" style="flex:1;min-width:220px;overflow-y:auto">
         <div class="pref-section">Calibration</div>
         <div class="pref-row">
           <label for="inp-ham-cal" title="Hammer calibration factor">Hammer cal.</label>
-          <input id="inp-ham-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px">
+          <input id="inp-ham-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px" title="Hammer calibration factor (N/V)">
           <span class="pref-unit">N/V</span>
         </div>
         <div class="pref-row">
           <label for="inp-mic-cal" id="lbl-mic-cal" title="Microphone calibration factor">Microphone cal.</label>
-          <input id="inp-mic-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px">
+          <input id="inp-mic-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px" title="Microphone calibration factor (Pa/V)">
           <span class="pref-unit">Pa/V</span>
         </div>
         <div class="pref-row">
           <label for="inp-swap-channels" title="Swap inputs (hammer on right channel)">Swap channels</label>
-          <input id="inp-swap-channels" type="checkbox">
+          <input id="inp-swap-channels" type="checkbox" title="Swap inputs so the hammer is read from the right channel">
         </div>
 
         <div class="pref-section">Audio Capture</div>
         <div class="pref-row">
-          <label for="inp-sample-rate">Sample rate</label>
-          <input id="inp-sample-rate" type="number" value="48000" step="1000" min="8000" max="192000" style="max-width:80px">
+          <label for="inp-sample-rate" title="Audio capture sample rate">Sample rate</label>
+          <input id="inp-sample-rate" type="number" value="48000" step="1000" min="8000" max="192000" style="max-width:80px" title="Audio capture sample rate">
           <span class="pref-unit">Hz</span>
         </div>
         <div class="pref-row">
-          <label for="inp-bit-depth">Bit depth</label>
-          <input id="inp-bit-depth" type="number" value="24" step="1" min="8" max="32" style="max-width:80px">
+          <label for="inp-bit-depth" title="Audio capture bit depth">Bit depth</label>
+          <input id="inp-bit-depth" type="number" value="24" step="1" min="8" max="32" style="max-width:80px" title="Audio capture bit depth">
           <span class="pref-unit">bit</span>
         </div>
 
         <div class="pref-section">Plot Settings</div>
         <div class="pref-row">
-          <label for="inp-db-spread">FRF dB range</label>
-          <input id="inp-db-spread" type="number" value="38" step="1" min="5" max="120" style="max-width:80px">
+          <label for="inp-db-spread" title="Total dB span shown on the FRF y axis">FRF dB range</label>
+          <input id="inp-db-spread" type="number" value="38" step="1" min="5" max="120" style="max-width:80px" title="Total dB span shown on the FRF y axis">
           <span class="pref-unit">dB</span>
         </div>
         <div class="pref-row">
-          <label for="inp-db-offset">dB offset</label>
-          <input id="inp-db-offset" type="number" value="0" step="1" min="-120" max="120" style="max-width:80px">
+          <label for="inp-db-offset" title="Shifts the FRF trace up or down on the y axis">dB offset</label>
+          <input id="inp-db-offset" type="number" value="0" step="1" min="-120" max="120" style="max-width:80px" title="Shifts the FRF trace up or down on the y axis">
           <span class="pref-unit">dB</span>
         </div>
         <div class="pref-row">
-          <label for="inp-frf-x-min">FRF x min</label>
-          <input id="inp-frf-x-min" type="number" value="200" step="50" min="1" max="22000" style="max-width:80px">
-          <span class="pref-unit">Hz</span>
-        </div>
-        <div class="pref-row">
-          <label for="inp-frf-x-max">FRF x max</label>
-          <input id="inp-frf-x-max" type="number" value="7000" step="500" min="100" max="22000" style="max-width:80px">
-          <span class="pref-unit">Hz</span>
-        </div>
-        <div class="pref-row">
-          <label for="inp-frf-y-min">FRF y min</label>
-          <input id="inp-frf-y-min" type="number" value="-10" step="5" min="-120" max="120" style="max-width:80px" placeholder="auto">
-          <span class="pref-unit">dB</span>
-        </div>
-        <div class="pref-row">
-          <label for="inp-frf-y-max">FRF y max</label>
-          <input id="inp-frf-y-max" type="number" value="30" step="5" min="-120" max="120" style="max-width:80px" placeholder="auto">
-          <span class="pref-unit">dB</span>
-        </div>
-        <div class="pref-row">
-          <label for="inp-line-width">FRF line width</label>
-          <input id="inp-line-width" type="number" value="0.5" step="0.1" min="0.1" max="10" style="max-width:80px">
+          <label for="inp-line-width" title="Line thickness of the FRF trace">FRF line width</label>
+          <input id="inp-line-width" type="number" value="0.5" step="0.1" min="0.1" max="10" style="max-width:80px" title="Line thickness of the FRF trace">
           <span class="pref-unit">px</span>
         </div>
-        <div class="pref-row">
-          <label for="inp-ham-x-min">Hammer x min</label>
-          <input id="inp-ham-x-min" type="number" value="0" step="0.001" min="-5" max="5" style="max-width:80px">
-          <span class="pref-unit">s</span>
-        </div>
-        <div class="pref-row">
-          <label for="inp-ham-x-max">Hammer x max</label>
-          <input id="inp-ham-x-max" type="number" value="0.05" step="0.01" min="0.001" max="5" style="max-width:80px">
-          <span class="pref-unit">s</span>
-        </div>
-        <div class="pref-row">
-          <label for="inp-ham-y-min">Hammer y min</label>
-          <input id="inp-ham-y-min" type="number" value="-0.1" step="0.1" min="-10" max="10" style="max-width:80px">
-          <span class="pref-unit">V</span>
-        </div>
-        <div class="pref-row">
-          <label for="inp-ham-y-max">Hammer y max</label>
-          <input id="inp-ham-y-max" type="number" value="1" step="0.1" min="-10" max="10" style="max-width:80px">
-          <span class="pref-unit">V</span>
-        </div>
-        <div class="pref-row">
-          <label for="inp-mic-x-min">Mic x min</label>
-          <input id="inp-mic-x-min" type="number" value="0" step="0.01" min="-5" max="5" style="max-width:80px">
-          <span class="pref-unit">s</span>
-        </div>
-        <div class="pref-row">
-          <label for="inp-mic-x-max">Mic x max</label>
-          <input id="inp-mic-x-max" type="number" value="0.3" step="0.01" min="0.01" max="5" style="max-width:80px">
-          <span class="pref-unit">s</span>
-        </div>
-        <div class="pref-row">
-          <label for="inp-mic-y-min">Mic y min</label>
-          <input id="inp-mic-y-min" type="number" value="-1" step="0.1" min="-10" max="10" style="max-width:80px">
-          <span class="pref-unit">V</span>
-        </div>
-        <div class="pref-row">
-          <label for="inp-mic-y-max">Mic y max</label>
-          <input id="inp-mic-y-max" type="number" value="1" step="0.1" min="-10" max="10" style="max-width:80px">
-          <span class="pref-unit">V</span>
-        </div>
-        <div class="pref-row">
-          <label for="inp-fft-x-min">FFT x min</label>
-          <input id="inp-fft-x-min" type="number" value="200" step="50" min="1" max="22000" style="max-width:80px">
+
+        <div class="plot-range-title">FRF Graph</div>
+        <div class="pref-row range-row">
+          <label title="Horizontal zoom bounds of the main FRF plot">X axis range</label>
+          <input id="inp-frf-x-min" type="number" value="40" step="50" min="1" max="22000" class="range-inp" title="FRF x axis minimum (Hz)">
+          <span class="range-dash">–</span>
+          <input id="inp-frf-x-max" type="number" value="7000" step="500" min="100" max="22000" class="range-inp" title="FRF x axis maximum (Hz)">
           <span class="pref-unit">Hz</span>
         </div>
-        <div class="pref-row">
-          <label for="inp-fft-x-max">FFT x max</label>
-          <input id="inp-fft-x-max" type="number" value="10000" step="500" min="100" max="22000" style="max-width:80px">
-          <span class="pref-unit">Hz</span>
-        </div>
-        <div class="pref-row">
-          <label for="inp-fft-y-min">FFT y min</label>
-          <input id="inp-fft-y-min" type="number" value="-25" step="5" min="-120" max="0" style="max-width:80px">
+        <div class="pref-row range-row">
+          <label title="Vertical zoom bounds of the main FRF plot — leave blank for auto">Y axis range</label>
+          <input id="inp-frf-y-min" type="number" value="-10" step="5" min="-120" max="120" class="range-inp" placeholder="auto" title="FRF y axis minimum (dB) — blank for auto">
+          <span class="range-dash">–</span>
+          <input id="inp-frf-y-max" type="number" value="30" step="5" min="-120" max="120" class="range-inp" placeholder="auto" title="FRF y axis maximum (dB) — blank for auto">
           <span class="pref-unit">dB</span>
         </div>
-        <div class="pref-row">
-          <label for="inp-fft-y-max">FFT y max</label>
-          <input id="inp-fft-y-max" type="number" value="0" step="5" min="-60" max="60" style="max-width:80px">
+
+        <div class="plot-range-title">Hammer</div>
+        <div class="pref-row range-row">
+          <label title="Horizontal zoom bounds of the Hammer time-domain plot">X axis range</label>
+          <input id="inp-ham-x-min" type="number" value="0" step="0.001" min="-5" max="5" class="range-inp" title="Hammer plot x axis minimum (s)">
+          <span class="range-dash">–</span>
+          <input id="inp-ham-x-max" type="number" value="0.05" step="0.01" min="0.001" max="5" class="range-inp" title="Hammer plot x axis maximum (s)">
+          <span class="pref-unit">s</span>
+        </div>
+        <div class="pref-row range-row">
+          <label title="Vertical zoom bounds of the Hammer time-domain plot">Y axis range</label>
+          <input id="inp-ham-y-min" type="number" value="-0.1" step="0.1" min="-10" max="10" class="range-inp" title="Hammer plot y axis minimum (V)">
+          <span class="range-dash">–</span>
+          <input id="inp-ham-y-max" type="number" value="1" step="0.1" min="-10" max="10" class="range-inp" title="Hammer plot y axis maximum (V)">
+          <span class="pref-unit">V</span>
+        </div>
+
+        <div class="plot-range-title">Microphone</div>
+        <div class="pref-row range-row">
+          <label title="Horizontal zoom bounds of the Microphone time-domain plot">X axis range</label>
+          <input id="inp-mic-x-min" type="number" value="0" step="0.01" min="-5" max="5" class="range-inp" title="Microphone plot x axis minimum (s)">
+          <span class="range-dash">–</span>
+          <input id="inp-mic-x-max" type="number" value="0.3" step="0.01" min="0.01" max="5" class="range-inp" title="Microphone plot x axis maximum (s)">
+          <span class="pref-unit">s</span>
+        </div>
+        <div class="pref-row range-row">
+          <label title="Vertical zoom bounds of the Microphone time-domain plot">Y axis range</label>
+          <input id="inp-mic-y-min" type="number" value="-1" step="0.1" min="-10" max="10" class="range-inp" title="Microphone plot y axis minimum (V)">
+          <span class="range-dash">–</span>
+          <input id="inp-mic-y-max" type="number" value="1" step="0.1" min="-10" max="10" class="range-inp" title="Microphone plot y axis maximum (V)">
+          <span class="pref-unit">V</span>
+        </div>
+
+        <div class="plot-range-title">Hammer FFT</div>
+        <div class="pref-row range-row">
+          <label title="Horizontal zoom bounds of the Hammer FFT plot">X axis range</label>
+          <input id="inp-fft-x-min" type="number" value="200" step="50" min="1" max="22000" class="range-inp" title="Hammer FFT x axis minimum (Hz)">
+          <span class="range-dash">–</span>
+          <input id="inp-fft-x-max" type="number" value="10000" step="500" min="100" max="22000" class="range-inp" title="Hammer FFT x axis maximum (Hz)">
+          <span class="pref-unit">Hz</span>
+        </div>
+        <div class="pref-row range-row">
+          <label title="Vertical zoom bounds of the Hammer FFT plot">Y axis range</label>
+          <input id="inp-fft-y-min" type="number" value="-25" step="5" min="-120" max="0" class="range-inp" title="Hammer FFT y axis minimum (dB)">
+          <span class="range-dash">–</span>
+          <input id="inp-fft-y-max" type="number" value="0" step="5" min="-60" max="60" class="range-inp" title="Hammer FFT y axis maximum (dB)">
           <span class="pref-unit">dB</span>
         </div>
       </div>
@@ -448,15 +436,15 @@
     </div>
 
     <div class="save-row" style="padding:10px 18px;border-top:1px solid var(--border);margin-top:0;flex-wrap:wrap">
-      <button class="act-btn" onclick="acqResetPrefs()">↺ Reset defaults</button>
-      <button class="act-btn" onclick="acqResetDefaultTemplates()">↺ Reset Default Templates</button>
+      <button class="act-btn" onclick="acqResetPrefs()" title="Restore all settings on this page to the saved defaults">↺ Reset defaults</button>
+      <button class="act-btn" onclick="acqResetDefaultTemplates()" title="Re-download the 3 built-in templates without touching your custom ones">↺ Reset Default Templates</button>
       <span id="tpl-reset-msg" class="save-msg"></span>
       <span id="prefs-save-msg" class="save-msg"></span>
       <div style="flex:1"></div>
-      <button class="act-btn" onclick="acqTplExitCancel()">Cancel</button>
-      <button class="act-btn" onclick="acqTplExitUseOnce()">Use for this run only</button>
-      <button class="act-btn" onclick="acqTplExitCreateTemplate()">Create New Template</button>
-      <button id="tpl-update-btn" class="act-btn accent" onclick="acqTplExitUpdateTemplate()">Update Template</button>
+      <button class="act-btn" onclick="acqTplExitCancel()" title="Close this dialog and discard any changes">Cancel</button>
+      <button class="act-btn" onclick="acqTplExitUseOnce()" title="Apply these settings to the current run only — nothing is saved to a template">Use for this run only</button>
+      <button class="act-btn" onclick="acqTplExitCreateTemplate()" title="Save these settings as a brand-new template">Create New Template</button>
+      <button id="tpl-update-btn" class="act-btn accent" onclick="acqTplExitUpdateTemplate()" title="Overwrite the currently selected template with these settings">Update Template</button>
     </div>
   </div>
 </div>
@@ -503,16 +491,55 @@
         Notes are saved to <code>notes.txt</code> in this instrument's folder on your Data Folder,
         and shown in Explore for any file from this instrument.
       </p>
-      <textarea id="notes-textarea" rows="12" placeholder="Enter notes about this measurement session…"></textarea>
+      <textarea id="notes-textarea" rows="12" placeholder="Enter notes about this measurement session…"
+                title="Session notes for this instrument"></textarea>
       <div class="save-row" style="margin-top:10px">
-        <button class="act-btn accent" onclick="acqSaveNotes()">Save Notes</button>
-        <button class="act-btn" onclick="acqCloseNotes()">Close</button>
-        <span id="notes-save-msg" class="save-msg"></span>
+        <button class="act-btn accent" onclick="acqSaveNotes()" title="Save this text to notes.txt on disk">Save Notes</button>
+        <button class="act-btn" onclick="acqCloseNotes()" title="Close without saving">Close</button>
+        <div style="flex:1"></div>
+        <button class="act-btn" onclick="acqDeleteNotes()" style="color:#c62828"
+                title="Clear the notes box and delete notes.txt from disk — cannot be undone">🗑 Delete Notes &amp; Start Again</button>
       </div>
+      <span id="notes-save-msg" class="save-msg"></span>
+
+      <div class="setup-section-hdr" style="margin-top:14px">Photos</div>
+      <p style="font-size:10px;color:var(--muted);margin-bottom:6px;line-height:1.4">
+        Saved to a <code>photos</code> folder inside this instrument's folder.
+      </p>
+      <div class="save-row">
+        <label class="act-btn" style="cursor:pointer;margin:0" title="Add one or more photos to this instrument's photos folder">
+          📷 Add Photos…
+          <input type="file" accept="image/*" multiple onchange="acqAddNotesPhotos(this)" style="display:none">
+        </label>
+        <span id="notes-photo-msg" class="save-msg"></span>
+      </div>
+      <div id="notes-photo-list" class="tpl-list" style="max-height:100px;margin-top:6px" title="Photos already saved for this instrument"></div>
     </div>
   </div>
 </div>
 
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Quick Device Picker — click the "Device: …" indicator to change the
+     input device without opening the full Template & Settings modal.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="device-picker-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(92vw,360px)">
+    <div class="modal-header">
+      <span class="modal-title">Input Device</span>
+      <button class="modal-close" onclick="acqCloseDevicePicker()" title="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="io-row">
+        <label for="device-picker-select" title="Audio input device to record from">Device</label>
+        <button class="io-recheck-btn" onclick="acqRecheckDevicePicker()" title="Recheck devices">⟳</button>
+        <select id="device-picker-select" onchange="acqApplyDevicePickerSelection()"
+                title="Select the audio input device — takes effect immediately"></select>
+      </div>
+      <p class="pref-hint" style="margin-left:0">Takes effect immediately.</p>
+    </div>
+  </div>
+</div>
 
 
 <!-- ── LiveView Dialog ──────────────────────────────────────────────────── -->
