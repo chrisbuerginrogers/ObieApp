@@ -444,6 +444,18 @@ canvas.lv-canvas {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
+.agenda-list { padding: 4px 8px 6px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.agenda-item {
+  display: flex; align-items: flex-start; gap: 5px;
+  font-size: 9px; color: var(--text); padding: 2px 0;
+  cursor: pointer; line-height: 1.3;
+}
+.agenda-item input[type="checkbox"] {
+  margin: 1px 0 0; flex-shrink: 0; width: 11px; height: 11px; cursor: pointer;
+}
+.agenda-item span { flex: 1; }
+.agenda-item.done span { text-decoration: line-through; color: var(--muted); }
+
 /* ── Color palette modal (mirrors explore.css) ──────────────────── */
 .cp-section {
   font-size: 10px; font-weight: 700; text-transform: uppercase;

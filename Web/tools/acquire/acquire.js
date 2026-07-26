@@ -2861,6 +2861,38 @@ function _isBuiltInMic(label) {
   return /built.?in|internal|macbook|imac|laptop|headset mic/.test(l);
 }
 
+// ── Agenda checklist ──────────────────────────────────────────────────────
+const _AGENDA_KEY = 'obieAcquire_agenda';
+
+function _loadAgendaState() {
+  try { return JSON.parse(localStorage.getItem(_AGENDA_KEY)) || {}; }
+  catch (_) { return {}; }
+}
+
+window.acqAgendaToggle = function(el) {
+  const st = _loadAgendaState();
+  st[el.dataset.n] = el.checked;
+  localStorage.setItem(_AGENDA_KEY, JSON.stringify(st));
+  el.closest('.agenda-item')?.classList.toggle('done', el.checked);
+};
+
+function _restoreAgendaUI() {
+  const st = _loadAgendaState();
+  document.querySelectorAll('.agenda-chk').forEach(cb => {
+    const on = !!st[cb.dataset.n];
+    cb.checked = on;
+    cb.closest('.agenda-item')?.classList.toggle('done', on);
+  });
+}
+
+function _resetAgenda() {
+  localStorage.removeItem(_AGENDA_KEY);
+  document.querySelectorAll('.agenda-chk').forEach(cb => {
+    cb.checked = false;
+    cb.closest('.agenda-item')?.classList.remove('done');
+  });
+}
+
 window.acqToggleAcquire = async function() {
   if (appState === 'idle' || appState === 'complete') {
     const p      = _loadPrefs();
@@ -2875,6 +2907,7 @@ window.acqToggleAcquire = async function() {
       );
       return;
     }
+    _resetAgenda();
     // Starting a brand-new run after completion — clear stale plot data and banner.
     // Do NOT clear when starting from idle after a Pause (frfCache holds completed positions).
     if (appState === 'complete') {
@@ -3313,6 +3346,7 @@ window.addEventListener('load', () => {
   _initResizer();
   _initTplColumnResizer();
   _initTplPrimaryBtnTracking();
+  _restoreAgendaUI();
   _updateStopBtn();
   _updateEditBtns({ hit_n: 0 });
   _updateSoundcardDisplay();
