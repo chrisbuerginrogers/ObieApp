@@ -31,6 +31,8 @@
   <a class="btn" href="./Docs/shortcuts.html" style="font-size:0.75rem;padding:3px 9px" target="_blank">Tips</a>
 </header>
 
+<div id="archive-banner" class="archive-banner"></div>
+
 <main class="landing">
 
   <section class="intro">
@@ -259,6 +261,32 @@ preloadPyodide();
   var _vIdx   = _vParts.indexOf('versions');
   var _currentArchivedVersion = (_vIdx >= 0 && _vParts[_vIdx + 1] && /^\d+\.\d+\.\d+$/.test(_vParts[_vIdx + 1]))
                                 ? _vParts[_vIdx + 1] : null;
+
+  // Archived snapshots are frozen forever, but "Beta" is a moving target —
+  // a frozen Beta section just shows whatever was newest the day this page
+  // was archived, which reads as confusingly out of date. So on any archived
+  // page, replace it with a single card pointing at the live site instead of
+  // duplicating (and eventually mis-describing) the current beta lineup.
+  if (_currentArchivedVersion) {
+    var banner = document.getElementById('archive-banner');
+    if (banner) {
+      banner.style.display = 'flex';
+      banner.innerHTML = '📦 You are viewing archived stable release <strong>v' + _currentArchivedVersion +
+        '</strong> — frozen and will never change. <a href="../../">Go to the live site for the current beta →</a>';
+    }
+    var betaLabel = document.getElementById('beta-section-label');
+    var betaGrid  = document.getElementById('beta-section-grid');
+    if (betaLabel) betaLabel.textContent = '🧬 Beta — latest';
+    if (betaGrid) {
+      betaGrid.innerHTML =
+        '<a class="tool-card experimental" href="../../">' +
+          '<div class="head"><div class="icon">🧬</div><span class="name">Current Beta Tools</span></div>' +
+          '<p class="desc">You’re viewing an archived stable snapshot (v' + _currentArchivedVersion + '). ' +
+          'The beta lineup changes constantly — visit the live site to see what’s currently in testing.</p>' +
+          '<span class="tag experimental-tag">Beta</span>' +
+        '</a>';
+    }
+  }
 
   window.goToVersion = function(v) {
     if (!v) {
