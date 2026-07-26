@@ -606,8 +606,7 @@ function _setTemplateName(name) {
   _currentTemplateName = name || '';
   const btnName = document.getElementById('tpl-settings-btn-name');
   if (btnName) btnName.textContent = _currentTemplateName || 'none';
-  const updateBtn = document.getElementById('tpl-update-btn');
-  if (updateBtn) updateBtn.disabled = !_currentTemplateName;
+  _updateTplPrimaryBtnLabel();
 }
 function _clearTemplateName() { _setTemplateName(''); }
 
@@ -1137,12 +1136,28 @@ function _applyPrefsToRun(prefs, deviceChanged) {
   }
 }
 
-// ── Template & Settings modal — the four exit paths ─────────────────────────
+// ── Template & Settings modal — the exit paths ───────────────────────────────
+// The single primary button dispatches to one of these two depending on
+// whether the form still matches the template it was loaded from
+// (_tplBaselineFields, captured on modal open / template select / undo):
+// unchanged → apply to this run only; edited → save the edits back into the
+// template first, then apply. Create New Template and Cancel stay separate.
+window.acqTplExitPrimary = async function() {
+  if (_currentTemplateName && _tplFormDirty()) {
+    await acqTplExitUpdateTemplate();
+  } else {
+    acqTplExitUseOnce();
+  }
+};
+
+// Applies the form to the live run without touching any template file.
+// Used directly when no template is associated, and via the primary button
+// when the form still matches the associated template exactly (nothing to
+// save back) — so the template association is left as-is either way.
 window.acqTplExitUseOnce = function() {
   const built = _buildPrefsFromForm();
   if (!built) return;
   _applyPrefsToRun(built.prefs, built.deviceChanged);
-  _clearTemplateName();
   acqCloseTemplateSettings();
 };
 
@@ -1367,6 +1382,7 @@ function _applyDeviceChangeFromSelect(selectId) {
   _patchPrefs({ deviceId, deviceLabel });
   _updateSoundcardDisplay();
   _clearTemplateName();
+  _updateTplPrimaryBtnLabel();
   if (audioCtx) _stopAudio().then(() => _startAudio());
 }
 
@@ -1558,8 +1574,8 @@ window.acqOpenTemplateSettings = async function() {
     _renderTemplateList();
     _renderStencilList();
   }
-  const updateBtn = document.getElementById('tpl-update-btn');
-  if (updateBtn) updateBtn.disabled = !_currentTemplateName;
+  _tplBaselineFields = _captureTplFieldValues();
+  _updateTplPrimaryBtnLabel();
 };
 
 // Re-fetch the three built-in default templates from GitHub and overwrite
@@ -1682,6 +1698,47 @@ const _TPL_APPLY_FIELD_IDS = [
   'inp-db-spread', 'inp-db-offset', 'inp-bit-depth', 'inp-sample-rate',
 ];
 
+// Snapshot the form fields against which "has the user changed anything
+// since the template was loaded" is judged, for the single primary exit
+// button's label ("Use Template" vs "Update and Use Template"). Reset
+// whenever the fields are known to match _currentTemplateName again: modal
+// open, a template being selected/applied, and Undo.
+let _tplBaselineFields = null;
+
+function _captureTplFieldValues() {
+  const o = {};
+  for (const id of _TPL_APPLY_FIELD_IDS) {
+    const el = document.getElementById(id);
+    if (el) o[id] = el.value;
+  }
+  return o;
+}
+
+function _tplFormDirty() {
+  if (!_tplBaselineFields) return false;
+  for (const id of _TPL_APPLY_FIELD_IDS) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    if ((el.value ?? '') !== (_tplBaselineFields[id] ?? '')) return true;
+  }
+  return false;
+}
+
+function _updateTplPrimaryBtnLabel() {
+  const btn = document.getElementById('tpl-primary-btn');
+  if (!btn) return;
+  if (_currentTemplateName && _tplFormDirty()) {
+    btn.textContent = 'Update and Use Template';
+    btn.title = `Save these changes back into "${_currentTemplateName}" and apply them to this run`;
+  } else if (_currentTemplateName) {
+    btn.textContent = 'Use Template';
+    btn.title = `Apply "${_currentTemplateName}" to this run — nothing is saved to the template file`;
+  } else {
+    btn.textContent = 'Use Settings';
+    btn.title = 'Apply these settings to this run only — nothing is saved to a template';
+  }
+}
+
 let _tplUndoSnapshot = null;
 
 function _snapshotTplFields() {
@@ -1766,7 +1823,7 @@ window.acqSelectAndApplyTpl = function(i) {
   }
   // Fields are populated above for review — nothing is applied to the live run
   // or written to disk yet. The user commits via one of the modal's exit
-  // buttons (Use for this run only / Update Template / Create New Template).
+  // buttons (Use Template / Update and Use Template / Create New Template).
   frfCache = {}; tapCache = {};
   renderFRF(); _clearTrigPlots();
   window.pyResetAll?.();
@@ -1774,6 +1831,9 @@ window.acqSelectAndApplyTpl = function(i) {
 
   const undoBtn = document.getElementById('tpl-undo-btn');
   if (undoBtn) undoBtn.style.display = '';
+
+  _tplBaselineFields = _captureTplFieldValues();
+  _updateTplPrimaryBtnLabel();
 };
 
 window.acqUndoTemplateApply = function() {
@@ -1784,6 +1844,8 @@ window.acqUndoTemplateApply = function() {
   _renderTemplateList();
   const undoBtn = document.getElementById('tpl-undo-btn');
   if (undoBtn) undoBtn.style.display = 'none';
+  _tplBaselineFields = _captureTplFieldValues();
+  _updateTplPrimaryBtnLabel();
 };
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -3098,6 +3160,20 @@ function _initTplColumnResizer() {
   makeDraggable(rzBC, colB, colC, true);
 }
 
+// Keeps the primary exit button's label ("Use Template" / "Update and Use
+// Template") live as the user edits any tracked field by hand, not just
+// when a template is clicked — event delegation so it works for fields
+// added or re-rendered later without needing per-field wiring.
+function _initTplPrimaryBtnTracking() {
+  const modalBody = document.querySelector('#tpl-settings-modal .modal-body');
+  if (!modalBody) return;
+  const onFieldEvent = e => {
+    if (e.target?.id && _TPL_APPLY_FIELD_IDS.includes(e.target.id)) _updateTplPrimaryBtnLabel();
+  };
+  modalBody.addEventListener('input', onFieldEvent);
+  modalBody.addEventListener('change', onFieldEvent);
+}
+
 
 // ════════════════════════════════════════════════════════════════════════════
 // Initialisation
@@ -3236,6 +3312,7 @@ window.addEventListener('load', () => {
   try { _initPlots(); } catch (e) { console.warn('Plotly not available — plots disabled:', e); }
   _initResizer();
   _initTplColumnResizer();
+  _initTplPrimaryBtnTracking();
   _updateStopBtn();
   _updateEditBtns({ hit_n: 0 });
   _updateSoundcardDisplay();

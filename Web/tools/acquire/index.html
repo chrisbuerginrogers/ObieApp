@@ -275,7 +275,7 @@
       <div id="tpl-resizer-ab" class="acq-resizer tpl-col-resizer" title="Drag to resize columns"></div>
 
       <!-- ── Column B: Common (per-session) settings ─────────────────────── -->
-      <div id="tpl-col-b" style="width:240px;flex-shrink:0;overflow-y:auto;padding-right:10px">
+      <div id="tpl-col-b" style="width:280px;flex-shrink:0;overflow-y:auto;padding-right:10px">
         <div class="pref-section">Run Settings</div>
         <div class="pref-row">
           <label for="inp-taps" title="Hits per position">Hits/position</label>
@@ -442,9 +442,8 @@
       <span id="prefs-save-msg" class="save-msg"></span>
       <div style="flex:1"></div>
       <button class="act-btn" onclick="acqTplExitCancel()" title="Close this dialog and discard any changes">Cancel</button>
-      <button class="act-btn" onclick="acqTplExitUseOnce()" title="Apply these settings to the current run only — nothing is saved to a template">Use for this run only</button>
       <button class="act-btn" onclick="acqTplExitCreateTemplate()" title="Save these settings as a brand-new template">Create New Template</button>
-      <button id="tpl-update-btn" class="act-btn accent" onclick="acqTplExitUpdateTemplate()" title="Overwrite the currently selected template with these settings">Update Template</button>
+      <button id="tpl-primary-btn" class="act-btn accent" onclick="acqTplExitPrimary()" title="Apply these settings to this run">Use Template</button>
     </div>
   </div>
 </div>
