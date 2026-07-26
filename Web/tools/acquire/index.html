@@ -526,9 +526,34 @@
           📷 Add Photos…
           <input type="file" accept="image/*" multiple onchange="acqAddNotesPhotos(this)" style="display:none">
         </label>
+        <button class="act-btn" onclick="acqOpenCamera()" title="Take a photo using your computer's camera">📸 Camera</button>
         <span id="notes-photo-msg" class="save-msg"></span>
       </div>
-      <div id="notes-photo-list" class="tpl-list" style="max-height:100px;margin-top:6px" title="Photos already saved for this instrument"></div>
+      <div id="notes-photo-list" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;max-height:140px;overflow-y:auto" title="Photos already saved for this instrument"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     Camera capture modal — snaps a photo straight into the Notes photos
+     folder using the computer's webcam.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<div id="camera-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(92vw,440px)">
+    <div class="modal-header">
+      <span class="modal-title">Camera</span>
+      <button class="modal-close" onclick="acqCloseCamera()" title="Close camera">✕</button>
+    </div>
+    <div class="modal-body">
+      <video id="camera-video" autoplay playsinline muted
+             style="width:100%;border-radius:6px;background:#000;max-height:55vh;display:block"
+             title="Live camera preview"></video>
+      <canvas id="camera-canvas" style="display:none"></canvas>
+      <div class="save-row" style="margin-top:10px">
+        <button class="act-btn accent" onclick="acqSnapPhoto()" title="Capture this frame and save it to the photos folder">📷 Snap</button>
+        <button class="act-btn" onclick="acqCloseCamera()" title="Stop the camera and close">Close</button>
+        <span id="camera-msg" class="save-msg"></span>
+      </div>
     </div>
   </div>
 </div>

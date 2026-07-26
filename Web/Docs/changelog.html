@@ -105,6 +105,8 @@
         <li>Added an <strong>Agenda</strong> checklist above Run Settings in the right-hand info panel — a step-by-step reminder with checkboxes you tick off as you go. Resets automatically the next time you hit Start on a fresh run.</li>
         <li>Agenda is now split into two labeled groups — <strong>Soundcard</strong> (powered, 48v (2 lights); selected in blue) and <strong>Software</strong> (data folder, name instrument, rename test, choose template, edit Notes, verify in LiveView, hit Run if needed, check hammer FFT, check coherence) — instead of one flat numbered list.</li>
         <li>Fixed multi-prefix runs (e.g. prefix <code>H,V</code>): WAV/TRF filenames and the FRF plot legend were built from the raw prefix field text and a position count that never reset between groups, so the second group's files came out mislabeled (e.g. <code>H,V13</code> instead of <code>V01</code>). Per-position files now use the correctly resolved label. Also fixed end-of-run averaging, which previously lumped every group into one AvR and never wrote an AvC at all — it now writes both an <strong>AvR and AvC per prefix group</strong> (e.g. H, V) plus one <strong>combined pair</strong> across all groups (e.g. HV) when there's more than one prefix.</li>
+        <li>Renamed the saved average files — <code>&lt;run&gt; &lt;group&gt; AvR.avr</code> / <code>AvC.avc</code> is now just <code>&lt;run&gt; &lt;group&gt;.avr</code> / <code>.avc</code> (e.g. <code>test2_09 H.avr</code>), since the extension already says which format it is.</li>
+        <li>Notes: added a <strong>📸 Camera</strong> button next to Add Photos — opens a live webcam preview with a <em>Snap</em> button to capture and save a photo straight to the photos folder. Saved photos now show as <strong>thumbnails</strong> (click to open full-size) instead of a bare filename list.</li>
       </ul>
     </div>
 
@@ -114,6 +116,7 @@
         <li>Fixed the normalization dropdown not always resetting to "As measured" on reload — it was carrying over the Real/Complex average selection from the previous session.</li>
         <li>New: hovering a dataset now shows that instrument's saved notes (written from Acquire) in a panel near the band table.</li>
         <li>Fixed: the instrument notes panel stayed visible after clicking <strong>Clear All</strong> — it's now cleared along with the dataset list.</li>
+        <li>Added a <strong>🖨 Print</strong> button (far right of the plot toolbar) — snapshots the current plot and opens it in a new page with an editable title and notes field, so you can label it before printing.</li>
       </ul>
     </div>
 

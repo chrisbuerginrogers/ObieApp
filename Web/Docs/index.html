@@ -244,6 +244,7 @@
         <tr><td>γ² checkbox</td><td>Show or hide coherence traces for all datasets that carry coherence data.</td></tr>
         <tr><td>Smoothing</td><td>Applies fractional-octave smoothing from ¼ semitone to one full octave.</td></tr>
         <tr><td>Normalization</td><td>As measured, normalize by peak, normalize by average over a custom Hz range, or overlay a <strong>Complex average</strong> / <strong>Real average</strong> trace across all visible datasets (see Group averaging below).</td></tr>
+        <tr><td>🖨 Print</td><td>Far right of the toolbar. Snapshots the current plot and opens it in a new page with an editable title and notes area — fill those in, then click Print on that page to send just the labeled plot to your printer.</td></tr>
       </tbody>
     </table>
 
@@ -520,10 +521,12 @@
       resolved position label, e.g. <code>H03.trf</code> or <code>V07.trf</code>) and one
       <code>.wav</code> raw capture per hit inside a <code>raw/</code> sub-folder. TRF files
       include coherence and run metadata (sample rate, threshold, cutoffs, device name) readable
-      by Explore. At run completion, an <strong>AvR</strong> (magnitude average) and
-      <strong>AvC</strong> (complex average) are written to the instrument folder root for each
-      prefix group — e.g. an H,V run with 12 positions per group produces <code>H AvR/AvC</code>,
-      <code>V AvR/AvC</code>, and a combined <code>HV AvR/AvC</code> across all 24 positions.
+      by Explore. At run completion, an <strong>.avr</strong> (magnitude average) and
+      <strong>.avc</strong> (complex average) file are written to the instrument folder root for
+      each prefix group, named <code>&lt;run&gt; &lt;group&gt;.avr/.avc</code> — e.g. an H,V run
+      named <code>test2_09</code> with 12 positions per group produces <code>test2_09 H.avr</code>
+      / <code>.avc</code>, <code>test2_09 V.avr</code> / <code>.avc</code>, and a combined
+      <code>test2_09 HV.avr</code> / <code>.avc</code> across all 24 positions.
     </div>
 
     <h3>Reviewing the FRF plot</h3>
@@ -575,7 +578,10 @@
     <p>
       Use <strong>🗑 Delete Notes &amp; Start Again</strong> (with a confirmation prompt) to clear the
       notes and remove <code>notes.txt</code> from disk. <strong>📷 Add Photos…</strong> attaches one
-      or more images to the instrument, saved into a <code>photos</code> folder alongside the notes.
+      or more image files to the instrument, and <strong>📸 Camera</strong> opens a live preview from
+      your computer's webcam with a <em>Snap</em> button to capture and save a photo directly —
+      both save into a <code>photos</code> folder alongside the notes. Saved photos are shown as
+      thumbnails; click one to open the full-size image in a new tab.
     </p>
 
     <h3>LiveView</h3>

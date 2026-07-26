@@ -1575,6 +1575,69 @@
     URL.revokeObjectURL(url);
   };
 
+  // ── Print ────────────────────────────────────────────────────────────
+  // Snapshots the plot to a PNG and opens it in a new page where the user
+  // can add a title/notes before printing — kept separate from the app page
+  // so nothing else (sidebar, toolbar, modals) ends up in the printout.
+  window.expPrintPlot = async function() {
+    const win = window.open('', '_blank');
+    if (!win) { alert('Please allow pop-ups for this site to print.'); return; }
+    win.document.write('<title>Preparing…</title><body style="font-family:sans-serif;padding:40px;text-align:center;color:#888">Generating plot image…</body>');
+    win.document.close();
+
+    const gd = document.getElementById('explore-plot');
+    if (!gd || !window.Plotly) { win.close(); alert('Plot not ready yet.'); return; }
+
+    let dataUrl;
+    try {
+      dataUrl = await Plotly.toImage(gd, {
+        format: 'png',
+        width:  Math.max(600, gd.clientWidth  * 2),
+        height: Math.max(400, gd.clientHeight * 2),
+      });
+    } catch (e) {
+      win.close();
+      alert('Could not generate plot image: ' + e.message);
+      return;
+    }
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Print Plot — ObieWebApp</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 24px 32px; color: #222; }
+  h1 { font-size: 1.4rem; margin: 0 0 10px; outline: none; }
+  h1:empty::before { content: 'Click to add a title…'; color: #999; }
+  #notes { font-size: 0.95rem; line-height: 1.5; margin: 0 0 22px; min-height: 1.4em; outline: none; white-space: pre-wrap; }
+  #notes:empty::before { content: 'Click to add notes…'; color: #999; }
+  img { max-width: 100%; display: block; margin: 0 auto; }
+  .no-print { margin-bottom: 22px; }
+  .no-print button {
+    font-size: 0.85rem; padding: 6px 14px; border-radius: 5px; border: 1px solid #b35c00;
+    background: #b35c00; color: #fff; cursor: pointer; margin-right: 10px;
+  }
+  .no-print .hint { display: inline-block; font-size: 0.78rem; color: #888; }
+  @media print { .no-print { display: none; } }
+</style>
+</head>
+<body>
+  <div class="no-print">
+    <button onclick="window.print()">🖨 Print</button>
+    <span class="hint">Click the title or notes below to edit them before printing.</span>
+  </div>
+  <h1 contenteditable="true"></h1>
+  <div id="notes" contenteditable="true"></div>
+  <img src="${dataUrl}" alt="Explore plot">
+</body>
+</html>`;
+
+    win.document.open();
+    win.document.write(html);
+    win.document.close();
+  };
+
   // ── Interpret modal ───────────────────────────────────────────────────
   function _renderInterpretDict() {
     const dict = INTERPRET_DICTS[_interpretDictKey];

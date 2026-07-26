@@ -392,7 +392,7 @@ window.onSaveAvC = async function(b64, groupLabel) {
   const h    = _testHandle;
   const name = _runName || 'run';
   if (!h) return;
-  await _writeFile(h, `${name} ${groupLabel} AvC.avc`, b64);
+  await _writeFile(h, `${name} ${groupLabel}.avc`, b64);
 };
 
 /** Save AvR (magnitude average) to the test folder root — one per prefix group,
@@ -401,7 +401,7 @@ window.onSaveAvR = async function(b64, groupLabel) {
   const h    = _testHandle;
   const name = _runName || 'run';
   if (!h) return;
-  await _writeFile(h, `${name} ${groupLabel} AvR.avr`, b64);
+  await _writeFile(h, `${name} ${groupLabel}.avr`, b64);
 };
 
 /** Manual download fallback */
@@ -1467,6 +1467,7 @@ window.acqNotes = async function() {
 
 window.acqCloseNotes = function() {
   document.getElementById('notes-modal')?.classList.remove('open');
+  window.acqCloseCamera();   // in case the camera was left open underneath
 };
 
 window.acqDeleteNotes = async function() {
@@ -1503,23 +1504,42 @@ window.acqSaveNotes = async function() {
 
 // Photos are saved into a "photos" subfolder inside the instrument's own
 // folder (alongside notes.txt), via _testsHandle — the same handle used for
-// notes so they end up in the same place on disk.
+// notes so they end up in the same place on disk. Shown as thumbnails
+// (object URLs of the actual file contents) rather than bare filenames.
+let _notesPhotoUrls = [];   // object URLs from the last render — revoked before each re-render
+
 async function _renderNotesPhotoList() {
   const container = document.getElementById('notes-photo-list');
   if (!container) return;
+  _notesPhotoUrls.forEach(u => URL.revokeObjectURL(u));
+  _notesPhotoUrls = [];
   if (!_testsHandle) {
     container.innerHTML = '<div style="font-size:11px;color:var(--muted)">Name an instrument to save photos to disk.</div>';
     return;
   }
   try {
     const photosHandle = await _testsHandle.getDirectoryHandle('photos');
-    const names = [];
+    const entries = [];
     for await (const [name, h] of photosHandle.entries()) {
-      if (h.kind === 'file') names.push(name);
+      if (h.kind === 'file') entries.push([name, h]);
     }
-    container.innerHTML = names.length
-      ? names.sort().map(n => `<div class="tpl-item" style="cursor:default">${n}</div>`).join('')
-      : '<div style="font-size:11px;color:var(--muted)">No photos yet.</div>';
+    if (!entries.length) {
+      container.innerHTML = '<div style="font-size:11px;color:var(--muted)">No photos yet.</div>';
+      return;
+    }
+    entries.sort((a, b) => a[0].localeCompare(b[0]));
+    container.innerHTML = '';
+    for (const [name, h] of entries) {
+      let url;
+      try { url = URL.createObjectURL(await h.getFile()); }
+      catch (_) { continue; }
+      _notesPhotoUrls.push(url);
+      const a = document.createElement('a');
+      a.href = url; a.target = '_blank'; a.rel = 'noopener'; a.title = name;
+      a.style.cssText = 'display:block;width:52px;height:52px;flex-shrink:0;border-radius:4px;overflow:hidden;border:1px solid var(--border)';
+      a.innerHTML = `<img src="${url}" alt="${name}" style="width:100%;height:100%;object-fit:cover;display:block">`;
+      container.appendChild(a);
+    }
   } catch (_) {
     container.innerHTML = '<div style="font-size:11px;color:var(--muted)">No photos yet.</div>';
   }
@@ -1543,6 +1563,68 @@ window.acqAddNotesPhotos = async function(input) {
       await w.close();
     }
     if (st) { st.textContent = `✓ Added ${files.length} photo${files.length > 1 ? 's' : ''}`; setTimeout(() => st.textContent = '', 2500); }
+    _renderNotesPhotoList();
+  } catch (e) {
+    if (_isFolderGoneError(e)) _handleFolderGone();
+    if (st) { st.textContent = '⚠ Save failed: ' + e.message; setTimeout(() => st.textContent = '', 2500); }
+  }
+};
+
+// ── Camera capture ─────────────────────────────────────────────────────
+// Live webcam preview in its own modal (opened from Notes) with a Snap
+// button that saves the current frame straight into the photos folder.
+let _cameraStream = null;
+
+window.acqOpenCamera = async function() {
+  const modal = document.getElementById('camera-modal');
+  const video = document.getElementById('camera-video');
+  const st    = document.getElementById('camera-msg');
+  if (!modal || !video) return;
+  if (st) st.textContent = '';
+  modal.classList.add('open');
+  try {
+    _cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+    video.srcObject = _cameraStream;
+  } catch (e) {
+    modal.classList.remove('open');
+    alert('Could not access the camera: ' + e.message);
+  }
+};
+
+window.acqCloseCamera = function() {
+  document.getElementById('camera-modal')?.classList.remove('open');
+  if (_cameraStream) { _cameraStream.getTracks().forEach(t => t.stop()); _cameraStream = null; }
+  const video = document.getElementById('camera-video');
+  if (video) video.srcObject = null;
+};
+
+window.acqSnapPhoto = async function() {
+  const video  = document.getElementById('camera-video');
+  const canvas = document.getElementById('camera-canvas');
+  const st     = document.getElementById('camera-msg');
+  if (!video || !canvas || !video.videoWidth) return;
+  if (!_testsHandle) {
+    if (st) { st.textContent = 'Name an instrument first to save photos to disk'; setTimeout(() => st.textContent = '', 2500); }
+    return;
+  }
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+  if (!blob) { if (st) st.textContent = '⚠ Capture failed'; return; }
+
+  const now = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  const stamp = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const filename = `Camera_${stamp}.jpg`;
+
+  try {
+    const photosHandle = await _testsHandle.getDirectoryHandle('photos', { create: true });
+    const fh = await photosHandle.getFileHandle(filename, { create: true });
+    const w  = await fh.createWritable();
+    await w.write(blob);
+    await w.close();
+    if (st) { st.textContent = '✓ Photo saved'; setTimeout(() => st.textContent = '', 2000); }
     _renderNotesPhotoList();
   } catch (e) {
     if (_isFolderGoneError(e)) _handleFolderGone();
