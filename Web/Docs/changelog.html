@@ -104,6 +104,7 @@
         <li>Fixed the default <strong>HV 24 Obie Rig</strong> template only measuring 12 positions (prefix "H") instead of the intended 24 (prefix "H,V", 12 H + 12 V) — it now matches the original LabVIEW template it was ported from.</li>
         <li>Added an <strong>Agenda</strong> checklist above Run Settings in the right-hand info panel — a step-by-step reminder with checkboxes you tick off as you go. Resets automatically the next time you hit Start on a fresh run.</li>
         <li>Agenda is now split into two labeled groups — <strong>Soundcard</strong> (powered, 48v (2 lights); selected in blue) and <strong>Software</strong> (data folder, name instrument, rename test, choose template, edit Notes, verify in LiveView, hit Run if needed, check hammer FFT, check coherence) — instead of one flat numbered list.</li>
+        <li>Fixed multi-prefix runs (e.g. prefix <code>H,V</code>): WAV/TRF filenames and the FRF plot legend were built from the raw prefix field text and a position count that never reset between groups, so the second group's files came out mislabeled (e.g. <code>H,V13</code> instead of <code>V01</code>). Per-position files now use the correctly resolved label. Also fixed end-of-run averaging, which previously lumped every group into one AvR and never wrote an AvC at all — it now writes both an <strong>AvR and AvC per prefix group</strong> (e.g. H, V) plus one <strong>combined pair</strong> across all groups (e.g. HV) when there's more than one prefix.</li>
       </ul>
     </div>
 

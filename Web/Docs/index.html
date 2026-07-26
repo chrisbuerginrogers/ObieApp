@@ -500,11 +500,14 @@
 
     <div class="callout">
       <strong>What gets saved</strong>
-      Each position saves a <code>.trf</code> file (updated after every hit) and a <code>.wav</code>
-      raw capture per hit inside a <code>raw/</code> sub-folder. TRF files include coherence and
-      run metadata (sample rate, threshold, cutoffs, device name) readable by Explore.
-      At run completion, an <strong>AvR</strong> (magnitude average) is written to the instrument
-      folder root.
+      Each position saves one <code>.trf</code> file (updated after every hit, named by its
+      resolved position label, e.g. <code>H03.trf</code> or <code>V07.trf</code>) and one
+      <code>.wav</code> raw capture per hit inside a <code>raw/</code> sub-folder. TRF files
+      include coherence and run metadata (sample rate, threshold, cutoffs, device name) readable
+      by Explore. At run completion, an <strong>AvR</strong> (magnitude average) and
+      <strong>AvC</strong> (complex average) are written to the instrument folder root for each
+      prefix group — e.g. an H,V run with 12 positions per group produces <code>H AvR/AvC</code>,
+      <code>V AvR/AvC</code>, and a combined <code>HV AvR/AvC</code> across all 24 positions.
     </div>
 
     <h3>Reviewing the FRF plot</h3>

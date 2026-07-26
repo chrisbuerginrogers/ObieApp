@@ -219,7 +219,7 @@ window.onHammerFFT = function(freq_js, db_js) {
 };
 
 /** FRF updated for one position — cache and re-render main plot */
-window.onFRFUpdate = function(freq_js, H1db_js, coh_js, pos, nHits) {
+window.onFRFUpdate = function(freq_js, H1db_js, coh_js, pos, nHits, label) {
   const p = Number(pos), n = Number(nHits);
   // After starting a new run, suppress Python's history replay until the first real hit.
   if (_blockFRFUpdates) {
@@ -236,7 +236,7 @@ window.onFRFUpdate = function(freq_js, H1db_js, coh_js, pos, nHits) {
     if (n === 1) {
       Object.keys(frfCache).forEach(k => { if (Number(k) !== p) { delete frfCache[k]; delete tapCache[k]; } });
     }
-    frfCache[p] = { freq, H1db, coh, nHits: n };
+    frfCache[p] = { freq, H1db, coh, nHits: n, label };
     // Trim tap cache if a hit was deleted
     if (tapCache[p] && tapCache[p].length > n)
       tapCache[p].length = n;
@@ -368,40 +368,40 @@ function _setSaveStatus(saving, detail) {
 let _lastSavedWav = null;   // filename of most-recently saved hit WAV
 
 /** Auto-save hit WAV to run folder */
-window.onSaveHit = async function(b64, pos, hitN) {
+window.onSaveHit = async function(b64, pos, hitN, label) {
   if (!_rawHandle) { _setSaveStatus(false); return; }
-  const pfx = (document.getElementById('inp-prefix')?.value || 'H').trim();
-  const p   = String(Number(pos) + 1).padStart(3, '0');
-  const h   = String(Number(hitN)).padStart(3, '0');
+  const lbl  = label || `pos${String(Number(pos) + 1).padStart(3, '0')}`;
+  const h    = String(Number(hitN)).padStart(3, '0');
   const inst = _runName || 'run';
-  const filename = `${inst} ${pfx}_${p}_${h}.wav`;
+  const filename = `${inst} ${lbl}_${h}.wav`;
   _lastSavedWav = filename;
   await _writeFile(_rawHandle, filename, b64);
 };
 
 /** Overwrite TRF on disk after every hit for the given position */
-window.onSaveTRF = async function(b64, pos) {
+window.onSaveTRF = async function(b64, pos, label) {
   if (!_trfHandle) { _setSaveStatus(false); return; }
-  const pfx = (document.getElementById('inp-prefix')?.value || 'H').trim();
-  const p   = String(Number(pos) + 1).padStart(3, '0');
+  const lbl  = label || `pos${String(Number(pos) + 1).padStart(3, '0')}`;
   const inst = _runName || 'run';
-  await _writeFile(_trfHandle, `${inst} ${pfx}_${p}.trf`, b64);
+  await _writeFile(_trfHandle, `${inst} ${lbl}.trf`, b64);
 };
 
-/** Save AvC (complex average) to the test folder root at session end */
-window.onSaveAvC = async function(b64) {
+/** Save AvC (complex average) to the test folder root — one per prefix group,
+    plus a combined one across all groups when there's more than one prefix. */
+window.onSaveAvC = async function(b64, groupLabel) {
   const h    = _testHandle;
   const name = _runName || 'run';
   if (!h) return;
-  await _writeFile(h, `${name} AvC.avc`, b64);
+  await _writeFile(h, `${name} ${groupLabel} AvC.avc`, b64);
 };
 
-/** Save AvR (magnitude average) to the test folder root at session end */
-window.onSaveAvR = async function(b64) {
+/** Save AvR (magnitude average) to the test folder root — one per prefix group,
+    plus a combined one across all groups when there's more than one prefix. */
+window.onSaveAvR = async function(b64, groupLabel) {
   const h    = _testHandle;
   const name = _runName || 'run';
   if (!h) return;
-  await _writeFile(h, `${name} AvR.avr`, b64);
+  await _writeFile(h, `${name} ${groupLabel} AvR.avr`, b64);
 };
 
 /** Manual download fallback */
@@ -428,7 +428,6 @@ function renderFRF() {
   // Latest position in frfCache = "current" → full opacity; earlier = faded
   const maxPos = positions.length ? positions[positions.length - 1] : -1;
 
-  const pfx = document.getElementById('inp-prefix')?.value || 'H';
   let globalTapIdx = 0;
   positions.forEach((pos) => {
     const d = frfCache[pos];
@@ -438,7 +437,7 @@ function renderFRF() {
     const valid = mags.filter(v => isFinite(v) && v > -200);
     if (!valid.length) return;
     const color = _palette[pos % _palette.length];
-    const label = `${pfx}${String(pos+1).padStart(2,'0')} (${d.nHits} hits)`;
+    const label = `${d.label || (pos+1)} (${d.nHits} hits)`;
     frfTraces.push({
       x: d.freq, y: mags,
       type: 'scatter', mode: 'lines',

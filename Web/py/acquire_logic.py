@@ -356,7 +356,7 @@ def _do_capture():
     _pos_hits[_cur_pos] += 1
     _post_capture_lockout = int(0.5 * _sr)   # 500 ms dead-time before next trigger
 
-    js.window.onSaveHit(_encode_wav_bytes(mic_win, ham_win, _sr), _cur_pos, _pos_hits[_cur_pos])
+    js.window.onSaveHit(_encode_wav_bytes(mic_win, ham_win, _sr), _cur_pos, _pos_hits[_cur_pos], _pos_label(_cur_pos))
 
     _add_to_frf(_cur_pos, ham_win, mic_win)
     _emit_banner()
@@ -419,17 +419,17 @@ def _save_trf(pos):
     """Emit TRF binary — overwrites on disk after every hit."""
     trf_bytes = _build_trf_bytes(_frf.get(pos, {}))
     if trf_bytes is not None:
-        js.window.onSaveTRF(trf_bytes, pos)
+        js.window.onSaveTRF(trf_bytes, pos, _pos_label(pos))
 
 
 def _recompute_frf(pos):
     st = _frf.get(pos, {})
     H1, H_dB, coh, freq = _h1_from_st(st)
     if H1 is None:
-        js.window.onFRFUpdate(to_js([]), to_js([]), to_js([]), pos, 0)
+        js.window.onFRFUpdate(to_js([]), to_js([]), to_js([]), pos, 0, _pos_label(pos))
         return
     js.window.onFRFUpdate(to_js(freq.tolist()), to_js(H_dB.tolist()),
-                          to_js(coh.tolist()), pos, len(st["hits_ham"]))
+                          to_js(coh.tolist()), pos, len(st["hits_ham"]), _pos_label(pos))
 
 
 def _complete_position():
@@ -489,21 +489,40 @@ def advance_position():
 
 
 def _emit_averages():
-    """Compute AvC (complex mean) and AvR (magnitude mean) across all positions."""
-    all_H = []
+    """Compute AvC (complex mean) and AvR (magnitude mean) — one pair per prefix
+    group (e.g. H, V), plus one combined pair across all groups when there's more
+    than one prefix (e.g. HV for a H,V run)."""
+    groups   = {}   # prefix → list of H1 (complex)
     freq_ref = None
     for i in range(_n_positions):
         H1, _, _, freq = _h1_from_st(_frf.get(i, {}))
-        if H1 is not None:
-            if freq_ref is None:
-                freq_ref = freq
-            all_H.append(H1)
-    if not all_H or freq_ref is None:
+        if H1 is None:
+            continue
+        if freq_ref is None:
+            freq_ref = freq
+        grp = i // _n_per_prefix
+        pfx = _prefixes[grp] if grp < len(_prefixes) else _prefixes[-1]
+        groups.setdefault(pfx, []).append(H1)
+
+    if freq_ref is None:
         return
-    H_stack = np.array(all_H)                    # (n_pos, n_freqs) complex
-    # AvR — mean of magnitudes
-    avr_bytes = build_avr(freq_ref, np.abs(H_stack).mean(axis=0), n_averages=len(all_H))
-    js.window.onSaveAvR(to_js(bytearray(avr_bytes)))
+
+    def _emit_one(label, H_list):
+        H_stack   = np.array(H_list)   # (n_pos, n_freqs) complex
+        avc_bytes = build_avc(freq_ref, H_stack.mean(axis=0), n_averages=len(H_list))
+        avr_bytes = build_avr(freq_ref, np.abs(H_stack).mean(axis=0), n_averages=len(H_list))
+        js.window.onSaveAvC(to_js(bytearray(avc_bytes)), label)
+        js.window.onSaveAvR(to_js(bytearray(avr_bytes)), label)
+
+    for pfx in _prefixes:
+        H_list = groups.get(pfx)
+        if H_list:
+            _emit_one(pfx, H_list)
+
+    if len(_prefixes) > 1:
+        all_H = [h for hs in groups.values() for h in hs]
+        if all_H:
+            _emit_one(''.join(_prefixes), all_H)
 
 
 def _emit_live():
