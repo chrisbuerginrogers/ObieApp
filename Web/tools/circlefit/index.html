@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../coi-serviceworker.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Circle Fit — ObieWebApp</title>
+
+  <link rel="stylesheet" href="../../css/theme.css">
+  <script src="../../version.js"></script>
+  <script>document.write('<link rel="stylesheet" href="./circlefit.css?v='+OBIE_VERSION+'">');</script>
+
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" crossorigin="anonymous"></script>
+
+  <!-- PyScript — version set by home-page toggle -->
+  <script>(function(){var v=localStorage.getItem('obiePyScriptVersion')||'2026.3.1';document.write('<link rel="stylesheet" href="https://pyscript.net/releases/'+v+'/core.css">');document.write('<scr'+'ipt type="module" src="https://pyscript.net/releases/'+v+'/core.js"><\/scr'+'ipt>');})();</script>
+
+  <script src="../../js/obie-settings.js"></script>
+  <script src="../../js/browser-check.js"></script>
+  <script>document.write('<scr'+'ipt src="./circlefit.js?v='+OBIE_VERSION+'" defer><\/scr'+'ipt>');</script>
+</head>
+<body>
+
+<div id="loading" class="loading-overlay">
+  <div class="spin"></div>
+  <div class="load-title">Loading PyScript + NumPy…</div>
+  <div class="load-sub">First load may take 15–30 s</div>
+</div>
+<script>
+  setTimeout(function() {
+    var el = document.getElementById('loading');
+    if (!el || el.classList.contains('gone')) return;
+    el.querySelector('.spin').style.display = 'none';
+    el.querySelector('.load-title').textContent = 'Failed to load';
+    el.querySelector('.load-sub').textContent =
+      'PyScript could not be fetched. This app requires Chrome or Edge.';
+  }, 90000);
+</script>
+
+<div class="cf-page">
+
+  <!-- ── Header ─────────────────────────────────────────────────────────────── -->
+  <header class="obie-header">
+    <a class="brand" href="../../index.html">
+      <div class="logo-icon">🎻</div>
+      <h1>ObieWebApp</h1>
+    </a>
+    <span class="crumb">· Circle Fit</span>
+    <div class="gap"></div>
+    <a class="btn" href="../../index.html" style="font-size:0.75rem;padding:3px 9px">← All tools</a>
+  </header>
+
+  <!-- ── Toolbar ─────────────────────────────────────────────────────────────── -->
+  <div class="cf-toolbar">
+    <button class="tb-btn" onclick="cfSetDataFolder()">📁 Data Folder</button>
+    <span id="cf-folder-name" class="folder-name-disp"></span>
+    <div class="tb-flex"></div>
+    <button class="tb-btn" onclick="cfLoadRun()">Load Run…</button>
+    <span id="cf-run-ind" class="ms-ind"></span>
+    <div class="tb-flex"></div>
+    <button class="tb-btn" onclick="cfHelp()">Help</button>
+  </div>
+
+  <!-- ── Status row ──────────────────────────────────────────────────────────── -->
+  <div class="ms-status-row">
+    <span id="cf-status" class="ms-status-txt">Load a run folder to begin.</span>
+  </div>
+
+  <!-- ── Body ────────────────────────────────────────────────────────────────── -->
+  <div class="cf-body">
+
+    <!-- Node sidebar -->
+    <aside class="ms-node-sidebar">
+      <div class="ms-sidebar-hdr">Nodes</div>
+      <div class="cf-sidebar-hint">Click one or more nodes to build the reference FRF used for fitting</div>
+      <div id="cf-node-list" class="ms-node-list">
+        <div class="ms-list-empty">No data loaded</div>
+      </div>
+    </aside>
+
+    <!-- Main column -->
+    <div class="cf-main">
+
+      <div class="cf-band-toolbar">
+        <span class="tb-lbl">Band</span>
+        <input id="cf-band-min" type="number" min="1" step="1" placeholder="Min Hz" class="tb-inp cf-band-inp">
+        <span class="tb-lbl">–</span>
+        <input id="cf-band-max" type="number" min="1" step="1" placeholder="Max Hz" class="tb-inp cf-band-inp">
+        <button class="tb-btn" onclick="cfAddBand()">＋ Add Band</button>
+        <div class="cf-toolbar-sep"></div>
+        <div id="cf-band-chips" class="cf-band-chips"></div>
+        <div class="tb-flex"></div>
+        <button class="tb-btn start" onclick="cfFitModes()">Fit Modes</button>
+      </div>
+
+      <div class="cf-plots">
+        <div id="cf-frf-plot" class="cf-plot-half"></div>
+        <div id="cf-nyquist-plot" class="cf-plot-half"></div>
+      </div>
+
+      <div class="cf-results-wrap">
+        <table id="cf-results-table" class="cf-results-table">
+          <thead>
+            <tr>
+              <th>Mode</th>
+              <th>Freq (Hz)</th>
+              <th>η (loss factor)</th>
+              <th>Q</th>
+              <th>|A<sub>r</sub>|</th>
+              <th>Fit quality</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="cf-results-body">
+            <tr><td colspan="7" class="cf-results-empty">No modes fitted yet — add one or more bands above and click Fit Modes.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- .cf-page -->
+
+<!-- ── Load Run modal ────────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="run-modal">
+  <div class="modal-box" style="width:min(92vw,480px)">
+    <div class="modal-header">
+      <span class="modal-title">Load Run</span>
+      <button class="modal-close" onclick="cfCloseRunModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5">
+        Select a run folder. Any folder containing a <code>TRF/</code> subfolder is shown.
+        Instrument folders are scanned one level deep.
+      </p>
+      <div id="run-list" class="tpl-list">
+        <div class="tpl-list-empty">Set a Data Folder to see runs.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="act-btn" onclick="cfRefreshRunList()">↺ Refresh</button>
+      <button class="act-btn" onclick="cfCloseRunModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script type="py" src="./main.py" config="./pyscript.toml" async></script>
+</body>
+</html>

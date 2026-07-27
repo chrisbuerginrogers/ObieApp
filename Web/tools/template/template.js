@@ -22,6 +22,10 @@ let _selected = null; // node id | null
 // Drag: capture start position so we can offset cleanly through any transform
 let _drag = null; // {nodeId, startMX, startMY, startXmm, startYmm}
 
+// Violin reference overlay & projector mount
+let _violinViz     = { show: false, orientation: 'vertical', opacity: 0.25 };
+let _verticalMount = false;
+
 // Watch state — polls a TRF folder to track Acquire progress (no Acquire coupling)
 let _watchHandle      = null;       // FileSystemDirectoryHandle for the TRF/ folder
 let _watchTestHandle  = null;       // parent test run folder (for writing node_layout.json)
@@ -29,6 +33,8 @@ let _watchInterval    = null;       // setInterval id
 let _watchCurrentNode = null;       // node id to hit next (null = not watching)
 let _watchDoneNodes   = new Set();  // node ids already recorded
 let _watchRunLabel    = '';         // "InstrumentA / run_001" for display
+let _watchTaps           = null;    // taps-per-position from the run's template.json; null = use file-existence fallback
+let _watchConfirmedDone  = new Set(); // position numbers (not node ids) already confirmed to have reached _watchTaps hits
 
 // ─── Canvas ───────────────────────────────────────────────────────────────────
 const _canvas = document.getElementById('tpl-canvas');
@@ -72,6 +78,30 @@ function _screenToPhys(sx, sy) {
   };
 }
 
+// _renderCanvas applies an *extra* -90° rotation around the true canvas
+// centre (via ctx.translate/rotate/translate) when _verticalMount is on, on
+// top of whatever _physToScreen already computes — so a node's actual drawn
+// position differs from plain _physToScreen's output whenever the mount is
+// flipped. Mouse events report real canvas pixels, unaffected by that ctx
+// transform, so hit-testing/dragging must apply the same extra rotation
+// themselves or clicks land on the node's un-rotated (invisible) position —
+// this is why dragging silently stopped working after flipping the mount.
+function _physToScreenMounted(xMm, yMm) {
+  const p = _physToScreen(xMm, yMm);
+  if (!_verticalMount) return p;
+  const cx = _canvas.width / 2, cy = _canvas.height / 2;
+  const dx = p.x - cx, dy = p.y - cy;
+  return { x: cx + dy, y: cy - dx };
+}
+
+function _screenToPhysMounted(sx, sy) {
+  if (!_verticalMount) return _screenToPhys(sx, sy);
+  const cx = _canvas.width / 2, cy = _canvas.height / 2;
+  const ox = -(sy - cy);
+  const oy = sx - cx;
+  return _screenToPhys(cx + ox, cy + oy);
+}
+
 // ─── Grid building ────────────────────────────────────────────────────────────
 function _buildGridNodes() {
   const { rows, cols, xSpacing, ySpacing } = _grid;
@@ -104,6 +134,28 @@ function _buildGridNodes() {
 const _NODE_R = 9; // base node circle radius (px)
 
 // ─── Violin outline ───────────────────────────────────────────────────────────
+const _violinImg = new Image();
+_violinImg.src    = './violin-outline.svg';
+_violinImg.onload = () => _renderCanvas();
+
+function _drawViolinOutline() {
+  if (!_violinViz.show || !_violinImg.complete || !_violinImg.naturalWidth) return;
+  const { scale, xStretch, yStretch, rotation, panX, panY } = _transform;
+  const W = _canvas.width, H = _canvas.height;
+  const rad = rotation * Math.PI / 180;
+  _ctx.save();
+  _ctx.globalAlpha = _violinViz.opacity;
+  _ctx.translate(W / 2 + panX, H / 2 + panY);
+  _ctx.rotate(rad);
+  _ctx.scale(scale * xStretch, scale * yStretch);
+  if (_violinViz.orientation === 'vertical') _ctx.rotate(Math.PI / 2);
+  // SVG 1514×914: body centre at SVG (890,485) → shift so it lands at mm (0,0)
+  // Extra 180° so neck points the correct direction after orientation rotation
+  _ctx.rotate(Math.PI);
+  _ctx.drawImage(_violinImg, -200, -131.5, 400, 248);
+  _ctx.restore();
+}
+
 function _renderCanvas() {
   const W = _canvas.width, H = _canvas.height;
   _ctx.clearRect(0, 0, W, H);
@@ -119,7 +171,17 @@ function _renderCanvas() {
   _ctx.beginPath(); _ctx.moveTo(W / 2 + panX, 0); _ctx.lineTo(W / 2 + panX, H); _ctx.stroke();
   _ctx.beginPath(); _ctx.moveTo(0, H / 2 + panY); _ctx.lineTo(W, H / 2 + panY); _ctx.stroke();
 
-  if (!_nodes.length) return;
+  // Vertical mount preview — same -90° rotation as the projection window
+  _ctx.save();
+  if (_verticalMount) {
+    _ctx.translate(W / 2, H / 2);
+    _ctx.rotate(-Math.PI / 2);
+    _ctx.translate(-W / 2, -H / 2);
+  }
+
+  _drawViolinOutline();
+
+  if (!_nodes.length) { _ctx.restore(); return; }
 
   // Draw edges between row/col neighbours
   _ctx.strokeStyle = 'rgba(100,160,255,0.30)';
@@ -181,13 +243,15 @@ function _renderCanvas() {
     _ctx.textBaseline = 'middle';
     _ctx.fillText(n.label, pos.x, pos.y);
   });
+
+  _ctx.restore();
 }
 
 // ─── Hit testing ──────────────────────────────────────────────────────────────
 function _nodeAt(mx, my) {
   const HIT = _NODE_R + 6;
   return _nodes.find(n => {
-    const pos = _physToScreen(n.xMm, n.yMm);
+    const pos = _physToScreenMounted(n.xMm, n.yMm);
     return Math.hypot(pos.x - mx, pos.y - my) <= HIT;
   }) || null;
 }
@@ -222,8 +286,8 @@ document.addEventListener('mousemove', e => {
     const node = _nodes.find(n => n.id === _drag.nodeId);
     if (node) {
       // Convert drag delta to new physical position via the inverse transform
-      const startScreen = _physToScreen(_drag.startXmm, _drag.startYmm);
-      const newPhys = _screenToPhys(
+      const startScreen = _physToScreenMounted(_drag.startXmm, _drag.startYmm);
+      const newPhys = _screenToPhysMounted(
         startScreen.x + (mx - _drag.startMX),
         startScreen.y + (my - _drag.startMY)
       );
@@ -380,11 +444,13 @@ window.tplOpenProjection = function() {
 function _pushToProjection() {
   if (!_projWindow || _projWindow.closed) return;
   _projWindow.postMessage({
-    type:        'tpl-update',
-    nodes:       _nodes.map(n => ({ ...n })),
-    transform:   { ..._transform },
-    currentNode: _watchCurrentNode,
-    doneNodes:   [..._watchDoneNodes]
+    type:          'tpl-update',
+    nodes:         _nodes.map(n => ({ ...n })),
+    transform:     { ..._transform },
+    currentNode:   _watchCurrentNode,
+    doneNodes:     [..._watchDoneNodes],
+    violinViz:     { ..._violinViz },
+    verticalMount: _verticalMount
   }, '*');
 }
 
@@ -655,24 +721,42 @@ window.tplStartWatching = async function(i) {
   // Stop any existing watch first
   tplStopWatching(true);
 
-  _watchHandle     = run.trfHandle;
-  _watchTestHandle = run.testHandle;
-  _watchRunLabel   = run.label;
+  _watchHandle          = run.trfHandle;
+  _watchTestHandle      = run.testHandle;
+  _watchRunLabel        = run.label;
+  _watchTaps            = null;
+  _watchConfirmedDone   = new Set();
 
-  // Write node_layout.json to the test folder so Modal Analysis can find coordinates
-  if (_nodes.length) {
+  // Read template.json once per watch session (not per poll tick) — used both
+  // to merge the node layout in and to cache taps-per-position for _pollTRF's
+  // hit-count-based done-detection. Missing/invalid taps just means _pollTRF
+  // falls back to its old file-existence heuristic.
+  let existing = {};
+  if (_watchTestHandle) {
     try {
-      const layoutData = {
-        template_name: _currentName,
-        nodes:         _nodes.map(n => ({ ...n })),
-        grid:          { ..._grid }
+      const rfh = await _watchTestHandle.getFileHandle('template.json');
+      existing = JSON.parse(await (await rfh.getFile()).text());
+    } catch (_) {}
+    const t = Number(existing.taps);
+    _watchTaps = Number.isFinite(t) && t > 0 ? t : null;
+  }
+
+  // Merge node layout into template.json (the unified run file)
+  if (_nodes.length && _watchTestHandle) {
+    try {
+      const stencilPatch = {
+        ...((existing.stencil) ? existing.stencil : {}),
+        name:  _currentName || existing.stencil?.name || 'Node Layout',
+        type:  'node-stencil',
+        nodes: _nodes.map(n => ({ ...n })),
+        grid:  { ..._grid }
       };
-      const fh = await _watchTestHandle.getFileHandle('node_layout.json', { create: true });
+      const fh = await _watchTestHandle.getFileHandle('template.json', { create: true });
       const w  = await fh.createWritable();
-      await w.write(JSON.stringify(layoutData, null, 2));
+      await w.write(JSON.stringify({ ...existing, stencil: stencilPatch }, null, 2));
       await w.close();
     } catch (e) {
-      console.warn('Could not write node_layout.json:', e.message);
+      console.warn('Could not write stencil to template.json:', e.message);
     }
   }
 
@@ -687,50 +771,111 @@ window.tplStartWatching = async function(i) {
 
 window.tplStopWatching = function(silent) {
   if (_watchInterval) { clearInterval(_watchInterval); _watchInterval = null; }
-  _watchHandle      = null;
-  _watchTestHandle  = null;
-  _watchRunLabel    = '';
-  _watchCurrentNode = null;
-  _watchDoneNodes   = new Set();
+  _watchHandle         = null;
+  _watchTestHandle     = null;
+  _watchRunLabel       = '';
+  _watchCurrentNode    = null;
+  _watchDoneNodes      = new Set();
+  _watchTaps           = null;
+  _watchConfirmedDone  = new Set();
   _updateWatchUI(false);
   _renderCanvas();
   _pushToProjection();
 };
 
+// Find the first occurrence of `needle` bytes within `hay`. Returns -1 if absent.
+function _findBytes(hay, needle) {
+  outer:
+  for (let i = 0; i <= hay.length - needle.length; i++) {
+    for (let j = 0; j < needle.length; j++) {
+      if (hay[i + j] !== needle[j]) continue outer;
+    }
+    return i;
+  }
+  return -1;
+}
+
+// Reads the plain-text metadata block Acquire appends after a TRF's binary
+// data (see Python/fileio/trf_fileio.py's OBIE_META marker/format). Returns
+// {} — never throws — if the block is missing (older TRF) or unreadable
+// (e.g. mid-write), so callers can treat that as "unknown, not yet done."
+async function _readTrfMeta(fileHandle) {
+  try {
+    const bytes  = new Uint8Array(await (await fileHandle.getFile()).arrayBuffer());
+    const MARKER = new TextEncoder().encode('\x00OBIE_META\n'); // 11 bytes
+    const idx    = _findBytes(bytes, MARKER);
+    if (idx === -1) return {};
+    const tail = new TextDecoder('utf-8').decode(bytes.subarray(idx + MARKER.length));
+    const meta = {};
+    for (const line of tail.split('\n')) {
+      const c = line.indexOf(':');
+      if (c > -1) meta[line.slice(0, c).trim()] = line.slice(c + 1).trim();
+    }
+    return meta;
+  } catch (_) { return {}; }
+}
+
 async function _pollTRF() {
   if (!_watchHandle) return;
 
-  // Acquire overwrites the TRF after every accepted hit, so a file exists as
-  // soon as position N starts — not just when it's finished. To avoid advancing
-  // the projector on the first hit, we treat the highest-numbered TRF as the
-  // position currently being collected. Only when a higher TRF appears does the
-  // previous one get marked done.
-  const positions = new Set();
+  // entry.name → position number, plus the entry (file) handle itself so we
+  // can read its metadata without a second directory lookup.
+  const byPos = new Map();
   try {
     for await (const entry of _watchHandle.values()) {
       if (entry.kind !== 'file') continue;
       const m = entry.name.match(/_(\d+)\.trf$/i);
-      if (m) positions.add(parseInt(m[1], 10));
+      if (m) byPos.set(parseInt(m[1], 10), entry);
     }
   } catch (_) { return; }
 
-  const sorted = [...positions].sort((a, b) => a - b);
+  const sorted = [...byPos.keys()].sort((a, b) => a - b);
 
   if (sorted.length === 0) {
     // No TRFs yet (fresh run or after Start Over) — show first node
     _watchDoneNodes   = new Set();
     _watchCurrentNode = _nodes.length ? 0 : null;
 
-  } else if (sorted.length > _nodes.length) {
-    // More TRF files than positions — all done (edge case after Start Over)
-    _watchDoneNodes   = new Set(sorted.map(p => p - 1));
-    _watchCurrentNode = null;
+  } else if (_watchTaps == null) {
+    // No taps count available (missing/malformed template.json) — fall back
+    // to the old file-existence heuristic so watch mode still degrades
+    // gracefully instead of breaking.
+    if (sorted.length > _nodes.length) {
+      _watchDoneNodes   = new Set(sorted.map(p => p - 1));
+      _watchCurrentNode = null;
+    } else {
+      const maxPos = sorted[sorted.length - 1];
+      _watchDoneNodes   = new Set(sorted.filter(p => p < maxPos).map(p => p - 1));
+      _watchCurrentNode = maxPos - 1;
+    }
 
   } else {
-    // Highest position = currently being collected; all lower = done
-    const maxPos = sorted[sorted.length - 1];
-    _watchDoneNodes   = new Set(sorted.filter(p => p < maxPos).map(p => p - 1));
-    _watchCurrentNode = maxPos - 1; // 0-indexed node id
+    // Real done-detection: a position is done once its OWN file reports
+    // n_hits >= taps — not merely because a later position's file exists.
+    // This is what kills the one-hit lag: the moment the final hit at a
+    // position lands, that position's own file already carries the
+    // completed count, so we can advance immediately.
+    const doneNodes = new Set();
+    for (const pos of sorted) {
+      if (_watchConfirmedDone.has(pos)) { doneNodes.add(pos - 1); continue; }
+      const meta   = await _readTrfMeta(byPos.get(pos));
+      const nHits  = parseInt(meta.n_hits, 10);
+      if (Number.isFinite(nHits) && nHits >= _watchTaps) {
+        doneNodes.add(pos - 1);
+        _watchConfirmedDone.add(pos);
+      }
+      // else: not done yet — leave it out of doneNodes, it's in progress.
+    }
+    _watchDoneNodes = doneNodes;
+
+    const firstNotDone = sorted.find(p => !doneNodes.has(p - 1));
+    if (firstNotDone != null) {
+      _watchCurrentNode = firstNotDone - 1;
+    } else {
+      // Every position we've seen a file for is done — advance to the next
+      // unseen node, or finish if that would run past the stencil's node count.
+      _watchCurrentNode = sorted.length < _nodes.length ? sorted.length : null;
+    }
   }
 
   _renderCanvas();
@@ -791,6 +936,38 @@ window.tplResetWatch = async function() {
   _renderCanvas();
   _pushToProjection();
   await _pollTRF(); // re-read actual folder state
+};
+
+// ─── Violin outline controls ──────────────────────────────────────────────────
+window.tplToggleViolin = function() {
+  _violinViz.show = !_violinViz.show;
+  const btn = document.getElementById('tpl-violin-btn');
+  if (btn) btn.textContent = _violinViz.show ? 'Hide Outline' : 'Show Outline';
+  _renderCanvas();
+  _pushToProjection();
+};
+
+window.tplSetViolinOrientation = function(val) {
+  _violinViz.orientation = val;
+  _renderCanvas();
+  _pushToProjection();
+};
+
+window.tplSetViolinOpacity = function(val) {
+  _violinViz.opacity = parseFloat(val);
+  const lbl = document.getElementById('violin-opacity-lbl');
+  if (lbl) lbl.textContent = Math.round(parseFloat(val) * 100) + '%';
+  _renderCanvas();
+  _pushToProjection();
+};
+
+// ─── Vertical projector mount ─────────────────────────────────────────────────
+window.tplToggleVerticalMount = function() {
+  _verticalMount = !_verticalMount;
+  const btn = document.getElementById('tpl-vmount-btn');
+  if (btn) btn.classList.toggle('accent', _verticalMount);
+  _renderCanvas();
+  _pushToProjection();
 };
 
 // ─── Help ─────────────────────────────────────────────────────────────────────

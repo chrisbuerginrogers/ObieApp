@@ -1,0 +1,234 @@
+/* circlefit.css — Circle Fit tool */
+
+/* ── White theme (matches all other tools) ───────────────────────────────── */
+:root {
+  --bg:        #ffffff;
+  --bg-mid:    #f5f7fa;
+  --bg-deep:   #eff1f4;
+  --surface:   #ffffff;
+  --border:    #c0c4cc;
+  --text:      #1a1a1a;
+  --muted:     #5a5f6a;
+  --accent:    #b35c00;
+  --accent-2:  #d07000;
+  --green:     #2e7d32;
+  --red:       #c62828;
+}
+
+html, body { overflow: hidden; height: 100%; margin: 0; }
+
+/* ── Loading overlay ──────────────────────────────────────────────────────── */
+.loading-overlay {
+  position: fixed; inset: 0;
+  background: rgba(255,255,255,0.97);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 999; gap: 10px;
+}
+.loading-overlay.gone { display: none; }
+.spin {
+  width: 34px; height: 34px;
+  border: 3px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.load-title { font-size: 12px; font-weight: 500; }
+.load-sub   { font-size: 10px; color: var(--muted); }
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+header.obie-header {
+  padding: 4px 12px; min-height: 0;
+  background: #e8d8be; border-bottom-color: #c9b48f;
+}
+header.obie-header h1        { font-size: 1rem; }
+header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
+
+/* ── Toolbar buttons ──────────────────────────────────────────────────────── */
+.tb-btn {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 3px;
+  padding: 2px 8px; font-size: 11px; font-family: inherit;
+  color: var(--text); cursor: pointer; white-space: nowrap; line-height: 18px;
+  transition: background 0.1s, border-color 0.1s;
+}
+.tb-btn:hover:not(:disabled) { background: #e4e8ee; border-color: #9aa0aa; }
+.tb-btn:disabled { opacity: 0.4; cursor: default; }
+.tb-btn.active { background: #d0d8e8; border-color: #7090b8; color: #1a2a50; font-weight: 600; }
+.tb-btn.start  { background: #2e7d32; border-color: #1b5e20; color: #fff; font-weight: 700; }
+.tb-btn.start:hover { background: #1b5e20; }
+
+.act-btn {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 3px;
+  padding: 3px 10px; font-size: 11px; font-family: inherit;
+  color: var(--text); cursor: pointer; white-space: nowrap; line-height: 18px;
+}
+.act-btn:hover:not(:disabled) { background: #e4e8ee; }
+.act-btn:disabled { opacity: 0.4; cursor: default; }
+.act-btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.act-btn.accent:hover { background: var(--accent-2); border-color: var(--accent-2); }
+
+.tb-inp {
+  height: 22px; line-height: 22px;
+  border: 1px solid var(--border); border-radius: 3px;
+  padding: 0 4px; font-size: 11px; font-family: inherit;
+  color: var(--text); background: #fff;
+}
+.tb-inp:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+
+.tb-lbl  { font-size: 11px; color: var(--muted); padding: 0 1px; }
+.tb-flex { flex: 1; }
+
+.folder-name-disp {
+  font-size: 11px; font-style: italic; color: #aaa;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 200px; flex-shrink: 1;
+}
+
+/* ── Modals ───────────────────────────────────────────────────────────────── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4); z-index: 500;
+  align-items: center; justify-content: center;
+}
+.modal-overlay.active { display: flex; }
+
+.modal-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,0.22);
+  overflow: hidden; display: flex; flex-direction: column;
+  max-height: 92vh;
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px; background: var(--bg-deep);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.modal-title { font-size: 13px; font-weight: 700; }
+.modal-close {
+  background: none; border: none; cursor: pointer;
+  font-size: 17px; color: var(--muted); line-height: 1;
+}
+.modal-close:hover { color: var(--text); }
+.modal-body { padding: 14px; overflow-y: auto; }
+.modal-footer {
+  display: flex; gap: 8px; justify-content: flex-end;
+  padding: 10px 14px; border-top: 1px solid var(--border);
+  background: var(--bg-deep); flex-shrink: 0;
+}
+
+/* ── Run list ─────────────────────────────────────────────────────────────── */
+.tpl-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; max-height: 220px; overflow-y: auto; }
+.tpl-item {
+  border: 1px solid var(--border); border-radius: 5px;
+  padding: 8px 10px; background: var(--bg-deep); cursor: pointer;
+  transition: border-color 0.1s, background 0.1s;
+  display: flex; align-items: center; gap: 8px;
+}
+.tpl-item:hover    { border-color: var(--accent); background: #fdf6ed; }
+.tpl-item.selected { border-color: var(--accent); background: #fdf6ed; }
+.tpl-name { font-size: 12px; font-weight: 600; flex: 1; }
+.tpl-list-empty { font-size: 11px; color: var(--muted); font-style: italic; padding: 8px 4px; }
+
+/* ── Page shell ───────────────────────────────────────────────────────────── */
+.cf-page {
+  display: flex; flex-direction: column;
+  height: 100vh; overflow: hidden;
+  background: var(--bg); color: var(--text);
+}
+
+/* ── Toolbar ──────────────────────────────────────────────────────────────── */
+.cf-toolbar {
+  display: flex; align-items: center; gap: 3px;
+  padding: 2px 6px;
+  background: var(--bg-deep); border-bottom: 1px solid var(--border);
+  flex-shrink: 0; min-height: 28px;
+}
+
+/* ── Status row ───────────────────────────────────────────────────────────── */
+.ms-status-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 1px 8px; height: 22px;
+  background: var(--bg-deep); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.ms-status-txt { font-size: 11px; color: var(--muted); font-style: italic; flex: 1; }
+.ms-ind {
+  font-size: 10px; font-weight: 600; font-style: italic;
+  color: var(--accent); white-space: nowrap; max-width: 220px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ── Body layout ──────────────────────────────────────────────────────────── */
+.cf-body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+.ms-node-sidebar {
+  width: 150px; min-width: 110px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--bg-deep); overflow: hidden;
+}
+.ms-sidebar-hdr {
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--muted);
+  padding: 5px 8px 3px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.ms-node-list { flex: 1; overflow-y: auto; padding: 2px 0; }
+.ms-node-item {
+  display: flex; align-items: center; gap: 5px;
+  padding: 4px 8px; cursor: pointer; font-size: 11px;
+  border-left: 3px solid transparent; transition: background 0.1s;
+}
+.ms-node-item:hover    { background: #e4e8ee; }
+.ms-node-item.selected { background: #fff3e0; border-left-color: var(--accent); }
+.ms-node-item.disabled { opacity: 0.4; cursor: default; }
+.ms-node-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ms-node-lbl { font-size: 11px; font-weight: 600; flex: 1; }
+.ms-list-empty { font-size: 11px; color: var(--muted); font-style: italic; padding: 10px 8px; }
+.cf-sidebar-hint {
+  font-size: 10px; color: var(--muted); font-style: italic;
+  padding: 2px 8px 6px; border-bottom: 1px solid var(--border); line-height: 1.4;
+}
+
+.cf-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+/* ── Band toolbar ─────────────────────────────────────────────────────────── */
+.cf-band-toolbar {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 4px 8px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  background: var(--bg-deep);
+}
+.cf-band-inp { width: 72px; }
+.cf-toolbar-sep { width: 1px; height: 18px; background: var(--border); margin: 0 2px; flex-shrink: 0; }
+.cf-band-chips { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.cf-band-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 6px; border-radius: 10px; font-size: 10px;
+  background: #e0eaff; border: 1px solid #a8c0e8; color: #1a2a50;
+}
+.cf-band-chip button {
+  background: none; border: none; cursor: pointer; font-size: 11px;
+  padding: 0; line-height: 1; color: #5a5f6a;
+}
+.cf-band-chip button:hover { color: var(--red); }
+
+/* ── Plots ────────────────────────────────────────────────────────────────── */
+.cf-plots {
+  flex: 1; display: flex; overflow: hidden; min-height: 0;
+  border-bottom: 1px solid var(--border);
+}
+.cf-plot-half { flex: 1; min-width: 0; min-height: 0; }
+#cf-frf-plot { border-right: 1px solid var(--border); }
+
+/* ── Results table ────────────────────────────────────────────────────────── */
+.cf-results-wrap { flex-shrink: 0; max-height: 220px; overflow-y: auto; }
+.cf-results-table {
+  width: 100%; border-collapse: collapse; font-size: 11px;
+}
+.cf-results-table th, .cf-results-table td {
+  padding: 5px 8px; text-align: left; border-bottom: 1px solid var(--border);
+}
+.cf-results-table th {
+  background: var(--bg-deep); font-weight: 700; position: sticky; top: 0;
+}
+.cf-results-table tr:hover td { background: #fdf6ed; }
+.cf-results-empty { color: var(--muted); font-style: italic; text-align: center; }
+.cf-quality-good { color: var(--green); font-weight: 600; }
+.cf-quality-bad  { color: var(--red); font-weight: 600; }

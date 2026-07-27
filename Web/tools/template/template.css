@@ -120,6 +120,24 @@
   font-size: 0.82rem;
 }
 
+.sb-select {
+  flex: 1;
+  min-width: 0;
+  width: 0;
+  padding: 3px 6px;
+  font-size: 0.82rem;
+  background: var(--bg-deep);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+}
+
+.sb-row input[type=range] {
+  flex: 1;
+  min-width: 0;
+  width: 0;
+}
+
 .sb-btn {
   width: 100%;
   margin-top: 5px;
