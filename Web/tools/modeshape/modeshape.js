@@ -119,9 +119,59 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (perm === 'granted') {
       document.getElementById('ms-folder-name').textContent = handle.name;
       await _applyDataFolder(handle);
+      await _applyStartupDeepLink();
     }
   }
 });
+
+// _loadAllTRFs calls into Python (window.pyMSLoadTRF, registered by main.py
+// once PyScript finishes initialising) for every file. In the normal "click
+// Load Run" flow this is never an issue — PyScript has plenty of time to
+// finish while the loading overlay is up and the user is still clicking
+// around. But the startup deep link fires immediately in DOMContentLoaded,
+// which can easily win the race against Pyodide's own init (the loading
+// overlay itself warns this can take 15-30s) — calling into a not-yet-defined
+// window.pyMSLoadTRF throws, the TRF loop dies partway through, and the
+// status is left stuck at "Loading N TRF files…" forever. Wait for it to
+// actually exist first.
+function _waitForPyReady(timeoutMs = 60000) {
+  return new Promise((resolve, reject) => {
+    const start = performance.now();
+    (function poll() {
+      if (typeof window.pyMSLoadTRF === 'function') return resolve();
+      if (performance.now() - start > timeoutMs) return reject(new Error('timed out'));
+      setTimeout(poll, 100);
+    })();
+  });
+}
+
+// Supports "View in Modal Analysis" links from the Circle Fit tool
+// (?run=<path>&freq=<hz>): loads the matching run and jumps straight to that
+// frequency on the Mode Shape tab. Safe to call right after _applyDataFolder,
+// since that already awaits _refreshRunList(false), which fully populates
+// _runs before returning.
+async function _applyStartupDeepLink() {
+  const params  = new URLSearchParams(location.search);
+  const runPath = params.get('run');
+  if (!runPath) return;
+  const target = _runs.find(r => r.path === runPath);
+  if (!target) {
+    _setStatus(`⚠️ Run "${runPath}" not found in the current Data Folder.`);
+    return;
+  }
+  _setStatus('Waiting for PyScript to finish loading…');
+  try {
+    await _waitForPyReady();
+  } catch {
+    _setStatus('⚠️ PyScript took too long to load — try reloading the page.');
+    return;
+  }
+  _selectedRun = target;
+  await _loadAllTRFs(target);
+  const freq = Number(params.get('freq'));
+  if (isFinite(freq) && freq > 0) msSyncFreq(freq);
+  msSetTab('mode');
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Data folder

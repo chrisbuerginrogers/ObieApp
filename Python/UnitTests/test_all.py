@@ -836,3 +836,129 @@ class TestSpectrogram:
         sig  = np.random.randn(8192)
         t, f, S = compute_spectrogram(sig, 48000, n_fft=1024, hop=256)
         assert S.shape[1] == max(1, (len(sig) - 1024) // 256 + 1)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# circlefit (processing)
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestCircleFit:
+    """
+    Ground-truth checks: synthesize exact receptance data for one or more
+    SDOF hysteretic-damping modes with known (omega_r, eta_r, A_r), convert
+    to accelerance (what fit_modes actually consumes, since the real sensor
+    is an accelerometer), and assert the fitted parameters recover the
+    known values. This is the highest-risk part of circlefit.py (getting
+    the sign/phase convention backward wouldn't show up as a numeric error,
+    only as inverted relative phase much later), so it's validated here
+    before anything else depends on it.
+    """
+
+    def _synth_receptance(self, freq_hz, modes):
+        """modes: list of (omega_r, eta_r, A_r_real). Returns complex receptance."""
+        omega = 2.0 * np.pi * np.asarray(freq_hz, dtype=float)
+        X = np.zeros_like(omega, dtype=complex)
+        for omega_r, eta_r, A_r in modes:
+            X += A_r / (omega_r**2 - omega**2 + 1j * eta_r * omega_r**2)
+        return X
+
+    def _synth_accelerance(self, freq_hz, modes):
+        """Same modes, but returned as (re, im) of ACCELERANCE (accel/force),
+        i.e. receptance * (-omega**2) — the inverse of accelerance_to_receptance,
+        matching what a real accelerometer-based measurement would produce."""
+        omega = 2.0 * np.pi * np.asarray(freq_hz, dtype=float)
+        X = self._synth_receptance(freq_hz, modes)
+        H = X * (-omega**2)
+        return H.real, H.imag
+
+    def test_accelerance_receptance_round_trip(self):
+        from processing.circlefit import accelerance_to_receptance
+        freq_hz = np.linspace(80, 120, 81)
+        modes = [(2*np.pi*100.0, 0.01, 1.0)]
+        re_a, im_a = self._synth_accelerance(freq_hz, modes)
+        re_x, im_x = accelerance_to_receptance(freq_hz, re_a, im_a)
+        expected = self._synth_receptance(freq_hz, modes)
+        assert np.allclose(re_x, expected.real, rtol=1e-8)
+        assert np.allclose(im_x, expected.imag, rtol=1e-8)
+
+    def test_single_mode_recovers_frequency_and_damping(self):
+        from processing.circlefit import fit_modes
+        f_r, eta_r, A_r = 100.0, 0.01, 1.0
+        freq_hz = np.linspace(80, 120, 161)
+        re_a, im_a = self._synth_accelerance(freq_hz, [(2*np.pi*f_r, eta_r, A_r)])
+        result = fit_modes(freq_hz, re_a, im_a, bands=[{'f_lo': 80, 'f_hi': 120}], n_passes=1)
+        mode = result['modes'][0]
+        assert mode['valid'], mode.get('reason')
+        assert abs(mode['freq_hz'] - f_r) / f_r < 0.01
+        assert abs(mode['eta_r'] - eta_r) / eta_r < 0.15
+
+    def test_single_mode_recovers_modal_constant_sign(self):
+        from processing.circlefit import fit_modes
+        f_r, eta_r, A_r = 100.0, 0.01, 1.0
+        freq_hz = np.linspace(80, 120, 161)
+        re_a, im_a = self._synth_accelerance(freq_hz, [(2*np.pi*f_r, eta_r, A_r)])
+        result = fit_modes(freq_hz, re_a, im_a, bands=[{'f_lo': 80, 'f_hi': 120}], n_passes=1)
+        mode = result['modes'][0]
+        assert mode['valid']
+        # ground truth A_r is positive real
+        assert mode['A_r'].real > 0
+        assert abs(mode['A_r'].real - A_r) / A_r < 0.2
+
+    def test_negative_modal_constant_sign_recovered(self):
+        from processing.circlefit import fit_modes
+        f_r, eta_r, A_r = 150.0, 0.008, -2.0
+        freq_hz = np.linspace(120, 180, 181)
+        re_a, im_a = self._synth_accelerance(freq_hz, [(2*np.pi*f_r, eta_r, A_r)])
+        result = fit_modes(freq_hz, re_a, im_a, bands=[{'f_lo': 120, 'f_hi': 180}], n_passes=1)
+        mode = result['modes'][0]
+        assert mode['valid']
+        assert mode['A_r'].real < 0
+        assert abs(mode['A_r'].real - A_r) / abs(A_r) < 0.2
+
+    def test_two_close_modes_residual_compensation_improves_fit(self):
+        """With two moderately-close modes, a second residual-compensated pass
+        should recover frequencies at least as well as (and typically better
+        than) the naive first-pass isolated fit."""
+        from processing.circlefit import fit_modes
+        m1 = (2*np.pi*100.0, 0.01, 1.0)
+        m2 = (2*np.pi*140.0, 0.01, 1.3)
+        freq_hz = np.linspace(60, 200, 561)
+        re_a, im_a = self._synth_accelerance(freq_hz, [m1, m2])
+        bands = [{'f_lo': 85, 'f_hi': 115}, {'f_lo': 125, 'f_hi': 155}]
+
+        one_pass = fit_modes(freq_hz, re_a, im_a, bands=bands, n_passes=1)
+        multi_pass = fit_modes(freq_hz, re_a, im_a, bands=bands, n_passes=3)
+
+        assert one_pass['modes'][0]['valid'] and multi_pass['modes'][0]['valid']
+        assert one_pass['modes'][1]['valid'] and multi_pass['modes'][1]['valid']
+
+        f1_true, f2_true = 100.0, 140.0
+        err_one_pass  = (abs(one_pass['modes'][0]['freq_hz'] - f1_true)
+                         + abs(one_pass['modes'][1]['freq_hz'] - f2_true))
+        err_multi_pass = (abs(multi_pass['modes'][0]['freq_hz'] - f1_true)
+                          + abs(multi_pass['modes'][1]['freq_hz'] - f2_true))
+        assert err_multi_pass <= err_one_pass + 1e-6
+
+        for mode, f_true in zip(multi_pass['modes'], (f1_true, f2_true)):
+            assert abs(mode['freq_hz'] - f_true) / f_true < 0.02
+
+    def test_insufficient_points_flagged_invalid(self):
+        from processing.circlefit import fit_modes
+        freq_hz = np.linspace(95, 105, 3)  # only 3 points, below MIN_CIRCLE_POINTS
+        re_a, im_a = self._synth_accelerance(freq_hz, [(2*np.pi*100.0, 0.01, 1.0)])
+        result = fit_modes(freq_hz, re_a, im_a, bands=[{'f_lo': 95, 'f_hi': 105}], n_passes=1)
+        assert not result['modes'][0]['valid']
+
+    def test_fit_node_residues_recovers_known_residue(self):
+        from processing.circlefit import fit_modes, fit_node_residues
+        f_r, eta_r, A_r = 100.0, 0.01, 1.0
+        freq_hz = np.linspace(60, 200, 561)
+        re_a, im_a = self._synth_accelerance(freq_hz, [(2*np.pi*f_r, eta_r, A_r)])
+        fitted = fit_modes(freq_hz, re_a, im_a, bands=[{'f_lo': 85, 'f_hi': 115}], n_passes=1)
+        mode = fitted['modes'][0]
+        assert mode['valid']
+
+        modes_fixed = [{'omega_r': mode['omega_r'], 'eta_r': mode['eta_r']}]
+        residues = fit_node_residues(freq_hz, re_a, im_a, modes_fixed)
+        assert len(residues['A_r']) == 1
+        assert abs(residues['A_r'][0].real - A_r) / A_r < 0.2
