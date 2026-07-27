@@ -1,0 +1,4 @@
+packages = ["numpy"]
+
+[files]
+"../../py/trf_fileio.py" = "./trf_fileio.py"

@@ -1,0 +1,592 @@
+\documentclass[11pt, oneside]{article}   	% use "amsart" instead of "article" for AMSLaTeX format
+\usepackage{geometry}                		% See geometry.pdf to learn the layout options. There are lots.
+\geometry{letterpaper}                   		% ... or a4paper or a5paper or ... 
+%\geometry{landscape}                		% Activate for rotated page geometry
+%\usepackage[parfill]{parskip}    		% Activate to begin paragraphs with an empty line rather than an indent
+\usepackage{graphicx}				% Use pdf, png, jpg, or eps§ with pdflatex; use eps in DVI mode
+								% TeX will automatically convert eps --> pdf in pdflatex		
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{color}
+\usepackage{geometry}
+\usepackage{booktabs}
+
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{caption}
+\usepackage{hyperref}
+
+\usepackage{minted}
+
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+
+\lstset{frame=tb,
+  language=Java,
+  aboveskip=3mm,
+  belowskip=3mm,
+  showstringspaces=false,
+  columns=flexible,
+  basicstyle={\small\ttfamily},
+  numbers=none,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{dkgreen},
+  stringstyle=\color{mauve},
+  breaklines=true,
+  breakatwhitespace=true,
+  tabsize=3
+}
+
+
+\begin{document}
+
+\centerline {\bf Thoughts on the analysis of the violin}
+This document has an in-depth explanation of all the math and file formats I use in the ObieApp.
+\section{Frequency Response Functions}
+\subsection{What is a FRF?}
+We want to express the violin mathematically, we can view it as a transfer function (also called the frequency response function)- it converts some input (in this case a force from the hammer) to some output (in this case sound or a pressure fluctuation):
+\begin{equation}
+f(t) -> p(t)
+\end{equation}
+or taking the Fourier Transform, we can find the transfer function for the violin as:
+\begin{equation}
+H(f) = {P(f)\over F(f)}
+\end{equation}
+where $P(f)$ and $F(f)$ are the Fourier transforms of pressure and force and have real and imaginary parts.  Remember that the Fourier Transform is defined as:
+\begin{equation}
+G(f) = \int_{-\infty}^{\infty} g(t) e^{-i2\pi ft}dt
+\end{equation}
+I can simplify - get the denominator to be real, by multiplying by $F^*$:
+\begin{equation}
+H(f) = {P(f)\over F(f)}={PF^*\over FF^*}= H1 = {PP^*\over FP^*} = H2
+\end{equation}
+
+\subsection{Least Squares Fit}
+In reality, we take 5-10 hits per position so that we can get a ``best fit" reading.  We know that:
+\begin{equation}
+P(f) = H(f)F(f)
+\end{equation}
+So the error of the best fit would be looking at the measured values ($F_i \text{ and }P_i$):
+\begin{equation}
+\epsilon_i(f) = P_i - H(f)F_i
+\end{equation}
+Now realizing that $H(f)$ is a complex number ($a+ib$) and that $F,P$ are complex as well, gives (remember that the magnitude of the product equals the product of the magnitudes):
+\begin{equation}
+    \begin{split}
+        \epsilon_i^2(f) &= (P_i - H(f)F_i)(P_i - H(f)F_i)^*\\
+        &= |P_i|^2 -H(f)F_iP^*_i - P_iH^*(f)F^*_i + |H(f)F_i|^2 \\
+        &= |P_i|^2 -(a+ib)F_iP^*_i - P_i(a-ib)F^*_i + |(a+ib)F_i|^2\\
+        &= |P_i|^2 -(a+ib)F_iP^*_i - P_i(a-ib)F^*_i + (a^2+b^2)F_iF_i^*
+    \end{split}
+\end{equation}
+Next we sum over all the readings and then find the minimum by differentiating with respect to $a$ and $b$ and setting them equal to 0 to get:
+\begin{equation}
+    \begin{split}
+       \frac{\partial \sum \epsilon_i^2(f)}{\partial a} = 0= 0 -\sum F_iP^*_i - \sum P_iF^*_i + 2a\sum F_iF_i^*\\
+       \frac{\partial \sum \epsilon_i^2(f)}{\partial b} = 0=0 -i\sum F_iP^*_i + i\sum P_iF^*_i  +2b\sum F_iF_i^*
+    \end{split}
+\end{equation}
+multiplying the second one by $i$ and then adding you get:
+\begin{equation}
+    \begin{split}
+       0=-\sum F_iP^*_i - \sum P_iF^*_i + 2a\sum F_iF_i^*\\
+       0= \sum F_iP^*_i -\sum P_iF^*_i +2bi\sum F_iF_i^*
+    \end{split}
+\end{equation}
+I can add them together and get:
+\begin{equation}
+    \begin{split}
+       0 &= -2 \sum P_iF^*_i + 2a\sum F_iF_i^* +2bi\sum F_iF_i^*\\
+        \sum P_iF^*_i &= H(f)\sum F_iF_i^*\\
+    \end{split}
+\end{equation}
+or 
+\begin{equation}
+    \begin{split}
+        H_1(f) = \frac{\sum P_iF^*_i}{\sum F_iF_i^*} \\
+    \end{split}
+\end{equation}
+Likewise we could look for reducing the effect of noise on the input -- or using, as the error, 
+\begin{equation}
+\epsilon_i(f) = F_i - \frac{P_i}{H(f)}
+\end{equation}
+And do the analysis again and you will get:
+\begin{equation}
+    \begin{split}
+        \epsilon_i^2(f) &= (F_i - \frac{P_i}{H(f)})(F_i - \frac{P_i}{H(f)})^*\\
+        &= F_iF_i^* - F_i\frac{P_i^*}{H^*}- F^*_i\frac{P_i}{H}+\frac{P_i^*}{H^*}\frac{P_i}{H}\\
+        &= F_iF_i^* - F_iP_i^*(a-ib)^{-1}- F^*_iP_i(a+ib)^{-1}+P_iP_i^*(a^2+b^2)^{-1}
+    \end{split}
+\end{equation}
+Again summing and differentiating:
+\begin{equation}
+    \begin{split}
+       \frac{\partial \sum \epsilon_i^2(f)}{\partial a} = 0= 0 +(a-ib)^{-2}\sum F_iP^*_i +(a+ib)^{-2}\sum P_iF^*_i -(a^2+b^2)^{-2}2a\sum P_iP_i^*\\
+       \frac{\partial \sum \epsilon_i^2(f)}{\partial b} = 0= 0 -i(a-ib)^{-2}\sum F_iP^*_i +i(a+ib)^{-2}\sum P_iF^*_i -(a^2+b^2)^{-2}2b\sum P_iP_i^*\\
+    \end{split}
+\end{equation}
+multiplying the second equation through by $i$ gives you:
+\begin{equation}
+    \begin{split}
+       0= (a-ib)^{-2}\sum F_iP^*_i +(a+ib)^{-2}\sum P_iF^*_i -(a^2+b^2)^{-2}2a\sum P_iP_i^*\\
+       0= (a-ib)^{-2}\sum F_iP^*_i -(a+ib)^{-2}\sum P_iF^*_i -(a^2+b^2)^{-2}2ib\sum P_iP_i^*\\
+    \end{split}
+\end{equation}
+Adding them together and reshuffling:
+\begin{equation}
+    \begin{split}
+       H(a^2+b^2)^{-2}\sum P_iP_i^*&= (a-ib)^{-2}\sum F_iP^*_i \\
+       H\sum P_iP_i^*&= \frac{(a+ib)^2(a-ib)^2}{(a-ib)(a-ib)}\sum F_iP^*_i \\
+       \sum P_iP_i^*&= H\sum F_iP^*_i \\
+       H_2(f) &= \frac{\sum P_iP_i^*}{\sum F_iP^*_i} \\
+    \end{split}
+\end{equation}
+gives us the best fit in the other direction (assuming that the input is noisy).  If the data is clean and the noise is truly random, these two values for $H$ should be very close and therefore their ratio, the coherence, should be 1.
+\begin{equation}
+C = \frac{H_1}{H_2}
+\end{equation}
+If it is not 1, then one (or both) of your signals is noisy (not a great least squares fit). George then used the geometric mean.
+\begin{equation}
+H\sim \sqrt{H_1 H_2}
+\end{equation}
+
+\subsection{Claude's explanation: Coherence}
+Coherence is essentially a measure of how consistently a system behaves across repeated measurements.
+
+Think of it this way: you tap a violin with a hammer and measure the input force and the output sound. If you tap it again with a slightly different force, does the ratio of output to input stay the same? If the system is well-behaved (linear, no noise), it should — and the coherence will be close to 1. If something is messy (nonlinearity, background noise, a loose part rattling), the ratio will vary between hits, and coherence drops toward 0.
+More concretely, coherence answers: "how much of the output can be explained by the input?"
+The formula from the document makes this intuitive:
+\begin{equation}
+C = \frac{H1}{H2}=\frac{|\sum P_i F_i^*|^2}{\sum F_i F_i^*  \sum P_i P_i^*}
+\end{equation}
+The numerator is the cross-spectrum squared — how much F and P move together. The denominator is the product of the individual power spectra — how much each signal varies on its own. It's essentially a frequency-domain analog of $R^2$ from linear regression.
+A few practical rules of thumb:
+\begin{itemize}
+\item C $\sim$ 1: the output is well explained by the input — clean measurement, linear system
+\item C $\sim$ 0: the output has little to do with the input at that frequency — probably noise, or the system simply doesn't respond there
+\item C between 0 and 1: partial explanation — could be noise, nonlinearity, or multiple inputs contributing to the output
+\end{itemize}
+One important subtlety: coherence is frequency-dependent. A violin might have C $\sim$ 1 near a resonance (where it responds strongly and predictably) but low coherence in a frequency range where it barely responds and the output is dominated by noise. So you'd typically plot it across the whole frequency range rather than summarize it as a single number.
+
+\section{Band Averages}
+One can look at an average distribution of the energy by breaking the FRF up into bands and averaging the FRF magnitudes over that area.
+\begin{equation}
+    \begin{split}
+        \bar b = \frac{1}{N}\sum_{f_{lo}}^{f_{hi}} \sqrt{H(f)H^*(f)} \\
+        \bar b_{dB} = 20 log(\frac{\bar b}{1})
+    \end{split}
+\end{equation}
+We also calculate the centroid of the band - that is the first moment:
+\begin{equation}
+c(f) = \frac{\sum_{f_{lo}}^{f_{hi}} f\sqrt{HH^*}}{\sum_{f_{lo}}^{f_{hi}} \sqrt{HH^*}}
+\end{equation}
+which tells you something about the variation of the energy within the band.
+or in Python:
+\begin{minted}{python}
+    f_lo  = float(band['start'])
+    f_hi  = float(band['end'])
+    mask = (freq >= f_lo) & (freq <= f_hi)
+    H_band   = H_mag[mask]  #NOT in dB
+    f_band   = freq[mask]
+    avg_db   = 20.0 * math.log10(max(float(np.mean(H_band)), 1e-12))
+    centroid = float(np.sum(f_band * H_band) / np.sum(H_band))
+\end{minted}
+
+\section{Convolutions}
+One can estimate what the instrument will sound like by convolving the FRF with a recording of a song - but using a force sensor at the bridge rather than a microphone.  So if you want to convolve two functions $f(t)$ and $g(t)$
+\begin{equation}
+    y(t) = \int_{-\infty}^\infty f(\tau)g(t-\tau)d\tau
+\end{equation}
+
+\subsection{What they are - from Claude}
+
+\textbf{What convolution does: }
+A violin has resonances — certain frequencies ring longer and louder than others. If you record the violin's frequency response (the FRF), you have a fingerprint of exactly how it shapes sound.
+Convolution applies that fingerprint to any audio signal. Feed in a Tchaikovsky recording; get out what it would sound like played through or colored by that violin's resonance structure.
+
+\textbf{How it works: }
+Sound is made of many frequencies added together. The FRF tells you how much the violin boosts or cuts each frequency — and by how much it time-shifts it (phase part).
+
+Note that you can speed up the calculation by multiplying the two waveforms in frequency space and then inverse Fourier transforming them into time space:
+
+\begin{equation}
+    \begin{split}
+        y(t) &= iFFT(FFT(g(t))\times FFT(f(t))\\
+        &= \int_{-\infty}^\infty [\int_{-\infty}^\infty g(\tau)e^{-i2\pi f\tau}d\tau][\int_{-\infty}^\infty f(\tau)e^{-i2\pi f\tau} d\tau]e^{i2\pi ft}df
+    \end{split}
+\end{equation}
+or in Python:
+\begin{minted}{python}
+    y = np.fft.irfft(
+        np.fft.rfft(wav, n_fft) * np.fft.rfft(ir.astype(np.float64), n_fft),
+        n_fft,)[:N].real
+\end{minted}
+
+\textbf{What you hear: }
+The output is the input signal with the violin's character stamped onto it — its resonant peaks amplified, its dead spots suppressed, its natural decay times imposed on every note. If the FRF came from a particularly resonant instrument, the result sounds richer; from a dead one, duller.
+
+\subsection{minimum phase reconstruction from Claude}
+In the case that you do not have the complex FRF, you can still estimate the convolution by realizing for a minimum phase system, the log-magnitude and phase are a Hilbert transform pair. So if you know one, you can compute the other.  We do not need to make use of this since everything is stored as complex FRFs.
+
+\section{File Formats}
+
+\subsection{TRF files}
+Parse and build binary \texttt{.trf} files (Rational Acoustics / MtxVec format).
+
+\subsubsection*{Header Format}
+Little-endian, 110 bytes total:
+
+\begin{tabular}{ll}
+\toprule
+\textbf{Type} & \textbf{Fields} \\
+\midrule
+\texttt{I}    & \texttt{index} \\
+\texttt{4d}   & \texttt{Xr, Yr, Xactual, YActual} \\
+\texttt{2s}   & \texttt{char\_str} \\
+\texttt{3d}   & \texttt{Hz\_Resolution, Start\_Freq, End\_Freq} \\
+\texttt{11f}  & \texttt{fComplex, fLength, \ldots} (9 unused floats) \\
+\texttt{4s}   & \texttt{caption} \\
+\bottomrule
+\end{tabular}
+
+\subsubsection*{Data (from byte 110)}
+\begin{itemize}
+    \item \textbf{Complex:} alternating \texttt{float64} real/imag pairs
+    \item \textbf{Real:} plain \texttt{float64} values
+\end{itemize}
+
+
+\subsection{File Formats}
+\definecolor{headerblue}{RGB}{30, 80, 140}
+\definecolor{sectiongray}{RGB}{220, 225, 230}
+\definecolor{rowlight}{RGB}{240, 244, 248}
+ 
+\subsubsection{AvR / AvC File Format Specification}
+\noindent AvR files store a \textit{real-valued} averaged spectrum; AvC files store a \textit{complex-valued} averaged spectrum.
+The file layout is identical except for the data section, which is $N \times 8$ bytes for AvR and $N \times 16$ bytes (interleaved Re/Im pairs) for AvC,
+where $N$ is given by \texttt{fLength} in the TSingleArray descriptor.
+Type conventions: fields prefixed \texttt{f} are Single-precision floats (4 bytes); all other 4-byte TSingleArray fields are U32.
+ 
+\vspace{0.5em}
+ 
+\begin{longtable}{%
+  >{\bfseries}p{3.8cm}
+  p{1.6cm}
+  p{3.0cm}
+  p{5.6cm}
+}
+ 
+\toprule
+\rowcolor{headerblue}
+\color{white}\normalfont\bfseries Field &
+\color{white}\bfseries Bytes &
+\color{white}\bfseries Type &
+\color{white}\bfseries Description / Possible Values \\
+\midrule
+\endfirsthead
+ 
+\toprule
+\rowcolor{headerblue}
+\color{white}\normalfont\bfseries Field &
+\color{white}\bfseries Bytes &
+\color{white}\bfseries Type &
+\color{white}\bfseries Description / Possible Values \\
+\midrule
+\endhead
+ 
+\bottomrule
+\endfoot
+ 
+%% Header
+\multicolumn{4}{l}{\itshape\small\textbf{Header}} \\[2pt]
+\rowcolor{sectiongray}
+DataType        & 1  & TDataType & Response quantity (see enum below). \\
+\rowcolor{rowlight}
+HzRes           & 8  & Double   & Frequency resolution $\Delta f$ (Hz\,/\,bin). $> 0$. \\
+StartFrequency  & 8  & Double   & Start frequency (Hz). $\geq 0$. \\
+\rowcolor{rowlight}
+EndFrequency    & 8  & Double   & End frequency (Hz). $>$ StartFrequency. \\
+ScaleFactor     & 8  & Double   & Scale factor applied to the averaged data. \\
+\rowcolor{rowlight}
+nAverages       & 4  & U32      & Number of averages used. Typically 1--1000. \\
+AverageType     & 1  & Enum     & Averaging method (see enum below). \\[6pt]
+  
+%% AverageType enum
+\multicolumn{4}{l}{\itshape\small\textbf{AverageType} \textnormal{enum values}} \\[2pt]
+\rowcolor{rowlight}
+\quad RMS       & --- & value 0 & Root-mean-square averaging. \\
+\quad Mean      & --- & value 1 & Linear (arithmetic mean) averaging. \\
+\rowcolor{rowlight}
+\quad Complex   & --- & value 2 & Complex (vector) averaging. \\
+\quad Geometric & --- & value 3 & Geometric mean averaging. \\
+\rowcolor{rowlight}
+\quad None      & --- & value 4 & No averaging (single measurement). \\[6pt]
+ 
+%% TSingleArray descriptor
+\multicolumn{4}{l}{\itshape\small\textbf{TSingleArray} \textnormal{(MtxVec array descriptor --- all fields 4 bytes)}} \\[2pt]
+\rowcolor{sectiongray}
+fComplex        & 4  & Single   & \texttt{0.0} = real (AvR),\ \texttt{1.0} = complex (AvC). \\
+\rowcolor{rowlight}
+fLength         & 4  & Single   & Number of data points $N$ (stored as float). Determines data section size. \\
+a{[2]}          & 4  & U32      & Reserved / alignment padding. \\
+\rowcolor{rowlight}
+fConditionCheck & 4  & Single   & Internal integrity / validation value. \\
+Precision       & 4  & U32      & \texttt{0} = Single (32-bit), \texttt{1} = Double (64-bit). \\
+\rowcolor{rowlight}
+MtxVecVersion   & 4  & U32      & Version of MtxVec library that wrote the file. \\
+SizeOf(TSample) & 4  & U32      & Byte size of each data sample. \\
+\rowcolor{rowlight}
+Tag             & 4  & U32      & User-defined tag or identifier. \\
+MtxVecFileCode  & 4  & U32      & Magic number identifying this as a MtxVec file. \\
+\rowcolor{rowlight}
+a{[9]}          & 4  & U32      & Reserved / alignment padding. \\
+a{[10]}         & 4  & U32      & Reserved / alignment padding. \\
+\rowcolor{sectiongray}
+caption         & 4  & String   & Short label, 4 bytes, null-padded (\texttt{\textbackslash 00\textbackslash 00\textbackslash 00\textbackslash 00} if empty). \\[6pt]
+ 
+%% Data section
+\multicolumn{4}{l}{\itshape\small\textbf{Data} \textnormal{(length determined by \texttt{fLength} and \texttt{fComplex})}} \\[2pt]
+\rowcolor{rowlight}
+AvR data        & $N \times 8$  & Double{[]}  & $N$ real-valued doubles, little-endian. Present when \texttt{fComplex = 0}. \\
+\rowcolor{sectiongray}
+AvC data        & $N \times 16$ & Double{[]}  & $N$ complex samples as interleaved Re\,/\,Im double pairs ($2N$ doubles total), little-endian. Present when \texttt{fComplex = 1}. \\[6pt]
+ 
+%% Notes / comments
+\multicolumn{4}{l}{\itshape\small\textbf{Notes / Comments} \textnormal{(appended after data section)}} \\[2pt]
+\rowcolor{rowlight}
+notes           & var & String   & Free-text annotation. Starts at byte offset $N \times 8$ (AvR) or $N \times 16$ (AvC) from the beginning of the data section, i.e.\ after \texttt{fLength} or $2 \times$\texttt{fLength} doubles respectively. \\
+ 
+\end{longtable}
+ 
+\vspace{1em}
+\noindent\small\textbf{Data section size summary:}
+\[
+\text{AvR:}\quad N \times 8 \text{ bytes} \qquad \text{AvC:}\quad N \times 16 \text{ bytes} \qquad \text{where } N = \texttt{int(fLength)}
+\]
+ 
+\vspace{0.5em}
+\noindent\small\textit{%
+Notes: (1) \texttt{f}-prefixed TSingleArray fields are Single-precision floats (4 bytes).
+(2) \texttt{MtxVecFileCode} and \texttt{SizeOf(TSample)} are U32.
+(3) \texttt{caption} is 4 bytes, null-padded.
+(4) All multi-byte values are little-endian.
+(5) \texttt{TDataType} is stored as a single byte (U8).
+Source: \texttt{george.pas} (Dew Research\,/\,DSP Master) and LabVIEW writer.}
+
+
+\subsubsection{FRF File Format Specifications}
+\noindent Fields verified against the Delphi source (\texttt{george.pas}) and LabVIEW writer code.
+Type conventions: fields prefixed \texttt{f} are Single-precision floats (4 bytes);
+\texttt{MtxVecFileCode} and \texttt{SizeOf(TSample)} are U32; \texttt{caption} is a null-padded string.
+ 
+\vspace{0.5em}
+ 
+\begin{longtable}{%
+  >{\bfseries}p{3.8cm}   % Field
+  p{1.6cm}               % Bytes
+  p{3.0cm}               % Type
+  p{5.6cm}               % Description / Possible Values
+}
+ 
+\toprule
+\rowcolor{headerblue}
+\color{white}\normalfont\bfseries Field &
+\color{white}\bfseries Bytes &
+\color{white}\bfseries Type &
+\color{white}\bfseries Description / Possible Values \\
+\midrule
+\endfirsthead
+ 
+\toprule
+\rowcolor{headerblue}
+\color{white}\normalfont\bfseries Field &
+\color{white}\bfseries Bytes &
+\color{white}\bfseries Type &
+\color{white}\bfseries Description / Possible Values \\
+\midrule
+\endhead
+ 
+\bottomrule
+\endfoot
+ 
+%%  TFRFHeader packed record
+\multicolumn{4}{l}{\itshape\small\textbf{TFRFHeader} \textnormal{(Delphi packed record --- no padding between fields)}} \\[2pt]
+\rowcolor{sectiongray}
+index           & 4  & Integer  & Channel or measurement index. $\geq 0$. \\
+\rowcolor{rowlight}
+Xr              & 8  & Double   & Reference (input) channel number or physical X location. \\
+Yr              & 8  & Double   & Response (output) channel number or physical Y location. \\
+\rowcolor{rowlight}
+XActual         & 8  & Double   & Physical X-axis value (e.g.\ excitation location). \\
+YActual         & 8  & Double   & Physical Y-axis value (e.g.\ response location). \\
+\rowcolor{rowlight}
+FRFType         & 1  & TFRFType & \texttt{0} = \texttt{ftTransfer} (\texttt{.trf}),\ \texttt{1} = \texttt{ftPoint} (\texttt{.pnt}). \\
+DataType        & 1  & TDataType & Response quantity (see enum below). \\
+\rowcolor{rowlight}
+HzRes           & 8  & Double   & Frequency resolution $\Delta f$ (Hz\,/\,bin). $> 0$. \\
+StartFrequency  & 8  & Double   & Start frequency (Hz). $\geq 0$. \\
+\rowcolor{sectiongray}
+EndFrequency    & 8  & Double   & End frequency (Hz). $>$ StartFrequency. \\[6pt]
+ 
+%%  TDataType enum
+\multicolumn{4}{l}{\itshape\small\textbf{TDataType} \textnormal{enum values (U8)}} \\[2pt]
+\rowcolor{rowlight}
+\quad dtAccel   & --- & value 0 & Accelerance (acceleration\,/\,force). \\
+\quad dtMob     & --- & value 1 & Mobility (velocity\,/\,force). \\
+\rowcolor{rowlight}
+\quad dtRecept  & --- & value 2 & Receptance (displacement\,/\,force). \\
+\quad dtMic     & --- & value 3 & Microphone response. \\[6pt]
+ 
+%%  TSingleArray — typed per field
+\multicolumn{4}{l}{\itshape\small\textbf{TSingleArray} \textnormal{(MtxVec internal array descriptor --- all fields 4 bytes)}} \\[2pt]
+\rowcolor{sectiongray}
+fComplex        & 4  & Single   & Array-level complex flag: \texttt{0.0} = real, \texttt{1.0} = complex. \\
+\rowcolor{rowlight}
+fLength         & 4  & Single   & Number of elements in the data array (stored as float). \\
+a{[2]}          & 4  & U32      & Reserved / alignment padding. \\
+\rowcolor{rowlight}
+fConditionCheck & 4  & Single   & Internal integrity / validation value. \\
+Precision       & 4  & U32      & \texttt{0} = Single (32-bit), \texttt{1} = Double (64-bit). \\
+\rowcolor{rowlight}
+MtxVecVersion   & 4  & U32      & Version of MtxVec library that wrote the file. \\
+SizeOf(TSample) & 4  & U32      & Byte size of each data sample. \\
+\rowcolor{rowlight}
+Tag             & 4  & U32      & User-defined tag or identifier. \\
+MtxVecFileCode  & 4  & U32      & Magic number identifying this as a MtxVec file. \\
+\rowcolor{rowlight}
+a{[9]}          & 4  & U32      & Reserved / alignment padding. \\
+a{[10]}         & 4  & U32      & Reserved / alignment padding. \\[6pt]
+ 
+%%  Caption + FRF data
+\multicolumn{4}{l}{\itshape\small\textbf{Payload}} \\[2pt]
+\rowcolor{sectiongray}
+caption         & 4  & String   & Short label, 4 bytes, null-padded (\texttt{\textbackslash 00\textbackslash 00\textbackslash 00\textbackslash 00} if empty). \\
+\rowcolor{rowlight}
+FRF data        & $N{\times}16$ & Double[] & Complex FRF samples as interleaved Re\,/\,Im DBL pairs, little-endian. $N$ = number of frequency lines. \\
+ 
+\end{longtable}
+
+
+
+
+
+
+
+\section {Adiabatic Wave Equation}
+If the fluid is adiabatic, then
+$$p=K\rho^\gamma$$
+so $${\partial p\over \partial x}=K\gamma \rho^{\gamma-1}{\partial \rho\over \partial x}=c^2{\partial \rho\over \partial x}$$
+and $${\partial p\over \partial t}=K\gamma \rho^{\gamma-1}{\partial \rho\over \partial t}=c^2{\partial \rho\over \partial t}$$
+But from continuity
+$$ {\partial  \rho \over \partial t} + \rho_0{\partial  u \over \partial x}=0$$
+so
+$$ {\partial  p \over \partial t} + {\rho_0 \over c^2}{\partial  u \over \partial x}=0$$
+$$ {\partial  p \over \partial t} =- {\rho_0 \over c^2}{\partial^2  y \over \partial x\partial t}$$
+or integrating by time,
+$$ p  =- {\rho_0 \over c^2}{\partial  y \over \partial x} =- {\kappa}{\partial  y \over \partial x}$$
+where $\kappa$ is the adiabatic bulk modulus
+
+
+and
+$$\rho_0 {\partial  u \over \partial t}+{\partial p\over \partial x} = 0$$
+or
+$${\partial p\over \partial x} = -\rho_0 {\partial^2  y \over \partial t^2}$$
+
+and $$p=K\rho^\gamma$$
+so $${\partial p\over \partial x}=K\gamma \rho^{\gamma-1}{\partial \rho\over \partial x}=c^2{\partial \rho\over \partial x}$$
+
+
+\subsection{wave equation}
+Assume that the pressure is $p$ and the speed of a fluid particle is $u$ with a mean of zero and the density everywhere is $\rho_0 + \rho$.  Then the 1D continuity gives us:
+$$ {\partial (\rho_0 + \rho) \over \partial t} + {\partial (\rho_0 + \rho)u \over \partial x}=0$$
+or
+$$ {\partial  \rho \over \partial t} + \rho_0{\partial  u \over \partial x}+ {\partial (\rho u) \over \partial x}=0$$
+and assuming the last term is small compared to the second to last, you get:
+$$ {\partial  \rho \over \partial t} + \rho_0{\partial  u \over \partial x}=0$$
+or
+$$ {\partial^2  \rho \over \partial t^2} + \rho_0{\partial^2  u \over \partial x\partial t}=0$$
+The momentum equation (1D, no gravity or friction terms) is:
+$$ {\partial  ((\rho_0 + \rho)u) \over \partial t}+(\rho_0 + \rho)u{\partial u\over \partial x} +{\partial p\over \partial x} = 0$$
+or
+$$\rho_0 {\partial  u \over \partial t}+ \rho {\partial u \over \partial t}+ u {\partial \rho \over \partial t}+\rho_0 u{\partial u\over \partial x} + \rho u{\partial u\over \partial x}+{\partial p\over \partial x} = 0$$
+Assuming the fluctuations are small:
+$$\rho_0 {\partial  u \over \partial t}+\rho_0 u{\partial u\over \partial x} +{\partial p\over \partial x} = 0$$
+Differentiate with respect to x:
+$$\rho_0 {\partial^2  u \over \partial t \partial x}+\rho_0 u{\partial^2 u\over \partial x^2} +{\partial^2 p\over \partial x^2} = 0$$
+Dropping the middle term since derivatives in $u$ should be about the same in both $x$ and $t$ and therefore the first term should be a lot bigger than the second - and combining both equations you get:
+$$ {\partial^2 p\over \partial x^2} = {\partial^2  \rho \over \partial t^2} $$
+If we assume an adiabatic process, then
+$$p=K\rho^\gamma$$
+So
+$${\partial p\over\partial t}=\gamma K\rho^{\gamma-1}{\partial \rho\over \partial t}$$
+or
+$${\partial^2 p\over\partial t^2}=\gamma K\rho^{\gamma-1}{\partial^2 \rho\over \partial t^2}+ \gamma(\gamma-1) K\rho^{\gamma-2}({\partial \rho\over \partial t})^2$$
+Linearizing loses the last term:
+$${\partial^2 p\over\partial t^2}=\gamma K\rho^{\gamma-1}{\partial^2 \rho\over \partial t^2}$$
+or 
+$${\partial^2 p\over\partial t^2}=\gamma {p\over \rho^\gamma}\rho^{\gamma-1}{\partial^2 \rho\over \partial t^2}$$
+or
+$${\partial^2 p\over\partial t^2}=\gamma RT{\partial^2 \rho\over \partial t^2}$$
+Combining then gives
+$$ {\partial^2 p\over \partial x^2} = {\partial^2 p\over\partial t^2}{1\over \gamma RT} $$
+or
+$$ {\partial^2 p\over\partial t^2}={ \gamma RT} {\partial^2 p\over \partial x^2} $$
+
+\subsection{Acoustic Impedance}
+Next, we want to look at the acoustic impedance of the plate (acoustic impedance, $Z$, is the ratio of pressure to volume flow, specific acoustic impedance, $z$, is the ratio of pressure to volume flow per unit area - or acoustic flow velocity). 
+$$p=ZU$$
+For an infinitely long pipe, cross-sectional area S, we get:
+$$Z={p\over U}={F\over SU}=...={\rho c\over S}$$ - I do not see it
+
+
+Defining specific acoustic impedance to be:
+$$p=zu$$
+where a change in pressure ($p$) drives the fluid ($u$) like a voltage drives a current.
+
+ then
+$${{F/ A}\over u}=z$$
+We can look at the forces on the plate, there should be the force due to pressure, a spring-like restoring force and a damping force due to the fact that the material is hardly a perfect spring:
+$$\sum F = ma= pA - kx -\beta u$$
+or
+$$z={ma+ kx +\beta u\over Au} = {m\over A} {\ddot x\over \dot x} +{ \beta\over A} + {k\over A}{x\over \dot x}$$
+If we assume a solution of the form
+$$u=\dot x=Ce^{i\omega}$$
+then the impedance becomes:
+$$z= {m\over A} {i\omega Ce^{i\omega}\over Ce^{i\omega}} +{ \beta\over A} + {k\over A}{Ce^{i\omega}/ i\omega\over Ce^{i\omega}}$$
+$$z= {m\over A} i\omega +{ \beta\over A} + {k\over A}{1\over i\omega}$$
+or
+$$z={ \beta\over A} + i\omega{m\over A}  - {i\over  \omega {A\over k}}$$
+or 
+$$z=r + i\omega M  - {i\over  \omega C}$$
+where
+$$ r = { \beta\over A}$$
+$$M = {m\over A}$$
+$$C={A\over k}$$
+
+\subsection{Sound Intensity Measurements}
+Sound intensity is defined as the sound power per unit surface area.  For a point source:
+$$I={P\over 4 \pi r^2}$$
+So the Sound Power Level is referenced to $P_0=10^{-12} W$ and the Sound Intensity Level is referenced to $I_0=10^{-12} W/m^2$
+$$ SWL=10log_{10}(P/P_0) and SIL = 10log_{10}(I/I_0)$$
+Since 
+$$I=pu={p^2\over z}$$
+then the sound pressure level is:
+$$SPL=10log_{10}(p^2/p^2_0)=20log_{10}(p/p_0)$$
+
+
+Sound hole is modeled with a frictional resistance $R_h$:
+$$m_{hole-air}\ddot x_h = A_h \Delta p - R_h \dot x_h$$
+and the top plate has a restoring force:
+$$m_{plate}\ddot x = F - k_px_p -R_p\dot x_p + A_p \Delta p$$
+
+\subsection{Quality factor}
+Usually defined as 
+$$Q = {f_{center}\over \Delta f} = {\sqrt mk \over R}= {\omega_0\over 2r}$$
+were the spread of the peak ($\Delta f$) is typically measured by the 1/2 power reduction point, $r$ is the exponential decay of the signal and R is the damping coefficient ($m\ddot x + R\dot x + kx=0$)
+
+\end{document}

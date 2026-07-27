@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Standalone Setup — ObieWebApp</title>
+
+  <link rel="stylesheet" href="../../css/theme.css">
+  <script src="../../version.js"></script>
+  <script>document.write('<link rel="stylesheet" href="./setup.css?v='+OBIE_VERSION+'">');</script>
+  <script src="../../js/browser-check.js"></script>
+  <script>document.write('<scr'+'ipt src="./setup.js?v='+OBIE_VERSION+'"><\/scr'+'ipt>');</script>
+</head>
+<body>
+
+<div class="setup-page">
+
+  <!-- Header -->
+  <header class="obie-header">
+    <a class="brand" href="../../index.html">
+      <div class="logo-icon">🎻</div>
+      <h1>ObieWebApp</h1>
+    </a>
+    <span class="crumb">· Standalone Setup</span>
+    <div class="gap"></div>
+    <a class="btn" href="../../index.html" style="font-size:0.75rem;padding:3px 9px">← All tools</a>
+  </header>
+
+  <!-- Toolbar -->
+  <div class="setup-toolbar">
+    <div class="tb-flex"></div>
+    <button class="tb-btn" onclick="setupHelp()">Help</button>
+    <button class="tb-btn" onclick="setupTips()">Tips</button>
+  </div>
+
+  <!-- Body -->
+  <div class="setup-body">
+
+    <h2 style="margin:0 0 10px;font-size:1.25rem">Run ObieApp on Your Own Machine</h2>
+
+    <p class="setup-intro">
+      Three ways to run ObieApp without relying on the hosted website —
+      choose the one that fits your needs.
+    </p>
+
+    <!-- Top-level mode tabs -->
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:24px">
+      <button id="mode-web-btn"     class="os-tab active" onclick="setMode('web')"     style="font-size:0.85rem;padding:5px 16px">🌐 Web UI (cache once)</button>
+      <button id="mode-offline-btn" class="os-tab"        onclick="setMode('offline')" style="font-size:0.85rem;padding:5px 16px">📦 Web UI (fully offline)</button>
+      <button id="mode-py-btn"      class="os-tab"        onclick="setMode('python')"  style="font-size:0.85rem;padding:5px 16px">🐍 Desktop Python tools</button>
+    </div>
+
+
+    <!-- ════════════════════════════════════════════════════════════════
+         MODE 1 — Web UI, browser-cache approach
+         ════════════════════════════════════════════════════════════════ -->
+    <div id="mode-web">
+
+      <p class="setup-intro" style="margin-bottom:4px">
+        Run the full ObieWebApp UI (Explore, Acquire, Convolve) from a local
+        server. The <strong>first load needs internet</strong> to cache PyScript +
+        Pyodide (~50 MB) — after that the browser serves everything from its own
+        cache and no internet is needed.
+      </p>
+      <p class="setup-intro" style="margin-bottom:20px">
+        This is the simplest option. Chrome's cache is persistent across restarts;
+        it only disappears if you manually clear browser data.
+      </p>
+
+      <div class="os-tabs" style="margin-bottom:20px">
+        <button class="os-tab" data-os="mac"     onclick="setOS('mac')">macOS</button>
+        <button class="os-tab" data-os="windows" onclick="setOS('windows')">Windows</button>
+        <button class="os-tab" data-os="linux"   onclick="setOS('linux')">Linux</button>
+      </div>
+
+      <div class="step-list">
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-num">1</div>
+            <div class="step-title">Get the code</div>
+            <span class="step-tag">One-time</span>
+          </div>
+          <div class="step-body">
+            <p>Clone the repository (or download the ZIP — see the Desktop section for details):</p>
+            <div class="code-block">
+              <pre>git clone https://github.com/chrisbuerginrogers/ObieApp.git</pre>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-num">2</div>
+            <div class="step-title">Start the local server</div>
+            <span class="step-tag">Every session</span>
+          </div>
+          <div class="step-body">
+            <p>ObieApp needs a server that sets the right security headers for
+              <strong>SharedArrayBuffer</strong> (required by PyScript). A ready-made
+              server script is included:</p>
+
+            <div class="os-content" data-os="mac">
+              <div class="code-block">
+                <pre>cd ObieApp/Web
+python3 serve.py</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+            <div class="os-content" data-os="windows">
+              <div class="code-block">
+                <pre>cd ObieApp\Web
+python serve.py</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+            <div class="os-content" data-os="linux">
+              <div class="code-block">
+                <pre>cd ObieApp/Web
+python3 serve.py</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+
+            <p>You'll see: <code>→ http://localhost:8000</code></p>
+            <div class="note-box">To use a different port: <code>python3 serve.py 9000</code></div>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-num">3</div>
+            <div class="step-title">Load the page in Chrome (internet required once)</div>
+            <span class="step-tag">One-time per machine</span>
+          </div>
+          <div class="step-body">
+            <p>Open <strong>Chrome or Edge</strong> and go to:</p>
+            <div class="code-block">
+              <pre>http://localhost:8000</pre>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+            <p>The first time you open any tool, Chrome downloads PyScript and Pyodide
+              (~50 MB) and caches them. This is a one-time step per machine.</p>
+            <div class="note-box">
+              <strong>Why Chrome or Edge?</strong> Safari and Firefox don't support the
+              File System Access API needed for the Data Folder feature.
+            </div>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-num">4</div>
+            <div class="step-title">Go offline</div>
+            <span class="step-tag">After first load</span>
+          </div>
+          <div class="step-body">
+            <p>Disconnect, run <code>serve.py</code>, open <code>localhost:8000</code> —
+              everything works from Chrome's cache. The cache survives browser restarts.</p>
+            <div class="warn-box">
+              If you clear browser data or switch Chrome profiles, one more online load is
+              needed to repopulate the cache.
+            </div>
+          </div>
+        </div>
+
+      </div><!-- step-list -->
+
+      <div class="done-card" style="margin-top:20px">
+        <h3>✓ Full web UI, fully local</h3>
+        <p>All tools, Data Folder integration, templates, and exports work exactly
+          the same as the hosted site. Your data never leaves your machine.</p>
+        <p>To update: <code>git pull</code> inside <code>ObieApp/</code>, then restart <code>serve.py</code>.</p>
+      </div>
+
+    </div><!-- #mode-web -->
+
+
+    <!-- ════════════════════════════════════════════════════════════════
+         MODE 2 — Web UI, fully offline (download everything)
+         ════════════════════════════════════════════════════════════════ -->
+    <div id="mode-offline" style="display:none">
+
+      <p class="setup-intro" style="margin-bottom:4px">
+        Download <em>every</em> dependency — PyScript, Pyodide, numpy, scipy, Plotly — into
+        the repo folder once while you have internet. After that, <code>serve.py</code> works
+        with <strong>no internet at all</strong>, even on machines that have never been online.
+      </p>
+      <p class="setup-intro" style="margin-bottom:20px">
+        Use this if you can't rely on Chrome's cache staying intact, or if you need to copy
+        ObieApp to an air-gapped machine.
+      </p>
+
+      <div class="os-tabs" style="margin-bottom:20px">
+        <button class="os-tab" data-os="mac"     onclick="setOS('mac')">macOS</button>
+        <button class="os-tab" data-os="windows" onclick="setOS('windows')">Windows</button>
+        <button class="os-tab" data-os="linux"   onclick="setOS('linux')">Linux</button>
+      </div>
+
+      <div class="step-list">
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-num">1</div>
+            <div class="step-title">Get the code and install Python</div>
+            <span class="step-tag">One-time</span>
+          </div>
+          <div class="step-body">
+            <p>Same as the other approaches — clone the repo and make sure Python 3 is installed:</p>
+            <div class="code-block">
+              <pre>git clone https://github.com/chrisbuerginrogers/ObieApp.git</pre>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+            <div class="os-content" data-os="mac">
+              <p>Install Python if needed: <code>brew install python</code> or download from
+                <a href="https://www.python.org/downloads/" target="_blank" rel="noopener">python.org</a>.</p>
+            </div>
+            <div class="os-content" data-os="windows">
+              <p>Install Python if needed — download from
+                <a href="https://www.python.org/downloads/" target="_blank" rel="noopener">python.org</a>
+                and check "Add Python to PATH".
+              </p>
+            </div>
+            <div class="os-content" data-os="linux">
+              <p>Install Python if needed: <code>sudo apt install python3 python3-pip</code></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-num">2</div>
+            <div class="step-title">Run the download script (while online)</div>
+            <span class="step-tag">One-time · ~50–80 MB</span>
+          </div>
+          <div class="step-body">
+            <p>From the <code>Web/</code> directory, run:</p>
+
+            <div class="os-content" data-os="mac">
+              <div class="code-block">
+                <pre>cd ObieApp/Web
+python3 download-offline.py</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+            <div class="os-content" data-os="windows">
+              <div class="code-block">
+                <pre>cd ObieApp\Web
+python download-offline.py</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+            <div class="os-content" data-os="linux">
+              <div class="code-block">
+                <pre>cd ObieApp/Web
+python3 download-offline.py</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+
+            <p>The script prints its progress as it downloads each file. When it finishes you'll see a summary like:</p>
+            <div class="code-block">
+              <pre>vendor/  total: 63 MB  (12 files patched)
+
+All set! To use ObieWebApp with no internet:
+    python3 serve.py
+    → http://localhost:8000  (Chrome or Edge)</pre>
+            </div>
+
+            <p>What it downloads to <code>Web/vendor/</code>:</p>
+            <ul>
+              <li>PyScript runtime (<code>core.js</code>, <code>core.css</code>)</li>
+              <li>Pyodide runtime (<code>pyodide.js</code>, <code>pyodide.asm.wasm</code>, …)</li>
+              <li>numpy + scipy wheels and their dependencies</li>
+              <li>Plotly (<code>plotly-2.32.0.min.js</code>)</li>
+            </ul>
+            <p>It also patches all <code>index.html</code> and <code>pyscript.toml</code> files
+              to use <code>vendor/</code> paths instead of CDN URLs, and replaces the GitHub
+              raw-file URLs with local repo paths.</p>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-num">3</div>
+            <div class="step-title">Start the server — no internet needed from here</div>
+            <span class="step-tag">Every session</span>
+          </div>
+          <div class="step-body">
+            <div class="os-content" data-os="mac">
+              <div class="code-block">
+                <pre>cd ObieApp/Web
+python3 serve.py</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+            <div class="os-content" data-os="windows">
+              <div class="code-block">
+                <pre>cd ObieApp\Web
+python serve.py</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+            <div class="os-content" data-os="linux">
+              <div class="code-block">
+                <pre>cd ObieApp/Web
+python3 serve.py</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+            <p>Open <strong>Chrome or Edge</strong> at <code>http://localhost:8000</code>.
+              All assets are served locally — network cable can be unplugged.</p>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-num">4</div>
+            <div class="step-title">Transferring to an air-gapped machine</div>
+            <span class="step-tag">Optional</span>
+          </div>
+          <div class="step-body">
+            <p>After step 2, copy the entire <code>ObieApp/</code> folder to the
+              target machine — USB drive, network share, or any other method.
+              The <code>vendor/</code> folder and patched files travel with it.</p>
+            <p>On the target machine, install Python 3 (only Python itself needs to come
+              from outside — no pip packages required), then run <code>serve.py</code> as above.</p>
+            <div class="note-box">
+              Chrome or Edge must be installed on the target machine. They don't need
+              internet access once launched — only the URL bar needs to point to
+              <code>localhost:8000</code>.
+            </div>
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-num">5</div>
+            <div class="step-title">Going back to CDN mode</div>
+            <span class="step-tag">Optional</span>
+          </div>
+          <div class="step-body">
+            <p>If you want to revert all patches (e.g. to get automatic updates from CDN again):</p>
+            <div class="os-content" data-os="mac">
+              <div class="code-block">
+                <pre>python3 download-offline.py --revert</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+            <div class="os-content" data-os="windows">
+              <div class="code-block">
+                <pre>python download-offline.py --revert</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+            <div class="os-content" data-os="linux">
+              <div class="code-block">
+                <pre>python3 download-offline.py --revert</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+            <p>This restores all HTML and TOML files to their original CDN URLs
+              using the saved <code>vendor/offline-manifest.json</code>.
+              The <code>vendor/</code> folder itself is left in place — delete it
+              manually if you want to reclaim the disk space.</p>
+          </div>
+        </div>
+
+      </div><!-- step-list -->
+
+      <div class="done-card" style="margin-top:20px">
+        <h3>✓ Completely self-contained</h3>
+        <p>After running the download script once, the repo folder contains everything
+          needed to run ObieWebApp. No internet, no browser cache, no external
+          dependencies beyond Python 3 and Chrome/Edge.</p>
+        <p>To update to a new ObieApp version: <code>git pull</code>, re-run
+          <code>download-offline.py</code> (it skips files it already has).</p>
+      </div>
+
+    </div><!-- #mode-offline -->
+
+
+    <!-- ════════════════════════════════════════════════════════════════
+         MODE 3 — Desktop Python tools
+         ════════════════════════════════════════════════════════════════ -->
+    <div id="mode-python" style="display:none">
+
+      <p class="setup-intro" style="margin-bottom:20px">
+        Run <strong>Explore.py</strong> (FRF viewer) and <strong>Aquire.py</strong>
+        (impact-hammer acquisition) as native desktop applications — no browser,
+        no server, no internet connection required after the initial install.
+      </p>
+
+      <div class="os-tabs" style="margin-bottom:20px">
+        <button class="os-tab" data-os="mac"     onclick="setOS('mac')">macOS</button>
+        <button class="os-tab" data-os="windows" onclick="setOS('windows')">Windows</button>
+        <button class="os-tab" data-os="linux"   onclick="setOS('linux')">Linux</button>
+      </div>
+
+      <div class="step-list">
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-num">1</div>
+            <div class="step-title">Install Python 3.10 or newer</div>
+            <span class="step-tag">One-time</span>
+          </div>
+          <div class="step-body">
+
+            <div class="os-content" data-os="mac">
+              <p>The easiest way on macOS is <strong>Homebrew</strong>. If you don't have it:</p>
+              <div class="code-block">
+                <pre>/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+              <p>Then install Python:</p>
+              <div class="code-block">
+                <pre>brew install python</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+              <p>Or download from <a href="https://www.python.org/downloads/" target="_blank" rel="noopener">python.org</a>. Python 3.10–3.12 all work.</p>
+            </div>
+
+            <div class="os-content" data-os="windows">
+              <p>Download the installer from <a href="https://www.python.org/downloads/" target="_blank" rel="noopener">python.org</a>. Choose Python 3.10, 3.11, or 3.12.</p>
+              <div class="note-box">
+                <strong>Important:</strong> On the first installer screen, check
+                <em>"Add Python to PATH"</em> before clicking Install.
+              </div>
+              <div class="code-block">
+                <pre>python --version</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+
+            <div class="os-content" data-os="linux">
+              <p>Python 3 is usually pre-installed. Check:</p>
+              <div class="code-block">
+                <pre>python3 --version</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+              <p>If needed:</p>
+              <div class="code-block">
+                <pre>sudo apt update && sudo apt install python3 python3-pip python3-venv</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-num">2</div>
+            <div class="step-title">Download the ObieApp code</div>
+            <span class="step-tag">One-time</span>
+          </div>
+          <div class="step-body">
+
+            <p><strong>Option A — Git clone</strong> (recommended, easiest to update later):</p>
+
+            <div class="os-content" data-os="mac">
+              <p>If you don't have Git: <code>brew install git</code></p>
+            </div>
+            <div class="os-content" data-os="windows">
+              <p>If you don't have Git, download from
+                <a href="https://git-scm.com/download/win" target="_blank" rel="noopener">git-scm.com</a>
+                and restart Command Prompt after installing.
+              </p>
+            </div>
+            <div class="os-content" data-os="linux">
+              <p>If needed: <code>sudo apt install git</code></p>
+            </div>
+
+            <div class="code-block">
+              <pre>git clone https://github.com/chrisbuerginrogers/ObieApp.git</pre>
+              <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+            </div>
+
+            <p><strong>Option B — ZIP download</strong>: go to
+              <a href="https://github.com/chrisbuerginrogers/ObieApp" target="_blank" rel="noopener">github.com/chrisbuerginrogers/ObieApp</a>,
+              click <em>Code</em> → <em>Download ZIP</em>, then unzip anywhere.
+            </p>
+
+            <p>The tools you'll run are inside <code>Python/</code>:</p>
+            <ul>
+              <li><code>Python/Explore.py</code> — FRF file viewer</li>
+              <li><code>Python/Aquire.py</code> — Impact-hammer acquisition</li>
+            </ul>
+
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-num">3</div>
+            <div class="step-title">Install Python packages</div>
+            <span class="step-tag">One-time</span>
+          </div>
+          <div class="step-body">
+
+            <div class="os-content" data-os="mac">
+              <div class="code-block">
+                <pre>cd ObieApp/Python
+pip3 install numpy scipy matplotlib pyaudio</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+              <div class="warn-box">
+                <strong>PyAudio on macOS:</strong> If it fails, first run
+                <code>brew install portaudio</code>, then retry.
+              </div>
+            </div>
+
+            <div class="os-content" data-os="windows">
+              <div class="code-block">
+                <pre>cd ObieApp\Python
+pip install numpy scipy matplotlib pyaudio</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+              <div class="warn-box">
+                <strong>PyAudio on Windows:</strong> If it fails, try
+                <code>pip install pipwin &amp;&amp; pipwin install pyaudio</code>.
+              </div>
+            </div>
+
+            <div class="os-content" data-os="linux">
+              <div class="code-block">
+                <pre>cd ObieApp/Python
+pip3 install numpy scipy matplotlib pyaudio</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+              <div class="warn-box">
+                <strong>PyAudio on Linux:</strong> If it fails, first run
+                <code>sudo apt install portaudio19-dev python3-pyaudio</code>, then retry.
+              </div>
+            </div>
+
+            <div class="note-box">
+              All other modules (fileio, audioio, plotio, processing) are part of the
+              repo — no extra installs needed.
+            </div>
+
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-num">4</div>
+            <div class="step-title">Create a Data Folder and config file</div>
+            <span class="step-tag">One-time per setup</span>
+          </div>
+          <div class="step-body">
+
+            <p>Both tools read a <code>config.json</code> from your Data Folder. The easiest way
+              to create it is to use the web app to set up a Data Folder once — it creates
+              <code>ObieAppSettings/</code> with the right defaults — then copy that folder to
+              your local machine.
+            </p>
+            <p>Or copy the defaults from the repo:</p>
+
+            <div class="os-content" data-os="mac">
+              <div class="code-block">
+                <pre>cp -r "Python/ObieApp Settings" ~/Documents/MyObieData</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+            <div class="os-content" data-os="windows">
+              <div class="code-block">
+                <pre>xcopy /E /I "Python\ObieApp Settings" "%USERPROFILE%\Documents\MyObieData"</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+            <div class="os-content" data-os="linux">
+              <div class="code-block">
+                <pre>cp -r "Python/ObieApp Settings" ~/Documents/MyObieData</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+
+            <p>Edit the <code>config.json</code> inside that folder to set your instrument
+              name and soundcard.</p>
+
+          </div>
+        </div>
+
+        <div class="step-card">
+          <div class="step-header">
+            <div class="step-num">5</div>
+            <div class="step-title">Run the tools</div>
+            <span class="step-tag">Every session</span>
+          </div>
+          <div class="step-body">
+
+            <p>From the <code>Python/</code> directory:</p>
+
+            <div class="os-content" data-os="mac">
+              <p><strong>FRF viewer:</strong></p>
+              <div class="code-block">
+                <pre>python3 Explore.py /path/to/MyObieData</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+              <p><strong>Acquisition:</strong></p>
+              <div class="code-block">
+                <pre>python3 Aquire.py /path/to/MyObieData</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+
+            <div class="os-content" data-os="windows">
+              <p><strong>FRF viewer:</strong></p>
+              <div class="code-block">
+                <pre>python Explore.py C:\Users\YourName\Documents\MyObieData</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+              <p><strong>Acquisition:</strong></p>
+              <div class="code-block">
+                <pre>python Aquire.py C:\Users\YourName\Documents\MyObieData</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+
+            <div class="os-content" data-os="linux">
+              <p><strong>FRF viewer:</strong></p>
+              <div class="code-block">
+                <pre>python3 Explore.py /path/to/MyObieData</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+              <p><strong>Acquisition:</strong></p>
+              <div class="code-block">
+                <pre>python3 Aquire.py /path/to/MyObieData</pre>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+            </div>
+
+            <p>Both tools open a Matplotlib window and print status to the terminal.</p>
+
+          </div>
+        </div>
+
+        <div class="done-card">
+          <h3>✓ You're all set!</h3>
+          <p>The desktop tools read and write the same <code>.trf</code>, <code>.avc</code>,
+            and <code>.avr</code> files as the web app — your Data Folder works across both.</p>
+          <p>To update: <code>git pull</code> from <code>ObieApp/</code>. Questions? Open an issue on
+            <a href="https://github.com/chrisbuerginrogers/ObieApp/issues" target="_blank" rel="noopener">GitHub</a>.
+          </p>
+        </div>
+
+      </div><!-- step-list -->
+
+    </div><!-- #mode-python -->
+
+  </div><!-- setup-body -->
+
+</div><!-- setup-page -->
+
+</body>
+</html>

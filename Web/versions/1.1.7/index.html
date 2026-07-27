@@ -61,7 +61,7 @@
   </p>
   <div class="tool-grid">
 
-    <a class="tool-card" href="./versions/1.1.7/tools/explore/">
+    <a class="tool-card" href="./tools/explore/">
       <div class="head">
         <div class="icon">🔍</div>
         <span class="name">Explore</span>
@@ -74,7 +74,7 @@
       <span class="tag app">Tool · PyScript</span>
     </a>
 
-    <a class="tool-card" href="./versions/1.1.7/tools/convolve/">
+    <a class="tool-card" href="./tools/convolve/">
       <div class="head">
         <div class="icon">🔀</div>
         <span class="name">Convolve</span>
@@ -87,7 +87,7 @@
       <span class="tag app">Tool · PyScript</span>
     </a>
 
-    <a class="tool-card" href="./versions/1.1.7/tools/acquire/">
+    <a class="tool-card" href="./tools/acquire/">
       <div class="head">
         <div class="icon">🎯</div>
         <span class="name">Acquire</span>
@@ -100,7 +100,7 @@
       <span class="tag app">Tool · PyScript</span>
     </a>
 
-    <a class="tool-card" href="./versions/1.1.7/tools/liveview/">
+    <a class="tool-card" href="./tools/liveview/">
       <div class="head">
         <div class="icon">📡</div>
         <span class="name">LiveView</span>
@@ -115,13 +115,39 @@
 
   </div>
 
-  <p class="section-label" id="beta-section-label">🧬 Beta — v1.1.8 (testing)</p>
+  <p class="section-label" id="beta-section-label">🧬 Beta — v1.1.7 (testing)</p>
   <div class="tool-grid" id="beta-section-grid">
+
+    <a class="tool-card experimental" href="./tools/explore/">
+      <div class="head">
+        <div class="icon">🔍</div>
+        <span class="name">Explore <span style="font-size:10px;font-weight:400;opacity:0.75">beta</span></span>
+      </div>
+      <p class="desc">
+        New: hovering a dataset now shows that instrument's saved notes right
+        in the sidebar. Also fixed the normalization dropdown not always
+        starting on "As measured" on reload.
+      </p>
+      <span class="tag experimental-tag">Beta</span>
+    </a>
+
+    <a class="tool-card experimental" href="./tools/acquire/">
+      <div class="head">
+        <div class="icon">🎯</div>
+        <span class="name">Acquire <span style="font-size:10px;font-weight:400;opacity:0.75">beta</span></span>
+      </div>
+      <p class="desc">
+        Now also collects modal data: configurable response label (acceleration,
+        velocity, displacement) and stencil-driven node positions for roving-hammer
+        modal surveys.
+      </p>
+      <span class="tag experimental-tag">Beta</span>
+    </a>
 
     <a class="tool-card experimental" href="./tools/modeshape/">
       <div class="head">
         <div class="icon">🌊</div>
-        <span class="name">Modal Analysis <span style="font-size:10px;font-weight:400;opacity:0.75">beta</span></span>
+        <span class="name">Modal Analysis <span style="font-size:10px;font-weight:400;opacity:0.75">updated</span></span>
       </div>
       <p class="desc">
         Visualisation and animation of mode shapes from an Acquire modal dataset.
@@ -134,12 +160,25 @@
     <a class="tool-card experimental" href="./tools/template/">
       <div class="head">
         <div class="icon">📐</div>
-        <span class="name">Stencil Builder <span style="font-size:10px;font-weight:400;opacity:0.75">beta</span></span>
+        <span class="name">Stencil Builder <span style="font-size:10px;font-weight:400;opacity:0.75">new</span></span>
       </div>
       <p class="desc">
         Design and calibrate node layouts for projector-assisted hammer testing.
         Drag nodes to position, adjust the projection transform to fit your
         violin, and save stencils that automatically set positions in Acquire.
+      </p>
+      <span class="tag experimental-tag">Beta</span>
+    </a>
+
+    <a class="tool-card experimental" href="./tools/liveview/">
+      <div class="head">
+        <div class="icon">📡</div>
+        <span class="name">LiveView <span style="font-size:10px;font-weight:400;opacity:0.75">new</span></span>
+      </div>
+      <p class="desc">
+        Stand-alone real-time hammer/mic monitor and live FRF estimate — the
+        same LiveView as Acquire's "LiveView" button, in its own tab so it can
+        run on a second monitor. Also reachable from inside Acquire.
       </p>
       <span class="tag experimental-tag">Beta</span>
     </a>
