@@ -20,8 +20,14 @@
   let _nodes        = [];
   let _transform    = { scale: 5, xStretch: 1, yStretch: 1, rotation: 0, panX: 0, panY: 0 };
   let _nodeRadius   = 10;
-  let _currentNode  = null;       // id of node to hit next (highlighted)
-  let _doneNodes    = new Set();  // ids of already-measured nodes
+  let _currentNode  = null;
+  let _doneNodes    = new Set();
+  let _violinViz    = { show: false, orientation: 'horizontal', opacity: 0.25 };
+  let _verticalMount = false;
+
+  const _violinImg = new Image();
+  _violinImg.src    = './violin-outline.svg';
+  _violinImg.onload = () => render();
 
   function resize() {
     canvas.width  = window.innerWidth;
@@ -43,13 +49,39 @@
     };
   }
 
+  function drawViolinOutline(W, H) {
+    if (!_violinViz.show || !_violinImg.complete || !_violinImg.naturalWidth) return;
+    const { scale, xStretch, yStretch, rotation, panX, panY } = _transform;
+    const rad = rotation * Math.PI / 180;
+    ctx.save();
+    ctx.globalAlpha = _violinViz.opacity;
+    ctx.translate(W / 2 + panX, H / 2 + panY);
+    ctx.rotate(rad);
+    ctx.scale(scale * xStretch, scale * yStretch);
+    if (_violinViz.orientation === 'vertical') ctx.rotate(Math.PI / 2);
+    ctx.rotate(Math.PI);
+    ctx.drawImage(_violinImg, -200, -131.5, 400, 248);
+    ctx.restore();
+  }
+
   function render() {
     const W = canvas.width, H = canvas.height;
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, W, H);
 
-    if (!_nodes.length) return;
+    // Apply vertical mount rotation (-90°) around canvas centre so the
+    // projector (physically rotated +90°) shows correct orientation on the violin.
+    ctx.save();
+    if (_verticalMount) {
+      ctx.translate(W / 2, H / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.translate(-W / 2, -H / 2);
+    }
+
+    drawViolinOutline(W, H);
+
+    if (!_nodes.length) { ctx.restore(); return; }
 
     // Draw edges between row/col neighbors
     ctx.strokeStyle = 'rgba(0, 220, 100, 0.3)';
@@ -68,17 +100,16 @@
       }
     });
 
-    // Draw nodes — three states: current (next hit), done, pending
+    // Draw nodes
     const r = _nodeRadius;
     const watching = _currentNode !== null || _doneNodes.size > 0;
 
     _nodes.forEach(n => {
-      const pos     = physToScreen(n.xMm, n.yMm);
-      const isCur   = n.id === _currentNode;
-      const isDone  = _doneNodes.has(n.id);
+      const pos    = physToScreen(n.xMm, n.yMm);
+      const isCur  = n.id === _currentNode;
+      const isDone = _doneNodes.has(n.id);
 
       if (isCur) {
-        // Outer pulse ring — draws attention when projected onto violin
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, r * 2.4, 0, Math.PI * 2);
         ctx.strokeStyle = 'rgba(255, 220, 0, 0.5)';
@@ -95,29 +126,35 @@
       ctx.beginPath();
       ctx.arc(pos.x, pos.y, nodeR, 0, Math.PI * 2);
 
-      if (isCur)        ctx.fillStyle = '#ffee00';              // bright yellow — current
-      else if (isDone)  ctx.fillStyle = 'rgba(90,110,85,0.45)'; // dimmed — done
-      else if (watching) ctx.fillStyle = 'rgba(0,200,90,0.55)'; // muted green — pending
-      else              ctx.fillStyle = '#00ff66';               // full green — no watch mode
+      if (isCur)         ctx.fillStyle = '#ffee00';
+      else if (isDone)   ctx.fillStyle = 'rgba(90,110,85,0.45)';
+      else if (watching) ctx.fillStyle = 'rgba(0,200,90,0.55)';
+      else               ctx.fillStyle = '#00ff66';
 
       ctx.fill();
 
-      // Label
+      // Labels: when vertical mount is on the text is already rotated -90° by
+      // the canvas transform, which is correct — the projector's +90° physical
+      // rotation will make them appear upright on the violin surface.
       ctx.fillStyle = isCur ? '#000' : (isDone ? 'rgba(200,220,190,0.5)' : '#000');
       ctx.font = `bold ${Math.max(8, Math.round(nodeR * 1.1))}px monospace`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(n.label, pos.x, pos.y);
     });
+
+    ctx.restore();
   }
 
   window.addEventListener('message', e => {
     if (!e.data || e.data.type !== 'tpl-update') return;
-    if (e.data.nodes)               _nodes       = e.data.nodes;
-    if (e.data.transform)           _transform   = e.data.transform;
-    if (e.data.nodeRadius != null)  _nodeRadius  = e.data.nodeRadius;
-    if ('currentNode' in e.data)    _currentNode = e.data.currentNode;
-    if (e.data.doneNodes)           _doneNodes   = new Set(e.data.doneNodes);
+    if (e.data.nodes)                _nodes         = e.data.nodes;
+    if (e.data.transform)            _transform     = e.data.transform;
+    if (e.data.nodeRadius != null)   _nodeRadius    = e.data.nodeRadius;
+    if ('currentNode' in e.data)     _currentNode   = e.data.currentNode;
+    if (e.data.doneNodes)            _doneNodes     = new Set(e.data.doneNodes);
+    if (e.data.violinViz)            _violinViz     = e.data.violinViz;
+    if ('verticalMount' in e.data)   _verticalMount = e.data.verticalMount;
     render();
   });
 })();

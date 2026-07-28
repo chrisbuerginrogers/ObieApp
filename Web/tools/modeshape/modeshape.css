@@ -370,6 +370,7 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 .ms-mode-plot-wrap {
   flex: 1; display: flex; flex-direction: column;
   overflow: hidden; min-width: 0;
+  position: relative;
 }
 #ms-mode-plot { flex: 1; min-height: 0; width: 100%; }
 
@@ -379,6 +380,59 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
   color: var(--muted); font-size: 13px;
 }
 .ms-no-data-msg p { font-size: 11px; color: var(--muted); }
+
+/* View-cube camera-snap widget — small corner overlay on the 3-D plot.
+   Anchored bottom-right: Plotly's modebar always docks at the top of a gl3d
+   scene, so the bottom corner is the one spot guaranteed not to collide. */
+.ms-view-cube {
+  position: absolute; bottom: 10px; right: 14px; z-index: 5;
+  width: 84px; height: 84px;
+  pointer-events: none;   /* only the cube faces/arrows themselves are clickable */
+}
+.mvc-scene {
+  width: 100%; height: 100%;
+  perspective: 320px;
+}
+.mvc-cube {
+  width: 46px; height: 46px;
+  position: relative;
+  margin: 19px auto;
+  transform-style: preserve-3d;
+  transform: rotateX(-22deg) rotateY(35deg);
+}
+.mvc-face {
+  position: absolute; width: 46px; height: 46px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  pointer-events: auto;
+  backface-visibility: hidden;
+  transition: background 0.1s ease, color 0.1s ease, border-color 0.1s ease;
+}
+.mvc-face:hover { background: var(--bg); color: var(--accent); border-color: var(--accent); }
+.mvc-front  { transform: translateZ(23px); }
+.mvc-back   { transform: rotateY(180deg) translateZ(23px); }
+.mvc-right  { transform: rotateY(90deg) translateZ(23px); }
+.mvc-left   { transform: rotateY(-90deg) translateZ(23px); }
+.mvc-top    { transform: rotateX(90deg) translateZ(23px); }
+.mvc-bottom { transform: rotateX(-90deg) translateZ(23px); }
+
+/* Rotation arrows — the cube itself never moves the real camera, it's just a
+   display; these let the user spin it to reach the 3 faces hidden by the
+   fixed isometric tilt (back, right, bottom). */
+.mvc-arrow {
+  position: absolute; z-index: 1;
+  width: 16px; height: 16px; padding: 0; border: none; background: none;
+  color: var(--muted); font-size: 9px; line-height: 1;
+  cursor: pointer; pointer-events: auto;
+}
+.mvc-arrow:hover { color: var(--accent); }
+.mvc-arrow-up    { top: -2px;    left: 50%; transform: translateX(-50%); }
+.mvc-arrow-down  { bottom: -2px; left: 50%; transform: translateX(-50%); }
+.mvc-arrow-left  { left: -2px;   top: 50%;  transform: translateY(-50%); }
+.mvc-arrow-right { right: -2px;  top: 50%;  transform: translateY(-50%); }
 
 /* ════════════════════════════════════════════════════════════════
    GEOMETRY EDITOR MODAL
@@ -550,6 +604,12 @@ canvas.lv-canvas {
 }
 .ms-node-list { flex: 1; overflow-y: auto; padding: 2px 0; }
 .ms-frf-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.ms-frf-toolbar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 8px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.ms-frf-band-sep { width: 1px; height: 18px; background: var(--border); margin: 0 2px; }
+.ms-frf-band-inp { width: 64px; }
 
 .ms-node-item {
   display: flex; align-items: center; gap: 5px;
@@ -574,18 +634,33 @@ canvas.lv-canvas {
 
 .ms-mode-body {
   flex: 1; display: flex; overflow: hidden; min-height: 0;
+  position: relative; /* containing block for the FRF overlay panel below */
 }
+/* An absolutely-positioned overlay, not a flex sibling, so showing/hiding it
+   never changes the 3-D plot's own container size — the plot always fills
+   the full width of .ms-mode-body regardless of this panel's visibility. */
 .ms-ref-frf-wrap {
-  width: 28%; min-width: 160px; max-width: 340px;
+  position: absolute; top: 0; left: 0; bottom: 0; z-index: 5;
+  width: 28%; min-width: 220px; max-width: 380px;
   border-right: 1px solid var(--border);
-  display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--surface);
+  box-shadow: 2px 0 10px rgba(0,0,0,0.12);
 }
 .ms-ref-title {
   font-size: 9px; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.4px; color: var(--muted);
   padding: 4px 8px; background: var(--bg-deep);
   border-bottom: 1px solid var(--border); flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
 }
+.ms-ref-title-close {
+  margin-left: auto; background: none; border: none; cursor: pointer;
+  font-size: 11px; color: var(--muted); padding: 0 2px; line-height: 1;
+  white-space: nowrap;
+}
+.ms-ref-title-close:hover { color: var(--accent); }
+.ms-ref-title-close.active { color: var(--accent); font-weight: 700; }
 .ms-mode-plot-wrap {
   flex: 1; display: flex; flex-direction: column;
   overflow: hidden; min-width: 0;

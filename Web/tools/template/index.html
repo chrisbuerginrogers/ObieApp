@@ -43,6 +43,7 @@
     <button class="tb-btn" id="tpl-reset-btn" onclick="tplResetWatch()" style="display:none" title="Re-read TRF folder and sync projector">↺ Sync</button>
     <button class="tb-btn" id="tpl-stop-btn" onclick="tplStopWatching()" style="display:none">■ Stop</button>
     <div style="width:4px"></div>
+    <button id="tpl-vmount-btn" class="tb-btn" onclick="tplToggleVerticalMount()" title="Rotate projection 90° for vertically-mounted projector">↕ Vert. Mount</button>
     <button class="tb-btn accent" onclick="tplOpenProjection()">📽 Project</button>
     <button class="tb-btn" onclick="tplHelp()">Help</button>
   </div>
@@ -100,6 +101,26 @@
         <div class="sb-row">
           <label>Pan Y (px)</label>
           <input type="number" id="inp-pany" value="0" min="-3000" max="3000" step="1" oninput="tplSyncTransform()">
+        </div>
+      </div>
+
+      <div class="sb-section">
+        <div class="sb-title">Violin Reference</div>
+        <div class="sb-row">
+          <button id="tpl-violin-btn" class="sb-btn" style="margin-top:0;flex:1" onclick="tplToggleViolin()">Show Outline</button>
+        </div>
+        <div class="sb-row">
+          <label>Orientation</label>
+          <select class="sb-select" onchange="tplSetViolinOrientation(this.value)">
+            <option value="vertical" selected>Vertical</option>
+            <option value="horizontal">Horizontal</option>
+          </select>
+        </div>
+        <div class="sb-row">
+          <label>Opacity</label>
+          <input type="range" min="0.05" max="0.80" step="0.05" value="0.25"
+                 oninput="tplSetViolinOpacity(this.value)">
+          <span id="violin-opacity-lbl" style="font-size:0.75rem;color:var(--muted);min-width:30px;text-align:right">25%</span>
         </div>
       </div>
 
