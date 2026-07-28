@@ -2090,29 +2090,34 @@ async function _refreshInstrumentFolder(instrumentName) {
     _trfHandle  = await testHandle.getDirectoryHandle('TRF', { create: true });
     _runName    = _pendingTestName;
 
-    // Write settings snapshot into the test folder
+    // Reopening a run from before the template.json consolidation: if this session
+    // hasn't (re)applied a stencil yet, pick up one left behind in a legacy stencil.json
+    // so it isn't silently dropped from the new template.json.
+    if (!_currentStencilData) {
+      try {
+        const legacyFh = await testHandle.getFileHandle('stencil.json');
+        const legacyStencil = JSON.parse(await (await legacyFh.getFile()).text());
+        _currentStencilData = legacyStencil;
+        _currentStencilName = legacyStencil.name || '';
+        const ind = document.getElementById('stencil-ind');
+        if (ind) ind.textContent = _currentStencilName ? `📐 ${_currentStencilName}` : '';
+      } catch (_) {}
+    }
+
+    // Write template.json — single file combining settings + stencil (+ node_layout from Stencil Builder)
     try {
-      const fh = await testHandle.getFileHandle('settings.json', { create: true });
-      const w  = await fh.createWritable();
       const snapshot = {
         date:        new Date().toISOString().slice(0, 10),
         ...((_currentTemplateName) ? { template: _currentTemplateName } : {}),
         ..._loadPrefs(),
         sample_rate: audioCtx?.sampleRate || _loadPrefs().sample_rate || 48000,
+        ...(_currentStencilData ? { stencil: _currentStencilData } : {})
       };
+      const fh = await testHandle.getFileHandle('template.json', { create: true });
+      const w  = await fh.createWritable();
       await w.write(JSON.stringify(snapshot, null, 2));
       await w.close();
     } catch (_) {}
-
-    // Write stencil snapshot so Modal Analysis can auto-load it
-    if (_currentStencilData) {
-      try {
-        const sfh = await testHandle.getFileHandle('stencil.json', { create: true });
-        const sw  = await sfh.createWritable();
-        await sw.write(JSON.stringify(_currentStencilData, null, 2));
-        await sw.close();
-      } catch (_) {}
-    }
 
     const instrDisp = document.getElementById('inp-instrument-banner');
     if (instrDisp) instrDisp.textContent = instrumentName;
@@ -2385,12 +2390,17 @@ window.acqApplyStencil = async function() {
 async function _saveStencilToRun() {
   if (!_currentStencilData || !_testHandle) return;
   try {
-    const fh = await _testHandle.getFileHandle('stencil.json', { create: true });
+    let existing = {};
+    try {
+      const rfh = await _testHandle.getFileHandle('template.json');
+      existing = JSON.parse(await (await rfh.getFile()).text());
+    } catch (_) {}
+    const fh = await _testHandle.getFileHandle('template.json', { create: true });
     const w  = await fh.createWritable();
-    await w.write(JSON.stringify(_currentStencilData, null, 2));
+    await w.write(JSON.stringify({ ...existing, stencil: _currentStencilData }, null, 2));
     await w.close();
   } catch (e) {
-    console.warn('Could not save stencil.json to run folder:', e.message);
+    console.warn('Could not save stencil to template.json:', e.message);
   }
 }
 

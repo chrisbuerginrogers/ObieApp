@@ -173,6 +173,23 @@
           <li><a href="#qfactor">5.4 Quality Factor</a></li>
         </ul>
       </li>
+      <li><a href="#modal">6 · Modal Analysis — Mode Shape Reconstruction</a>
+        <ul>
+          <li><a href="#modal-phasor">6.1 The Complex FRF as a Phasor</a></li>
+          <li><a href="#modal-grid">6.2 Building a Continuous Surface</a></li>
+        </ul>
+      </li>
+      <li><a href="#circlefit">7 · Circle Fitting — SDOF Nyquist Circle Method</a>
+        <ul>
+          <li><a href="#cf-receptance">7.1 Receptance vs. Accelerance</a></li>
+          <li><a href="#cf-kasa">7.2 Algebraic Circle Fit</a></li>
+          <li><a href="#cf-freq">7.3 Natural Frequency</a></li>
+          <li><a href="#cf-damping">7.4 Damping — Half-Angle Relation</a></li>
+          <li><a href="#cf-residue">7.5 Modal Constant and Sign</a></li>
+          <li><a href="#cf-residual">7.6 Residual Compensation</a></li>
+          <li><a href="#cf-nodes">7.7 Per-Node Residue Extraction</a></li>
+        </ul>
+      </li>
     </ul>
   </div>
 
@@ -711,6 +728,230 @@ centroid = float(np.sum(f_band * H_band) / np.sum(H_band))</pre>
       Higher \(Q\) means a sharper, more persistent resonance.
     </p>
 
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       6 · Modal Analysis
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="math-section" id="modal">
+    <div class="section-header">
+      <h2>6 · Modal Analysis — Mode Shape Reconstruction</h2>
+    </div>
+
+    <p>
+      Modal Analysis (<code>Web/tools/modeshape</code>) animates how a plate physically deforms
+      at a chosen frequency, using nothing more than each stencil node's measured complex FRF at
+      that frequency. Because every node's hammer-impact FRF is referenced to the same fixed
+      input, comparing their complex values at a single frequency reveals both relative
+      amplitude and relative phase across the surface — which is exactly what a mode shape is.
+    </p>
+
+    <h3 id="modal-phasor">6.1 The Complex FRF as a Phasor</h3>
+
+    <p>
+      At frequency \(f\), node \(i\)'s measured FRF is a complex number
+      \(H_i(f) = \mathrm{Re}_i + i\,\mathrm{Im}_i\). Treat this as a phasor: under sinusoidal
+      excitation at that frequency, the steady-state physical displacement of node \(i\) over
+      time is the real part of \(H_i e^{i\theta}\), where \(\theta=\omega t\) is the drive phase:
+    </p>
+
+    $$\mathrm{disp}_i(\theta) = \mathrm{Re}\bigl(H_i\,e^{i\theta}\bigr)
+      = \mathrm{Re}_i \cos\theta - \mathrm{Im}_i \sin\theta$$
+
+    <p>
+      Sweeping \(\theta\) from \(0\) to \(2\pi\) animates one full vibration cycle. Points where
+      \(H_i \approx 0\) barely move (nodal lines); points with large \(|H_i|\) move the most
+      (antinodes); points whose \(H_i\) have opposite sign move in opposite directions at the
+      same instant, which is how the animation shows a plate's characteristic node lines.
+    </p>
+
+    <h3 id="modal-grid">6.2 Building a Continuous Surface</h3>
+
+    <p>
+      Stencil nodes sit on a rectangular row/column grid at known physical (x, y) positions.
+      For the currently selected frequency, Modal Analysis:
+    </p>
+
+    <ol class="steps">
+      <li>Linearly interpolates each node's own FRF between its two nearest measured frequency
+          bins to get \(H_i(f)\) at the exact requested frequency.</li>
+      <li>Arranges the per-node Re and Im values into two 2-D grids indexed by row and column.</li>
+      <li>Fits a tensor-product natural cubic spline to each grid — first across columns per
+          row, then across rows per fine column — producing smooth, \(C^2\)-continuous
+          \(\mathrm{Re}(x,y)\) and \(\mathrm{Im}(x,y)\) surfaces. This is equivalent to
+          <code>scipy.interpolate.RectBivariateSpline</code>, reimplemented in JS so it can run
+          synchronously inside the animation loop.</li>
+      <li>Normalises both surfaces by the peak magnitude
+          \(\max\sqrt{\mathrm{Re}^2+\mathrm{Im}^2}\) over the fine grid, so the animated peak
+          amplitude is always 1 regardless of instrument or frequency — mode shapes stay
+          visually comparable across runs.</li>
+    </ol>
+
+    <p>Each animation frame then evaluates the phasor formula per fine-grid point:</p>
+
+<pre>// modeshape.js — one animation frame
+disp[y][x] = amp * (Re_fine[y][x]*cos(θ) - Im_fine[y][x]*sin(θ))</pre>
+
+    <div class="callout">
+      <strong>Single row or column of nodes</strong>
+      A 1-D line of nodes (e.g. measuring along a single rib) is handled by synthesizing a
+      second row/column a small distance away with identical Re/Im values, so the same
+      bicubic-surface and animation code renders it as a narrow ribbon instead of needing a
+      separate code path.
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       7 · Circle Fitting
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="math-section" id="circlefit">
+    <div class="section-header">
+      <h2>7 · Circle Fitting — SDOF Nyquist Circle Method</h2>
+    </div>
+
+    <p>
+      Circle Fit (<code>Web/tools/circlefit</code>, backed by
+      <code>Python/processing/circlefit.py</code>) extracts a natural frequency, damping, and
+      modal constant for each resonance directly from a measured accelerance FRF, using the
+      classical Kennedy–Pancu circle-fitting method (Ewins,
+      <em>Modal Testing: Theory and Practice</em>).
+    </p>
+
+    <h3 id="cf-receptance">7.1 Receptance vs. Accelerance</h3>
+
+    <p>
+      For a single-degree-of-freedom (SDOF) resonance with <strong>hysteretic</strong>
+      (structural) damping, it is <em>receptance</em> — displacement per unit force — that
+      traces an exact circle in the Nyquist (Re vs Im) plane:
+    </p>
+
+    $$X(\omega) = \frac{A_r}{\omega_r^2 - \omega^2 + i\,\eta_r\,\omega_r^2}$$
+
+    <p>
+      where \(A_r\) is the complex modal constant (residue), \(\omega_r\) the natural frequency
+      (rad/s), and \(\eta_r\) the hysteretic loss factor. Acquire's hammer-impact measurements
+      are accelerance, \(A(\omega) = -\omega^2 X(\omega)\), so Circle Fit first converts:
+    </p>
+
+    $$X(\omega) = \frac{A(\omega)}{-\omega^2}$$
+
+    <h3 id="cf-kasa">7.2 Algebraic Circle Fit</h3>
+
+    <p>
+      Within a user-picked candidate band, the receptance points
+      \((x_i,y_i)=(\mathrm{Re}_i,\mathrm{Im}_i)\) are fit to a circle \(x^2+y^2+Dx+Ey+F=0\) by
+      ordinary least squares (Kåsa method) directly on the design matrix \([x,\,y,\,1]\):
+    </p>
+
+    $$\begin{bmatrix}x_i & y_i & 1\end{bmatrix}
+      \begin{bmatrix}D\\E\\F\end{bmatrix} = -(x_i^2+y_i^2)$$
+
+    <p>giving the centre and radius:</p>
+
+    $$x_0=-\frac{D}{2}, \qquad y_0=-\frac{E}{2}, \qquad r=\sqrt{x_0^2+y_0^2-F}$$
+
+    <p>
+      Fit quality is reported as the RMS radial residual as a fraction of the radius
+      (<code>resid_rms_frac</code>) — points that don't actually lie on a circle (no real
+      resonance in the band, or a badly chosen band) show up as a large value here.
+    </p>
+
+    <h3 id="cf-freq">7.3 Natural Frequency — Fastest Angular Sweep</h3>
+
+    <p>
+      Physically, the phasor sweeps around the Nyquist circle fastest exactly at resonance. The
+      angle of each point relative to the fitted centre, unwrapped to avoid a branch-cut jump,
+      is:
+    </p>
+
+    $$\theta(\omega) = \operatorname{unwrap}\bigl(\operatorname{atan2}(y-y_0,\,x-x_0)\bigr)$$
+
+    <p>
+      The natural frequency \(\omega_r\) is taken as the point of maximum
+      \(\left|\dfrac{d\theta}{d\omega}\right|\) (central difference across interior points),
+      with a 3-point parabolic interpolation around the discrete peak for sub-bin precision.
+    </p>
+
+    <h3 id="cf-damping">7.4 Damping — Half-Angle Relation</h3>
+
+    <p>
+      For every pair of points \(a\) (below resonance) and \(b\) (above resonance), the
+      half-angles \(\theta_a,\theta_b\) subtended at the circle centre between each point and
+      the resonance point give an independent damping estimate:
+    </p>
+
+    $$\eta_{ab} = \frac{\omega_b^2-\omega_a^2}
+        {\omega_r^2\bigl(\tan(\theta_a/2)+\tan(\theta_b/2)\bigr)}$$
+
+    <p>
+      Pairs where either half-angle is below a 5° minimum are discarded
+      (\(\tan(\theta/2)\to0\) is numerically unstable right at resonance), and the final
+      \(\eta_r\) is the <strong>median</strong> across all surviving pairs — robust to the
+      occasional noisy outlier pair in real hammer data.
+    </p>
+
+    <h3 id="cf-residue">7.5 Modal Constant and Sign</h3>
+
+    <p>The residue magnitude follows directly from the circle diameter:</p>
+
+    $$|A_r| = 2r\,\eta_r\,\omega_r^2$$
+
+    <p>
+      Its sign is read off the circle centre's vertical position rather than assumed: because
+      the receptance denominator \(\omega_r^2-\omega^2+i\eta_r\omega_r^2\) traces a horizontal
+      line at constant positive imaginary part as \(\omega\) varies, and inverting a line not
+      through the origin (\(z\to1/z\)) always produces a circle on the <em>opposite</em> side of
+      the real axis — a positive real \(A_r\) always puts the fitted circle's centre at
+      \(y_0<0\), and a negative \(A_r\) at \(y_0>0\).
+    </p>
+
+    <h3 id="cf-residual">7.6 Residual Compensation and Multi-Pass Fitting</h3>
+
+    <p>
+      A real structure has more than one mode, and modes outside the current band still
+      contribute a slowly-varying, near-real background to the data inside it. Each
+      already-identified mode \(s\)'s approximate contribution at \(\omega\) is:
+    </p>
+
+    $$\text{residual}(\omega) = \sum_{s} \frac{\mathrm{Re}(A_s)}{\omega_s^2-\omega^2}$$
+
+    <p>
+      which is subtracted from the real part of the band's data before each circle fit. Because
+      every mode's residual depends on every other mode's fit, Circle Fit iterates — up to 5
+      passes — refitting every band using the latest fits of all the others, stopping early once
+      the largest relative frequency change across modes falls below a tolerance (default
+      \(10^{-4}\)).
+    </p>
+
+    <h3 id="cf-nodes">7.7 Per-Node Residue Extraction</h3>
+
+    <p>
+      Once a mode's frequency \(\omega_r\) and damping \(\eta_r\) are fixed from the reference
+      (averaged) FRF, its contribution to <em>any individual node's</em> receptance is linear in
+      that node's own unknown complex residue \(A_r\). This lets every node's residue — and
+      hence a damping-corrected, per-mode mode shape — be solved directly from the whole
+      spectrum in one complex least-squares system, rather than band by band:
+    </p>
+
+    $$H(\omega) \approx \sum_{s} \frac{A_s}{\omega_s^2-\omega^2+i\eta_s\omega_s^2}
+        + C + \frac{M}{\omega^2}$$
+
+    <p>
+      where \(C\) and \(M/\omega^2\) absorb the near-constant and low-frequency-mass-like
+      contributions of modes outside the fitted set.
+    </p>
+
+    <div class="callout">
+      <strong>Not yet wired into the UI</strong>
+      <code>fit_node_residues()</code> implements this solve and is exposed to the browser as
+      <code>pyCFFitNodeResidues</code>, but Circle Fit's UI doesn't call it yet — Modal Analysis
+      currently animates mode shapes from each node's raw interpolated FRF (§6) rather than a
+      damping-corrected residue. It's available for a future feature.
+    </div>
   </section>
 
   <div class="docs-link">

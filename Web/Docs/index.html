@@ -144,6 +144,8 @@
       <li><a href="#explore">Explore — Compare FRF files</a></li>
       <li><a href="#convolve">Convolve — Auralize an FRF</a></li>
       <li><a href="#acquire">Acquire — Impact-hammer FRF measurement</a></li>
+      <li><a href="#circlefit">Circle Fit — Fit natural frequency &amp; damping</a></li>
+      <li><a href="#modeshape">Modal Analysis — Animate mode shapes</a></li>
     </ul>
   </div>
 
@@ -605,6 +607,117 @@
 
   <hr class="divider">
 
+  <!-- ── Circle Fit ───────────────────────────────────────────────── -->
+  <section class="tool-section" id="circlefit">
+    <div class="tool-header">
+      <div class="icon">⭕</div>
+      <h2>Circle Fit</h2>
+      <span class="tag">PyScript · beta</span>
+    </div>
+
+    <a class="tool-link" href="../tools/circlefit/">Open Circle Fit →</a>
+
+    <p>
+      Circle Fit pins down each mode's natural frequency, damping, and modal constant from an
+      Acquire run's TRF data, using the classical Kennedy–Pancu Nyquist circle-fitting method.
+      See the <a href="./math.html#circlefit" style="color:var(--accent)">math behind circle
+      fitting</a> for the full derivation.
+    </p>
+
+    <h3>Step-by-step workflow</h3>
+    <ol class="steps">
+      <li>
+        <strong>Data Folder → Load Run…</strong> Pick a run folder containing a
+        <code>TRF/</code> subfolder (an Acquire modal/accelerometer run). All node TRFs load
+        automatically.
+      </li>
+      <li>
+        <strong>Select nodes.</strong> In the left sidebar, click one or more usable nodes
+        (marked <em>cplx</em> — they carry complex Re/Im data). The selected nodes are
+        complex-averaged into a single <em>Reference FRF</em>, shown bold on the FRF plot; every
+        other node is greyed out for context.
+      </li>
+      <li>
+        <strong>Add a candidate band.</strong> Enter a Min/Max Hz range around a visible peak
+        and click <em>＋ Add Band</em>. Add one band per mode you want to fit — bands are shaded
+        on the FRF plot.
+      </li>
+      <li>
+        <strong>Fit Modes.</strong> Runs the circle fit (with residual compensation across all
+        bands) and fills in the results table: frequency, loss factor η, Q (=1/η), |A| modal
+        constant, and a fit-quality percentage (residual RMS as a fraction of the circle's
+        radius — green when good, flagged <em>widen band</em> when the peak likely falls outside
+        the chosen band).
+      </li>
+      <li>
+        <strong>Inspect the Nyquist plot.</strong> Click a results-table row to see that mode's
+        residual-subtracted data, fitted circle, and resonance point (★) in the Re/Im plane.
+      </li>
+      <li>
+        <strong>View in Modal Analysis.</strong> Click the button on any valid row to open Modal
+        Analysis with that run loaded and the frequency slider set to the fitted resonance.
+      </li>
+    </ol>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── Modal Analysis ───────────────────────────────────────────── -->
+  <section class="tool-section" id="modeshape">
+    <div class="tool-header">
+      <div class="icon">🌊</div>
+      <h2>Modal Analysis</h2>
+      <span class="tag">PyScript · beta</span>
+    </div>
+
+    <a class="tool-link" href="../tools/modeshape/">Open Modal Analysis →</a>
+
+    <p>
+      Modal Analysis animates a plate's physical deformation at any frequency, built from an
+      Acquire run's per-node complex FRF data and a node stencil (built in Stencil Builder). See
+      the <a href="./math.html#modal" style="color:var(--accent)">math behind mode-shape
+      reconstruction</a> for how each frame is computed.
+    </p>
+
+    <h3>Step-by-step workflow</h3>
+    <ol class="steps">
+      <li>
+        <strong>Data Folder → Load Run…</strong> Pick a run folder with a <code>TRF/</code>
+        subfolder. The node sidebar and <strong>FRF View</strong> tab populate automatically.
+      </li>
+      <li>
+        <strong>Load a stencil.</strong> The stencil indicator in the toolbar shows the loaded
+        stencil (if one was saved into the run folder by Acquire); otherwise browse for one —
+        stencils are built in Stencil Builder and give each node a physical (x, y) position.
+      </li>
+      <li>
+        <strong>Pick a frequency.</strong> In <strong>FRF View</strong>, click a peak on the
+        reference FRF plot to jump straight to it, or switch to the <strong>Mode Shape</strong>
+        tab and use the Freq slider/number field directly.
+      </li>
+      <li>
+        <strong>Animate.</strong> Click <em>▶ Animate</em> to sweep the plate through one full
+        vibration cycle at that frequency. Adjust <em>Amplitude</em> to exaggerate small
+        deflections, and <em>Deform</em> to choose which axis (X/Y/Z) the displacement is drawn
+        along.
+      </li>
+      <li>
+        <strong>3D / Contour.</strong> Toggle between the animated 3-D surface and a static 2-D
+        contour map of the same mode shape. The view cube (3-D mode) snaps the camera to a face
+        or spins it with the arrow buttons.
+      </li>
+    </ol>
+
+    <div class="callout">
+      <strong>Tip — fit first, then animate</strong>
+      Use <a href="#circlefit" style="color:var(--accent)">Circle Fit</a> to precisely locate
+      each mode's natural frequency first, then click <em>View in Modal Analysis</em> on that
+      row — it's usually more accurate than eyeballing a peak on the FRF plot directly.
+    </div>
+  </section>
+
+  <hr class="divider">
+
   <!-- PDF reference -->
   <div class="pdf-ref">
     <div class="pdf-icon">🔢</div>
@@ -612,7 +725,8 @@
       <p><strong>Technical reference — signal processing &amp; file formats</strong></p>
       <p>
         Detailed derivations of the H1/H2 estimators, coherence, band averaging, convolution,
-        and the acoustic wave equation, plus full binary file format specifications:
+        the acoustic wave equation, mode-shape reconstruction, and Nyquist circle fitting, plus
+        full binary file format specifications:
         <a href="./math.html">Technical Reference (HTML)</a>
         &nbsp;·&nbsp;
         <a href="./ObieDocs.pdf" target="_blank" rel="noopener">ObieDocs (original PDF)</a>.

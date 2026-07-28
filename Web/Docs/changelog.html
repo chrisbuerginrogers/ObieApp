@@ -80,6 +80,44 @@
        ══════════════════════════════════════════════════════════════════ -->
   <section class="log-entry">
     <div class="log-hdr">
+      <h2>v1.1.8-beta</h2>
+      <span class="log-tag beta">Beta</span>
+      <span class="log-date">2026-07-28</span>
+    </div>
+
+    <div class="log-group">
+      <h3>Acquire</h3>
+      <ul>
+        <li>Run folders now write a single consolidated <code>template.json</code> (settings +
+            node stencil together) instead of separate <code>settings.json</code> and
+            <code>stencil.json</code> files — matching what Modal Analysis and Stencil Builder
+            already expect, and fixing Stencil Builder's live-watch feature (it reads the
+            per-position hit count from <code>template.json</code>; previously that field only
+            existed in <code>settings.json</code>, so live-watch silently fell back to a slower
+            heuristic). Reopening an older run that still has a stencil in the old
+            <code>stencil.json</code> format now carries that stencil forward into the new
+            <code>template.json</code> automatically, instead of dropping it.</li>
+        <li>Relabeled the signal-type dropdown for clarity: <strong>Mic</strong> →
+            <strong>🔊 Radiation</strong>, <strong>Accel</strong> →
+            <strong>📡 Modal Analysis</strong> (no change to what selecting each option does).</li>
+      </ul>
+    </div>
+
+    <div class="log-group">
+      <h3>Documentation</h3>
+      <ul>
+        <li>Added <strong>Modal Analysis</strong> and <strong>Circle Fit</strong> sections to the
+            User Guide, and two new Technical Reference sections covering the math behind each:
+            complex-FRF phasor reconstruction and bicubic surface interpolation for mode-shape
+            animation, and the full Kennedy–Pancu SDOF Nyquist circle-fitting method (receptance
+            conversion, algebraic circle fit, natural frequency, hysteretic damping, modal
+            constant sign convention, residual compensation, and per-node residue extraction).</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="log-entry">
+    <div class="log-hdr">
       <h2>v1.1.7</h2>
       <span class="log-tag stable">Stable</span>
       <span class="log-date">2026-07-26</span>
