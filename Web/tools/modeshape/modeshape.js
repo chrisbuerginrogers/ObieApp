@@ -566,8 +566,11 @@ async function _loadAllTRFs(run) {
     if (fh.kind !== 'file') continue;
     const lc = fname.toLowerCase();
     if (!lc.endsWith('.trf') && !lc.endsWith('.trv')) continue;
-    // Extract position from _N suffix: prefix_1.trf → pos 0
-    const m = fname.match(/_(\d+)\.[^.]+$/);
+    // Extract position from trailing digits before the extension. Matches
+    // both the old prefix_001.trf style and the current "prefix label.trf"
+    // style (e.g. "Niko Test 1_01 H09.trf") where the number directly
+    // precedes the extension with no underscore, per commit 4825810.
+    const m = fname.match(/(\d+)\.[^.]+$/);
     if (!m) continue;
     const pos = parseInt(m[1], 10) - 1;  // 0-based
     files.push({ fname, fh, pos });
