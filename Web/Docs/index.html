@@ -114,6 +114,7 @@
   <span class="crumb">· Documentation</span>
   <div class="gap"></div>
   <a class="back-btn" href="./shortcuts.html">Tips</a>
+  <a class="back-btn" href="./changelog.html">Changelog</a>
   <a class="back-btn" href="../index.html">← All tools</a>
 </header>
 
@@ -143,6 +144,9 @@
       <li><a href="#explore">Explore — Compare FRF files</a></li>
       <li><a href="#convolve">Convolve — Auralize an FRF</a></li>
       <li><a href="#acquire">Acquire — Impact-hammer FRF measurement</a></li>
+      <li><a href="#circlefit">Circle Fit — Fit natural frequency &amp; damping</a></li>
+      <li><a href="#modeshape">Modal Analysis — Animate mode shapes</a></li>
+      <li><a href="#spectrum">Spectrum Monitor — Live microphone scope</a></li>
     </ul>
   </div>
 
@@ -242,7 +246,9 @@
         <tr><td>X = log / lin</td><td>Toggles the X (frequency) axis between log and linear.</td></tr>
         <tr><td>γ² checkbox</td><td>Show or hide coherence traces for all datasets that carry coherence data.</td></tr>
         <tr><td>Smoothing</td><td>Applies fractional-octave smoothing from ¼ semitone to one full octave.</td></tr>
-        <tr><td>Normalization</td><td>As measured, normalize by peak, or normalize by average over a custom Hz range.</td></tr>
+        <tr><td>Normalization</td><td>As measured, normalize by peak, normalize by average over a custom Hz range, or overlay a <strong>Complex average</strong> / <strong>Real average</strong> trace across all visible datasets (see Group averaging below).</td></tr>
+        <tr><td>🖨 Print</td><td>Far right of the toolbar. Snapshots the current plot and opens it in a new page with an editable title and notes area — fill those in, then click Print on that page to send just the labeled plot to your printer.</td></tr>
+        <tr><td>✨ Ask Claude</td><td>Opens a new Claude.ai chat in another tab with a question started for you, pointing Claude at ObieWebApp's documentation — finish typing your question and send it. Nothing is sent automatically.</td></tr>
       </tbody>
     </table>
 
@@ -250,7 +256,7 @@
     <table class="key-table">
       <thead><tr><th>Button / control</th><th>What it does</th></tr></thead>
       <tbody>
-        <tr><td>Eye icon (👁)</td><td>Show or hide an individual dataset on the plot.</td></tr>
+        <tr><td>Checkbox</td><td>Show or hide an individual dataset on the plot.</td></tr>
         <tr><td>▶ (play)</td><td>Convolves the dataset's FRF with your saved sound snippet and plays it back in real time.</td></tr>
         <tr><td>Color swatch</td><td>Click to change the line color for that dataset.</td></tr>
         <tr><td>See All / See None</td><td>Show or hide all datasets at once.</td></tr>
@@ -267,6 +273,21 @@
       of results <em>per visible dataset</em> — average dB level and spectral centroid for each
       band, in each dataset's colour. Toggle <strong>shade</strong> to highlight the band regions
       on the plot. Click <strong>Excel</strong> to export all datasets' band data as a CSV file.
+    </p>
+
+    <h4>Group averaging &amp; saving</h4>
+    <p>
+      Set the <strong>Normalization</strong> dropdown to <strong>Complex average</strong> or
+      <strong>Real average</strong> to overlay one averaged trace across all currently visible
+      datasets. Complex average converts each dataset's dB magnitude to linear amplitude before
+      averaging (then back to dB); Real average takes the arithmetic mean of the dB values
+      directly. <em>Complex average</em> is only selectable when at least one visible dataset
+      carries complex/phase data (e.g. loaded from an AvC or a complex TRF).
+    </p>
+    <p>
+      With one of those modes active, <strong>right-click the plot</strong> for a
+      <em>💾 Save to Group Averages…</em> option — name the average and save it as a CSV or an
+      AvR file into a <code>Group Averages</code> folder created at the root of your Data Folder.
     </p>
 
     <h4>Interpret</h4>
@@ -336,8 +357,8 @@
         select any WAV file (mono or stereo). Use <em>▶ Play WAV</em> to confirm the dry signal.
       </li>
       <li>
-        <strong>Set the output gain.</strong> Drag the <em>Output gain</em> slider (−24 to +24 dB)
-        to avoid clipping or to match levels.
+        <strong>(Optional) Pick an output device.</strong> Under <em>Settings</em>, choose where
+        playback should go from the <em>Output device</em> dropdown.
       </li>
       <li>
         <strong>Convolve.</strong> Click <em>⚡ Convolve</em>. The button is enabled only once
@@ -405,13 +426,14 @@
     <p>
       Acquire turns your laptop and a USB audio interface into an impact-hammer FRF measurement
       system. It records hammer and microphone signals simultaneously, detects hits automatically,
-      averages multiple hits per position, and saves each position as an AvR CSV file.
+      averages multiple hits per position, and saves a TRF per position plus AvR/AvC averages at
+      completion (see <a href="#what-gets-saved" style="color:var(--accent)">What gets saved</a> below).
     </p>
 
     <h3>Hardware setup</h3>
     <ol class="steps">
       <li>Connect your USB audio interface (e.g. Focusrite Scarlett 2i2) before opening the page.</li>
-      <li>By default, plug the impact hammer into <strong>Input 1 (left)</strong> and the microphone into <strong>Input 2 (right)</strong>. Enable <em>Swap inputs</em> in Settings if your hardware is wired the other way around.</li>
+      <li>By default, plug the impact hammer into <strong>Input 1 (left)</strong> and the microphone into <strong>Input 2 (right)</strong>. Enable <em>Swap channels</em> in Template &amp; Settings if your hardware is wired the other way around.</li>
       <li>Use Chrome or Edge — Safari and Firefox do not support the required audio APIs.</li>
     </ol>
 
@@ -430,37 +452,78 @@
       unnamed (scratch) mode.
     </div>
 
-    <h3>First-time setup (Settings)</h3>
-    <p>Click <strong>Settings</strong> in the toolbar and configure:</p>
+    <h3>First-time setup (Template &amp; Settings)</h3>
+    <p>Click <strong>Template:</strong> in the toolbar to open the <strong>Template &amp; Settings</strong> dialog and configure:</p>
     <table class="key-table">
       <thead><tr><th>Setting</th><th>Notes</th></tr></thead>
       <tbody>
-        <tr><td>Input device</td><td>Choose your audio interface from the dropdown.</td></tr>
+        <tr><td>Input device</td><td>Choose your audio interface from the dropdown — takes effect immediately. You can also click the <strong>Device:</strong> indicator in the status row at any time for a quick device picker without opening the full dialog.</td></tr>
         <tr><td>Ham trigger threshold</td><td>Voltage level (V) that triggers a hit. Lower values catch lighter taps; raise it to ignore ambient noise.</td></tr>
         <tr><td>Time before / after hit</td><td>Pre- and post-trigger capture window in seconds.</td></tr>
-        <tr><td>Hammer / Mic time cutoff</td><td>Signal is zeroed after this time — suppresses late reflections. Shown as a green line on the mini plots.</td></tr>
+        <tr><td>Hammer / Mic time cutoff</td><td>Signal is zeroed after this time (0.001–5 s) — suppresses late reflections. Shown as a green line on the mini plots.</td></tr>
         <tr><td>Hammer calibration (N/V)</td><td>Converts raw voltage to Newtons. Enter the value from your hammer's calibration sheet.</td></tr>
         <tr><td>Mic calibration (Pa/V)</td><td>Converts raw voltage to Pascals. Enter the value from your microphone calibration sheet.</td></tr>
         <tr><td>Hits per position</td><td>Number of good hits to average before the app considers a position complete.</td></tr>
         <tr><td>Number of positions</td><td>Total positions per prefix group (e.g. 12 gives H01–H12).</td></tr>
         <tr><td>Position prefix</td><td>Label prepended to position names. Enter a comma-separated list (e.g. <code>H,V</code>) to create multiple groups — <code>H,V</code> with 12 positions per group gives H01–H12 then V01–V12.</td></tr>
-        <tr><td>Swap inputs</td><td>Moves the hammer trigger to the right input channel (Input 2). Use when the hammer is physically wired to Input 2.</td></tr>
+        <tr><td>Swap channels</td><td>Moves the hammer trigger to the right input channel (Input 2). Use when the hammer is physically wired to Input 2.</td></tr>
       </tbody>
     </table>
 
-    <h4>Plot Settings (inside Settings)</h4>
-    <p>The lower half of the Settings dialog controls the axis limits for all four plots:</p>
+    <h4>Node Stencil (inside Template &amp; Settings)</h4>
+    <p>
+      The Node Stencil list (left column) shows every stencil saved in your Data Folder's Templates
+      folder, plus a <strong>None</strong> option at the top. Clicking any item applies it immediately —
+      there's no separate Apply button — and saves it into that run's <code>template.json</code> right
+      away. Click <strong>None</strong> to remove a stencil from the current run.
+    </p>
+    <p>
+      Once a stencil is applied, a small preview of its node layout appears under
+      <strong>Hit Detection</strong> (middle column), labelled with the stencil's name. This preview
+      keeps itself in sync: while the Template &amp; Settings dialog is open, Acquire re-checks the
+      stencil's file every couple of seconds, so edits saved from a Stencil Builder tab open alongside
+      it (same name, re-saved) appear automatically without re-selecting anything. Click the preview
+      image — or the <strong>Stencil Builder</strong> link in the paragraph above the list — to open
+      Stencil Builder in a new tab; clicking the preview opens Stencil Builder with that exact stencil
+      already loaded, ready to edit.
+    </p>
+
+    <h4>Plot Settings (inside Template &amp; Settings)</h4>
+    <p>
+      Plot Settings is a collapsible section (click the header to show/hide it, expanded by default).
+      It controls the axis limits for all four plots, each shown as a single
+      <strong>X axis range</strong> and <strong>Y axis range</strong> row (min – max):</p>
     <table class="key-table">
       <thead><tr><th>Fields</th><th>Controls</th></tr></thead>
       <tbody>
-        <tr><td>FRF x min / max</td><td>Frequency range shown on the main FRF plot (Hz).</td></tr>
-        <tr><td>FRF y min / max</td><td>Fixed dB limits for the FRF y axis. Leave blank to use auto-scale (controlled by the dB range field).</td></tr>
-        <tr><td>Hammer x/y min/max</td><td>Time window (s) and voltage range (V) for the Hammer time plot.</td></tr>
-        <tr><td>Mic x/y min/max</td><td>Time window (s) and voltage range (V) for the Microphone time plot.</td></tr>
-        <tr><td>FFT x/y min/max</td><td>Frequency range (Hz) and dB range for the Hammer FFT plot.</td></tr>
+        <tr><td>FRF X / Y range</td><td>Frequency range (Hz) shown on the main FRF plot, and fixed dB limits for its Y axis. Leave Y blank to use auto-scale (controlled by the dB range field).</td></tr>
+        <tr><td>Hammer X / Y range</td><td>Time window (s) and voltage range (V) for the Hammer time plot.</td></tr>
+        <tr><td>Mic X / Y range</td><td>Time window (s) and voltage range (V) for the Microphone time plot.</td></tr>
+        <tr><td>FFT X / Y range</td><td>Frequency range (Hz) and dB range for the Hammer FFT plot.</td></tr>
       </tbody>
     </table>
     <p>These axis limits are saved with your settings and are part of templates — loading a template restores all axis ranges.</p>
+
+    <h3>Agenda checklist</h3>
+    <p>
+      The right-hand info panel starts with an <strong>✨ Ask Claude</strong> button, followed by an
+      <strong>Agenda</strong> checklist above Run Settings. Ask Claude opens a new Claude.ai chat in
+      another tab with a question started for you, pointing Claude at ObieWebApp's documentation —
+      finish typing your question and send it (nothing is sent automatically). The Agenda is a
+      step-by-step reminder for the full workflow, grouped into two sections:
+    </p>
+    <table class="key-table">
+      <thead><tr><th>Group</th><th>Steps</th></tr></thead>
+      <tbody>
+        <tr><td>Soundcard</td><td>Powered, 48v (2 lights); selected (in blue)</td></tr>
+        <tr><td>Software</td><td>Data folder; name instrument; rename test (if you want); choose template; edit Notes; verify in LiveView; hit Run (if needed); check hammer FFT; check coherence</td></tr>
+      </tbody>
+    </table>
+    <p>
+      Click a step to check it off; it strikes through and the state persists across
+      reloads. The whole checklist clears automatically the next time you press
+      <strong>▶ Start</strong> from idle or a completed run, ready for the next one.
+    </p>
 
     <h3>Running a measurement</h3>
     <ol class="steps">
@@ -475,17 +538,22 @@
           for a fresh start) or <strong>Repeat</strong> to re-do the current position.</li>
       <li>Use <strong>↩ Undo Hit</strong> to remove a bad last hit, or <strong>🗑 Clear H01</strong>
           to restart the current position. <strong>↺ Start over</strong> clears all positions.</li>
-      <li>When all positions are complete, an AvR file is saved automatically and a <em>Run complete</em> banner appears.</li>
+      <li>When all positions are complete, AvR/AvC averages are saved automatically (per prefix group, plus a combined set if you used more than one — see <a href="#what-gets-saved" style="color:var(--accent)">What gets saved</a> below) and a <em>Run complete</em> banner appears.</li>
       <li>To start the next run on the same instrument, click <strong>▶ Start</strong> again — the test name increments automatically (e.g. <code>Violin_01</code> → <code>Violin_02</code>) and all positions reset.</li>
     </ol>
 
-    <div class="callout">
+    <div class="callout" id="what-gets-saved">
       <strong>What gets saved</strong>
-      Each position saves a <code>.trf</code> file (updated after every hit) and a <code>.wav</code>
-      raw capture per hit inside a <code>raw/</code> sub-folder. TRF files include coherence and
-      run metadata (sample rate, threshold, cutoffs, device name) readable by Explore.
-      At run completion, an <strong>AvR</strong> (magnitude average) is written to the instrument
-      folder root.
+      Each position saves one <code>.trf</code> file (updated after every hit, named by its
+      resolved position label, e.g. <code>H03.trf</code> or <code>V07.trf</code>) and one
+      <code>.wav</code> raw capture per hit inside a <code>raw/</code> sub-folder. TRF files
+      include coherence and run metadata (sample rate, threshold, cutoffs, device name) readable
+      by Explore. At run completion, an <strong>.avr</strong> (magnitude average) and
+      <strong>.avc</strong> (complex average) file are written to the instrument folder root for
+      each prefix group, named <code>&lt;run&gt; &lt;group&gt;.avr/.avc</code> — e.g. an H,V run
+      named <code>test2_09</code> with 12 positions per group produces <code>test2_09 H.avr</code>
+      / <code>.avc</code>, <code>test2_09 V.avr</code> / <code>.avc</code>, and a combined
+      <code>test2_09 HV.avr</code> / <code>.avc</code> across all 24 positions.
     </div>
 
     <h3>Reviewing the FRF plot</h3>
@@ -504,15 +572,17 @@
       <code>ObieAppSettings/Templates/</code> inside your Data Folder.
     </p>
     <ol class="steps">
-      <li>Click <strong>Template…</strong> to open the template manager.</li>
-      <li>Select a template from the list, then click <strong>Apply</strong>. All settings and axis ranges are restored. The applied template name is shown below the Start button.</li>
-      <li>To save current settings as a new template, click <strong>Save as Template</strong>.</li>
+      <li>Click <strong>Template:</strong> in the toolbar to open the Template &amp; Settings dialog.</li>
+      <li>Click a template in the list — it applies immediately (fields update right away). An <strong>Undo</strong> button reverts an accidental click.</li>
+      <li>The primary button at the bottom reads <strong>Use Template</strong> when your settings still match the applied template. Editing any field switches it to <strong>Update and Use Template</strong>, which saves your changes back into that template as well as applying them. With no template applied, it reads <strong>Use Settings</strong> and applies your changes to this run only.</li>
+      <li>To save the current settings as a brand-new template, click <strong>Create New Template</strong>.</li>
+      <li><strong>Reset Default Templates</strong> re-downloads the built-in templates ("HV 24 Obie Rig", "ScratchPad", "Scratchpad Obie 26") without touching your custom ones.</li>
     </ol>
     <div class="callout">
-      <strong>Template name is cleared on manual changes</strong>
-      If you edit any setting (threshold, cutoffs, axis ranges, etc.) after loading a template,
-      the template name indicator is cleared. This signals that the current settings no longer
-      match any saved template.
+      <strong>Primary button label tracks unsaved changes</strong>
+      If you edit any setting (threshold, cutoffs, axis ranges, etc.) after loading a template, the
+      primary button switches to "Update and Use Template" so it's clear the current settings no
+      longer match the saved template until you save them back into it.
     </div>
 
     <h3>Audio device disconnect</h3>
@@ -525,8 +595,20 @@
 
     <h3>Session Notes</h3>
     <p>
-      Click <strong>Notes</strong> to open the Notes panel. Enter any free-text observations about
-      the session. Notes are saved per run name and persist across reloads.
+      Click <strong>Notes</strong> (next to the Template button) to open the Notes panel and enter
+      free-text observations about the session. Notes save to <code>notes.txt</code> in the
+      instrument's folder and are shown in Explore when you hover that instrument's datasets.
+      The first time you open Notes for an instrument with no existing file, it's pre-filled with
+      a fill-in-the-blanks template (date/time, location, experiment, researchers, instrument info,
+      measurement info) to fill in or delete as needed.
+    </p>
+    <p>
+      Use <strong>🗑 Delete Notes &amp; Start Again</strong> (with a confirmation prompt) to clear the
+      notes and remove <code>notes.txt</code> from disk. <strong>📷 Add Photos…</strong> attaches one
+      or more image files to the instrument, and <strong>📸 Camera</strong> opens a live preview from
+      your computer's webcam with a <em>Snap</em> button to capture and save a photo directly —
+      both save into a <code>photos</code> folder alongside the notes. Saved photos are shown as
+      thumbnails; click one to open the full-size image in a new tab.
     </p>
 
     <h3>LiveView</h3>
@@ -537,9 +619,187 @@
 
     <div class="callout">
       <strong>Tip — adjusting the threshold on the fly</strong>
-      You can change the trigger threshold directly in the Hammer mini-plot header without
-      opening Settings. Edit the number next to <em>V</em> and press Enter. The purple dotted
-      threshold line on the Hammer time plot updates in real time.
+      You can change the trigger threshold and hammer/mic time cutoffs directly in the mini-plot
+      headers without opening Template &amp; Settings. Edit the number next to <em>V</em> (threshold)
+      or <em>s</em> (cutoff) and press Enter. The purple dotted threshold line and green cutoff line
+      update in real time.
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── Circle Fit ───────────────────────────────────────────────── -->
+  <section class="tool-section" id="circlefit">
+    <div class="tool-header">
+      <div class="icon">⭕</div>
+      <h2>Circle Fit</h2>
+      <span class="tag">PyScript · beta</span>
+    </div>
+
+    <a class="tool-link" href="../tools/circlefit/">Open Circle Fit →</a>
+
+    <p>
+      Circle Fit pins down each mode's natural frequency, damping, and modal constant from an
+      Acquire run's TRF data, using the classical Kennedy–Pancu Nyquist circle-fitting method.
+      See the <a href="./math.html#circlefit" style="color:var(--accent)">math behind circle
+      fitting</a> for the full derivation.
+    </p>
+
+    <h3>Step-by-step workflow</h3>
+    <ol class="steps">
+      <li>
+        <strong>Data Folder → Load Run…</strong> Pick a run folder containing a
+        <code>TRF/</code> subfolder (an Acquire modal/accelerometer run). All node TRFs load
+        automatically.
+      </li>
+      <li>
+        <strong>Select nodes.</strong> In the left sidebar, click one or more usable nodes
+        (marked <em>cplx</em> — they carry complex Re/Im data). The selected nodes are
+        complex-averaged into a single <em>Reference FRF</em>, shown bold on the FRF plot; every
+        other node is greyed out for context.
+      </li>
+      <li>
+        <strong>Add a candidate band.</strong> Enter a Min/Max Hz range around a visible peak
+        and click <em>＋ Add Band</em>. Add one band per mode you want to fit — bands are shaded
+        on the FRF plot.
+      </li>
+      <li>
+        <strong>Fit Modes.</strong> Runs the circle fit (with residual compensation across all
+        bands) and fills in the results table: frequency, loss factor η, Q (=1/η), |A| modal
+        constant, and a fit-quality percentage (residual RMS as a fraction of the circle's
+        radius — green when good, flagged <em>widen band</em> when the peak likely falls outside
+        the chosen band).
+      </li>
+      <li>
+        <strong>Inspect the Nyquist plot.</strong> Click a results-table row to see that mode's
+        residual-subtracted data, fitted circle, and resonance point (★) in the Re/Im plane.
+      </li>
+      <li>
+        <strong>View in Modal Analysis.</strong> Click the button on any valid row to open Modal
+        Analysis with that run loaded and the frequency slider set to the fitted resonance.
+      </li>
+    </ol>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── Modal Analysis ───────────────────────────────────────────── -->
+  <section class="tool-section" id="modeshape">
+    <div class="tool-header">
+      <div class="icon">🌊</div>
+      <h2>Modal Analysis</h2>
+      <span class="tag">PyScript · beta</span>
+    </div>
+
+    <a class="tool-link" href="../tools/modeshape/">Open Modal Analysis →</a>
+
+    <p>
+      Modal Analysis animates a plate's physical deformation at any frequency, built from an
+      Acquire run's per-node complex FRF data and a node stencil (built in Stencil Builder). See
+      the <a href="./math.html#modal" style="color:var(--accent)">math behind mode-shape
+      reconstruction</a> for how each frame is computed.
+    </p>
+
+    <h3>Step-by-step workflow</h3>
+    <ol class="steps">
+      <li>
+        <strong>Data Folder → Load Run…</strong> Pick a run folder with a <code>TRF/</code>
+        subfolder. The node sidebar and <strong>FRF View</strong> tab populate automatically.
+      </li>
+      <li>
+        <strong>Load a stencil.</strong> The stencil indicator in the toolbar shows the loaded
+        stencil (if one was saved into the run folder by Acquire); otherwise browse for one —
+        stencils are built in Stencil Builder and give each node a physical (x, y) position.
+      </li>
+      <li>
+        <strong>Pick a frequency.</strong> In <strong>FRF View</strong>, click a peak on the
+        reference FRF plot to jump straight to it, or switch to the <strong>Mode Shape</strong>
+        tab and use the Freq slider/number field directly.
+      </li>
+      <li>
+        <strong>Animate.</strong> Click <em>▶ Animate</em> to sweep the plate through one full
+        vibration cycle at that frequency. Adjust <em>Amplitude</em> to exaggerate small
+        deflections, and <em>Deform</em> to choose which axis (X/Y/Z) the displacement is drawn
+        along.
+      </li>
+      <li>
+        <strong>3D / Contour.</strong> Toggle between the animated 3-D surface and a static 2-D
+        contour map of the same mode shape. The view cube (3-D mode) snaps the camera to a face
+        or spins it with the arrow buttons.
+      </li>
+    </ol>
+
+    <div class="callout">
+      <strong>Tip — fit first, then animate</strong>
+      Use <a href="#circlefit" style="color:var(--accent)">Circle Fit</a> to precisely locate
+      each mode's natural frequency first, then click <em>View in Modal Analysis</em> on that
+      row — it's usually more accurate than eyeballing a peak on the FRF plot directly.
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── Spectrum Monitor ─────────────────────────────────────────── -->
+  <section class="tool-section" id="spectrum">
+    <div class="tool-header">
+      <div class="icon">🎙️</div>
+      <h2>Spectrum Monitor</h2>
+      <span class="tag">PyScript · beta</span>
+    </div>
+
+    <a class="tool-link" href="../tools/spectrum/">Open Spectrum Monitor →</a>
+
+    <p>
+      Spectrum Monitor is a live, single-channel microphone scope — not a measurement tool like
+      Acquire, just a quick way to see what a microphone is picking up: the raw waveform, an
+      averaged magnitude spectrum, and (on a separate tab) a scrolling spectrogram. It starts
+      capturing automatically as soon as the page loads and the browser grants microphone access.
+    </p>
+
+    <h3>Step-by-step workflow</h3>
+    <ol class="steps">
+      <li>
+        <strong>Grant microphone access.</strong> The tool starts capturing immediately on load —
+        accept the browser's microphone permission prompt. The status row shows
+        <em>Running</em> once it's live.
+      </li>
+      <li>
+        <strong>Pick the input device.</strong> Click the blue <em>Device: …</em> indicator on
+        the right of the status row (same pattern as Acquire) to open a small picker and choose
+        a different input device — it takes effect immediately, mid-capture.
+      </li>
+      <li>
+        <strong>Choose Ch 1 or Ch 2.</strong> For a stereo input device, the Channel toggle in
+        the left sidebar picks which of the two channels is displayed and analyzed; the
+        averaged spectrum resets whenever you switch channels.
+      </li>
+      <li>
+        <strong>Tune the averaging.</strong> <em>Averages (N)</em> sets how many recent snippets
+        the spectrum blends together (in linear power, then converted to dB — not a naive
+        dB average); <em>Snippet</em> sets how long each one is (seconds). Shorter snippets
+        update faster but resolve lower frequencies less precisely.
+      </li>
+      <li>
+        <strong>Pause to inspect.</strong> <em>⏸ Pause</em> freezes the current waveform and
+        spectrum so you can zoom and pan with Plotly's controls (the modebar only appears while
+        stopped or paused, to stay out of the way during live updates). <em>▶ Resume</em>
+        picks back up — the microphone itself never stops, only the display.
+      </li>
+      <li>
+        <strong>Spectrogram tab.</strong> Switch to the <em>Spectrogram</em> tab for a scrolling
+        heatmap of the last few seconds on the selected channel, computed with the same STFT
+        function Convolve uses for its spectrograms — see the
+        <a href="./math.html#spectrum" style="color:var(--accent)">math behind the averaged
+        spectrum</a> for the full derivation.
+      </li>
+    </ol>
+
+    <div class="callout">
+      <strong>Settings persist automatically</strong>
+      Device, channel, N, and snippet length are saved to this browser immediately as you change
+      them — there's no separate save button. Set a <strong>Data Folder</strong> to also persist
+      them to <code>ObieAppSettings/spectrum.json</code>, so they roam across browsers/machines
+      the same way Acquire's and LiveView's settings do.
     </div>
   </section>
 
@@ -552,7 +812,8 @@
       <p><strong>Technical reference — signal processing &amp; file formats</strong></p>
       <p>
         Detailed derivations of the H1/H2 estimators, coherence, band averaging, convolution,
-        and the acoustic wave equation, plus full binary file format specifications:
+        the acoustic wave equation, mode-shape reconstruction, and Nyquist circle fitting, plus
+        full binary file format specifications:
         <a href="./math.html">Technical Reference (HTML)</a>
         &nbsp;·&nbsp;
         <a href="./ObieDocs.pdf" target="_blank" rel="noopener">ObieDocs (original PDF)</a>.

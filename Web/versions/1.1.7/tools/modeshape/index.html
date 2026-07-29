@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../coi-serviceworker.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Modal Analysis — ObieWebApp</title>
+
+  <link rel="stylesheet" href="../../css/theme.css">
+  <script src="../../version.js"></script>
+  <script>document.write('<link rel="stylesheet" href="./modeshape.css?v='+OBIE_VERSION+'">');</script>
+
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" crossorigin="anonymous"></script>
+
+  <!-- PyScript — version set by home-page toggle -->
+  <script>(function(){var v=localStorage.getItem('obiePyScriptVersion')||'2026.3.1';document.write('<link rel="stylesheet" href="https://pyscript.net/releases/'+v+'/core.css">');document.write('<scr'+'ipt type="module" src="https://pyscript.net/releases/'+v+'/core.js"><\/scr'+'ipt>');})();</script>
+
+  <script src="../../js/obie-settings.js"></script>
+  <script src="../../js/browser-check.js"></script>
+  <script>document.write('<scr'+'ipt src="./modeshape.js?v='+OBIE_VERSION+'" defer><\/scr'+'ipt>');</script>
+</head>
+<body>
+
+<div id="loading" class="loading-overlay">
+  <div class="spin"></div>
+  <div class="load-title">Loading PyScript + NumPy…</div>
+  <div class="load-sub">First load may take 15–30 s</div>
+</div>
+<script>
+  setTimeout(function() {
+    var el = document.getElementById('loading');
+    if (!el || el.classList.contains('gone')) return;
+    el.querySelector('.spin').style.display = 'none';
+    el.querySelector('.load-title').textContent = 'Failed to load';
+    el.querySelector('.load-sub').textContent =
+      'PyScript could not be fetched. This app requires Chrome or Edge.';
+  }, 90000);
+</script>
+
+<div class="ms-page">
+
+  <!-- ── Header ─────────────────────────────────────────────────────────────── -->
+  <header class="obie-header">
+    <a class="brand" href="../../index.html">
+      <div class="logo-icon">🎻</div>
+      <h1>ObieWebApp</h1>
+    </a>
+    <span class="crumb">· Modal Analysis</span>
+    <div class="gap"></div>
+    <a class="btn" href="../../index.html" style="font-size:0.75rem;padding:3px 9px">← All tools</a>
+  </header>
+
+  <!-- ── Toolbar ─────────────────────────────────────────────────────────────── -->
+  <div class="ms-toolbar">
+    <button class="tb-btn" onclick="msSetDataFolder()">📁 Data Folder</button>
+    <span id="ms-folder-name" class="folder-name-disp"></span>
+    <div class="tb-flex"></div>
+    <button class="tb-btn" onclick="msLoadRun()">Load Run…</button>
+    <span id="ms-run-ind" class="ms-ind"></span>
+    <div class="ms-toolbar-sep"></div>
+    <span id="ms-stencil-ind" class="ms-ind" style="color:var(--accent-3,#2e7d32)"></span>
+    <div class="tb-flex"></div>
+    <button class="tb-btn" onclick="msHelp()">Help</button>
+  </div>
+
+  <!-- ── Status row ──────────────────────────────────────────────────────────── -->
+  <div class="ms-status-row">
+    <span id="ms-status" class="ms-status-txt">Load a run folder to begin.</span>
+    <span id="ms-count" class="ms-soundcard-ind"></span>
+  </div>
+
+  <!-- ── Tab bar ─────────────────────────────────────────────────────────────── -->
+  <div class="ms-tab-bar">
+    <div class="ms-tab active" id="tab-frf"  onclick="msSetTab('frf')">FRF View</div>
+    <div class="ms-tab"        id="tab-mode" onclick="msSetTab('mode')">Mode Shape</div>
+  </div>
+
+  <!-- ── FRF View panel ──────────────────────────────────────────────────────── -->
+  <div class="ms-tab-panel active" id="panel-frf">
+    <div class="ms-frf-body">
+
+      <!-- Node sidebar -->
+      <aside class="ms-node-sidebar">
+        <div class="ms-sidebar-hdr">Nodes</div>
+        <div id="ms-node-list" class="ms-node-list">
+          <div class="ms-list-empty">No data loaded</div>
+        </div>
+      </aside>
+
+      <!-- Main FRF plot -->
+      <div class="ms-frf-main">
+        <div id="ms-frf-plot" style="flex:1;min-height:0;width:100%"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Mode Shape panel ────────────────────────────────────────────────────── -->
+  <div class="ms-tab-panel" id="panel-mode">
+
+    <!-- Controls bar -->
+    <div class="ms-mode-controls">
+      <span class="tb-lbl">Freq</span>
+      <input type="range" id="ms-freq-slider" class="ms-freq-slider"
+             min="1" max="7000" step="1" value="1000"
+             oninput="msSyncFreq(this.value)">
+      <input type="number" id="ms-freq-num" class="tb-inp"
+             min="1" max="7000" step="1" value="1000" style="width:64px"
+             oninput="msSyncFreq(this.value)">
+      <span class="tb-lbl">Hz</span>
+      <div style="width:10px"></div>
+      <span class="tb-lbl">Amplitude</span>
+      <input type="number" id="ms-amp" class="tb-inp"
+             min="0.01" max="200" step="0.1" value="1.0" style="width:58px"
+             oninput="msSyncAmp(this.value)">
+      <div style="width:10px"></div>
+      <button class="tb-btn" id="ms-anim-btn" onclick="msToggleAnimation()">▶ Animate</button>
+      <div style="width:6px"></div>
+      <span class="tb-lbl">Deform</span>
+      <select id="ms-deform-axis" class="tb-inp" style="width:46px"
+              onchange="msSyncAxis(this.value)">
+        <option value="z">Z</option>
+        <option value="x">X</option>
+        <option value="y">Y</option>
+      </select>
+      <div class="tb-flex"></div>
+      <button class="tb-btn" id="ms-frf-panel-btn" onclick="msToggleRefFRF()" title="Show/hide FRF panel">◀ FRF</button>
+    </div>
+
+    <!-- Mode body: ref FRF (left) + 3-D plot (right) -->
+    <div class="ms-mode-body">
+
+      <div class="ms-ref-frf-wrap">
+        <div class="ms-ref-title">Click to set frequency</div>
+        <div id="ms-ref-frf" style="flex:1;min-height:0"></div>
+      </div>
+
+      <div class="ms-mode-plot-wrap">
+        <div id="ms-no-data-msg" class="ms-no-data">
+          Load a run and stencil to see mode shapes
+        </div>
+        <div id="ms-mode-plot" style="flex:1;min-height:0;width:100%;display:none"></div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- .ms-page -->
+
+<!-- ── Load Run modal ────────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="run-modal">
+  <div class="modal-box" style="width:min(92vw,480px)">
+    <div class="modal-header">
+      <span class="modal-title">Load Run</span>
+      <button class="modal-close" onclick="msCloseRunModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5">
+        Select a run folder. Any folder containing a <code>TRF/</code> subfolder is shown.
+        Instrument folders are scanned one level deep.
+      </p>
+      <div id="run-list" class="tpl-list">
+        <div class="tpl-list-empty">Set a Data Folder to see runs.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="act-btn" onclick="msRefreshRunList()">↺ Refresh</button>
+      <button class="act-btn" onclick="msCloseRunModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Stencil modal ──────────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="stencil-modal">
+  <div class="modal-box" style="width:min(92vw,420px)">
+    <div class="modal-header">
+      <span class="modal-title">Node Stencil</span>
+      <button class="modal-close" onclick="msCloseStencilModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5">
+        A stencil provides physical node positions (x, y) for the mode shape plot.
+        Build stencils in <strong>Stencil Builder</strong>.
+      </p>
+      <div id="ms-stencil-list" class="tpl-list">
+        <div class="tpl-list-empty">Set a Data Folder to load stencils.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="act-btn" onclick="msBrowseStencil()">Browse file…</button>
+      <button class="act-btn" onclick="msCloseStencilModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script type="py" src="./main.py" config="./pyscript.toml" async></script>
+</body>
+</html>

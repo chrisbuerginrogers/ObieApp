@@ -296,6 +296,17 @@ All six plot axes are stored in `localStorage` prefs and in template JSON. The m
 
 Templates should include: `frf_x_min/max`, `frf_y_min/max`, `ham_x_min/max`, `ham_y_min/max`, `mic_x_min/max`, `mic_y_min/max`, `fft_x_min/max`, `fft_y_min/max`.
 
+### Per-run output — template.json
+
+Acquire writes a single **`template.json`** per run folder, combining what used to be two separate files (`settings.json` + `stencil.json`). It merges the run-settings snapshot from `_loadPrefs()` with the applied node stencil under a `stencil` key. Modal Analysis and Stencil Builder read `template.json` first and fall back to the old split `settings.json`/`stencil.json` format for runs written before this change — that fallback logic lives in those tools, not in Acquire. Acquire itself never reads these files back for its own operation (its live state comes from `_settingsHandle`'s `acquire.json` and `_templatesHandle`); they are pure output artifacts for other tools to consume.
+
+- `_currentStencilData` (module-level) is `null` on every fresh page load, only populated when the user applies a stencil via `window.acqApplyStencil` in that session. `_refreshInstrumentFolder` therefore backfills from a legacy `stencil.json` (if present on disk and no in-memory stencil is set yet) **before** writing `template.json`, so reopening an old run doesn't silently drop a previously-applied stencil.
+- `_saveStencilToRun()` reads any existing `template.json` first and merges the stencil in (`{ ...existing, stencil: _currentStencilData }`) rather than clobbering the settings snapshot already written by `_refreshInstrumentFolder`.
+
+### Signal-type dropdown labels
+
+The signal-type `<select>` values are unchanged (`microphone` / `accelerometer`), but the visible labels are **"🔊 Radiation"** and **"📡 Modal Analysis"** — not "Mic" / "Accel". Match this wording in any new UI that surfaces signal type.
+
 ### Instrument overlay
 
 `_refreshOverlays()` shows a "name your instrument" cover over the plot area **only** when:
@@ -312,6 +323,16 @@ Without a loaded template the user can run in scratch/unnamed mode freely. Never
 - `_appliedPrefix` / `_appliedPerGroup` — tracks what Python's state machine actually has (not stale localStorage). Always read from these for the info panel, not from `_loadPrefs()`.
 
 ---
+
+## Docs (Web/Docs/)
+
+Three files, each with its own established structure — match it exactly when adding a new tool's docs:
+
+- **`math.html`** — "Technical Reference," KaTeX-rendered (`$...$` / `\(...\)`), numbered `<section class="math-section" id="...">` blocks with `.section-header`, `ul.steps`, `.callout`, `pre code`. Sections so far: 1 FRF/H1/H2, 2 band averages, 3 convolutions, 4 file formats, 5 acoustic wave equation, 6 Modal Analysis mode-shape reconstruction, 7 Circle Fit (Kennedy–Pancu Nyquist method). When documenting math for a feature, derive it from the actual implementation (read the `.py`/`.js` source), not from a generic textbook treatment — and explicitly flag any implemented-but-not-yet-wired-into-the-UI functions (e.g. `fit_node_residues` / `pyCFFitNodeResidues` exists in `circlefit.py` and is exposed to the browser but Circle Fit's UI doesn't call it yet).
+- **`index.html`** — "User Guide," one `<section class="tool-section" id="...">` per tool (icon + `<h2>` + tag like "PyScript · beta"), `.tool-link` to the tool itself, `ol.steps` workflow, `.key-table`, `.callout`. Link to the matching `math.html#section` anchor when relevant math exists.
+- **`changelog.html`** — `<section class="log-entry">` per version, newest first, tagged Beta/Stable with a date, with `.log-group` subsections per tool area touched.
+
+Consistent tool icons (match `Web/index.html`'s tool cards): Modal Analysis = 🌊, Stencil Builder = 📐, Circle Fit = ⭕.
 
 ## CSS / Theming
 

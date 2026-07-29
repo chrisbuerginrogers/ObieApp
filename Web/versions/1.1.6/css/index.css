@@ -2,6 +2,24 @@
  * index.css — landing-page-specific styles (cards grid)
  * ───────────────────────────────────────────────────────────────────── */
 
+/* Shown only on archived version pages (see the _currentArchivedVersion
+   check in index.html) — a clear visual break from the live site so an
+   old stable snapshot never gets mistaken for "latest". */
+.archive-banner {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 16px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent-3);
+  border-bottom: 3px solid var(--accent);
+  text-align: center;
+}
+.archive-banner a { color: #fff; text-decoration: underline; }
+
 main.landing {
   max-width: 920px;
   margin: 0 auto;

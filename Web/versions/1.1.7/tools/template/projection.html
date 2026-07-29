@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Node Projection — ObieWebApp</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #000; overflow: hidden; width: 100%; height: 100%; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<canvas id="proj-canvas"></canvas>
+<script>
+(function () {
+  'use strict';
+
+  const canvas = document.getElementById('proj-canvas');
+  const ctx    = canvas.getContext('2d');
+
+  let _nodes        = [];
+  let _transform    = { scale: 5, xStretch: 1, yStretch: 1, rotation: 0, panX: 0, panY: 0 };
+  let _nodeRadius   = 10;
+  let _currentNode  = null;       // id of node to hit next (highlighted)
+  let _doneNodes    = new Set();  // ids of already-measured nodes
+
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    render();
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function physToScreen(xMm, yMm) {
+    const { scale, xStretch, yStretch, rotation, panX, panY } = _transform;
+    const W = canvas.width, H = canvas.height;
+    const rad = rotation * Math.PI / 180;
+    const px  = xMm * scale * xStretch;
+    const py  = yMm * scale * yStretch;
+    return {
+      x: W / 2 + panX + px * Math.cos(rad) - py * Math.sin(rad),
+      y: H / 2 + panY + px * Math.sin(rad) + py * Math.cos(rad)
+    };
+  }
+
+  function render() {
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+
+    if (!_nodes.length) return;
+
+    // Draw edges between row/col neighbors
+    ctx.strokeStyle = 'rgba(0, 220, 100, 0.3)';
+    ctx.lineWidth = 1.5;
+    _nodes.forEach(n => {
+      const pos  = physToScreen(n.xMm, n.yMm);
+      const right = _nodes.find(m => m.row === n.row && m.col === n.col + 1);
+      if (right) {
+        const rp = physToScreen(right.xMm, right.yMm);
+        ctx.beginPath(); ctx.moveTo(pos.x, pos.y); ctx.lineTo(rp.x, rp.y); ctx.stroke();
+      }
+      const below = _nodes.find(m => m.row === n.row + 1 && m.col === n.col);
+      if (below) {
+        const bp = physToScreen(below.xMm, below.yMm);
+        ctx.beginPath(); ctx.moveTo(pos.x, pos.y); ctx.lineTo(bp.x, bp.y); ctx.stroke();
+      }
+    });
+
+    // Draw nodes — three states: current (next hit), done, pending
+    const r = _nodeRadius;
+    const watching = _currentNode !== null || _doneNodes.size > 0;
+
+    _nodes.forEach(n => {
+      const pos     = physToScreen(n.xMm, n.yMm);
+      const isCur   = n.id === _currentNode;
+      const isDone  = _doneNodes.has(n.id);
+
+      if (isCur) {
+        // Outer pulse ring — draws attention when projected onto violin
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, r * 2.4, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255, 220, 0, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, r * 1.6, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255, 220, 0, 0.8)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      const nodeR = isCur ? r * 1.3 : r;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, nodeR, 0, Math.PI * 2);
+
+      if (isCur)        ctx.fillStyle = '#ffee00';              // bright yellow — current
+      else if (isDone)  ctx.fillStyle = 'rgba(90,110,85,0.45)'; // dimmed — done
+      else if (watching) ctx.fillStyle = 'rgba(0,200,90,0.55)'; // muted green — pending
+      else              ctx.fillStyle = '#00ff66';               // full green — no watch mode
+
+      ctx.fill();
+
+      // Label
+      ctx.fillStyle = isCur ? '#000' : (isDone ? 'rgba(200,220,190,0.5)' : '#000');
+      ctx.font = `bold ${Math.max(8, Math.round(nodeR * 1.1))}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(n.label, pos.x, pos.y);
+    });
+  }
+
+  window.addEventListener('message', e => {
+    if (!e.data || e.data.type !== 'tpl-update') return;
+    if (e.data.nodes)               _nodes       = e.data.nodes;
+    if (e.data.transform)           _transform   = e.data.transform;
+    if (e.data.nodeRadius != null)  _nodeRadius  = e.data.nodeRadius;
+    if ('currentNode' in e.data)    _currentNode = e.data.currentNode;
+    if (e.data.doneNodes)           _doneNodes   = new Set(e.data.doneNodes);
+    render();
+  });
+})();
+</script>
+</body>
+</html>

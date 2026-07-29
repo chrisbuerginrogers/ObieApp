@@ -31,6 +31,8 @@
   <a class="btn" href="./Docs/shortcuts.html" style="font-size:0.75rem;padding:3px 9px" target="_blank">Tips</a>
 </header>
 
+<div id="archive-banner" class="archive-banner"></div>
+
 <main class="landing">
 
   <section class="intro">
@@ -54,24 +56,25 @@
 
   <hr class="divider">
 
-  <p class="section-label">🔍 Tools — v1.1.6 (stable)
+  <p class="section-label">🔍 Tools — v1.1.7 (stable)
     <span id="py-preload-bar" class="py-preload-bar"></span>
   </p>
   <div class="tool-grid">
 
-    <a class="tool-card" href="./versions/1.1.6/tools/explore/">
+    <a class="tool-card" href="./versions/1.1.7/tools/explore/">
       <div class="head">
         <div class="icon">🔍</div>
         <span class="name">Explore</span>
       </div>
       <p class="desc">
         Load, compare, and interpret multiple FRF files. Overlaid plots with smoothing, normalization,
-        band averaging, FRF interpretation, and per-dataset convolution playback.
+        band and group averaging, coherence overlays, and per-dataset convolution playback. Print a
+        labeled plot or ask Claude a question, right from the toolbar.
       </p>
       <span class="tag app">Tool · PyScript</span>
     </a>
 
-    <a class="tool-card" href="./versions/1.1.6/tools/convolve/">
+    <a class="tool-card" href="./versions/1.1.7/tools/convolve/">
       <div class="head">
         <div class="icon">🔀</div>
         <span class="name">Convolve</span>
@@ -84,41 +87,41 @@
       <span class="tag app">Tool · PyScript</span>
     </a>
 
-    <a class="tool-card" href="./versions/1.1.6/tools/acquire/">
+    <a class="tool-card" href="./versions/1.1.7/tools/acquire/">
       <div class="head">
         <div class="icon">🎯</div>
         <span class="name">Acquire</span>
       </div>
       <p class="desc">
-        Impact-hammer FRF acquisition with auto-accept, calibration factors,
-        overlaid multi-position plots, template support, and session notes.
+        Impact-hammer FRF acquisition with auto-accept, calibration factors, multi-position
+        templates, an on-screen Agenda checklist, and session notes with camera capture.
         Settings and templates saved to your Data Folder.
+      </p>
+      <span class="tag app">Tool · PyScript</span>
+    </a>
+
+    <a class="tool-card" href="./versions/1.1.7/tools/liveview/">
+      <div class="head">
+        <div class="icon">📡</div>
+        <span class="name">LiveView</span>
+      </div>
+      <p class="desc">
+        Stand-alone real-time hammer/mic monitor and live FRF estimate — the same LiveView as
+        Acquire's "LiveView" button, in its own tab so it can run on a second monitor. Also
+        reachable from inside Acquire.
       </p>
       <span class="tag app">Tool · PyScript</span>
     </a>
 
   </div>
 
-  <p class="section-label">🧬 Beta — v1.1.7 (testing)</p>
-  <div class="tool-grid">
-
-    <a class="tool-card experimental" href="./tools/acquire/">
-      <div class="head">
-        <div class="icon">🎯</div>
-        <span class="name">Acquire <span style="font-size:10px;font-weight:400;opacity:0.75">beta</span></span>
-      </div>
-      <p class="desc">
-        Now also collects modal data: configurable response label (acceleration,
-        velocity, displacement) and stencil-driven node positions for roving-hammer
-        modal surveys.
-      </p>
-      <span class="tag experimental-tag">Beta</span>
-    </a>
+  <p class="section-label" id="beta-section-label">🧬 Beta — v1.1.8 (testing)</p>
+  <div class="tool-grid" id="beta-section-grid">
 
     <a class="tool-card experimental" href="./tools/modeshape/">
       <div class="head">
         <div class="icon">🌊</div>
-        <span class="name">Modal Analysis <span style="font-size:10px;font-weight:400;opacity:0.75">updated</span></span>
+        <span class="name">Modal Analysis <span style="font-size:10px;font-weight:400;opacity:0.75">beta</span></span>
       </div>
       <p class="desc">
         Visualisation and animation of mode shapes from an Acquire modal dataset.
@@ -131,12 +134,39 @@
     <a class="tool-card experimental" href="./tools/template/">
       <div class="head">
         <div class="icon">📐</div>
-        <span class="name">Stencil Builder <span style="font-size:10px;font-weight:400;opacity:0.75">new</span></span>
+        <span class="name">Stencil Builder <span style="font-size:10px;font-weight:400;opacity:0.75">beta</span></span>
       </div>
       <p class="desc">
         Design and calibrate node layouts for projector-assisted hammer testing.
         Drag nodes to position, adjust the projection transform to fit your
         violin, and save stencils that automatically set positions in Acquire.
+      </p>
+      <span class="tag experimental-tag">Beta</span>
+    </a>
+
+    <a class="tool-card experimental" href="./tools/circlefit/">
+      <div class="head">
+        <div class="icon">⭕</div>
+        <span class="name">Circle Fit</span>
+      </div>
+      <p class="desc">
+        Nyquist circle fitting with residual compensation for accelerometer-based
+        modal FRF data. Pin down each mode's natural frequency and damping, then
+        jump straight to that frequency in Modal Analysis.
+      </p>
+      <span class="tag experimental-tag">Beta</span>
+    </a>
+
+    <a class="tool-card experimental" href="./tools/spectrum/">
+      <div class="head">
+        <div class="icon">🎙️</div>
+        <span class="name">Spectrum Monitor <span style="font-size:10px;font-weight:400;opacity:0.75">new</span></span>
+      </div>
+      <p class="desc">
+        Live single-channel microphone scope: raw waveform, an averaged
+        magnitude spectrum (block average of the last N ~0.3 s snippets), and
+        an on-demand scrolling spectrogram. Pick channel 1 or 2, pause anytime
+        to zoom in on a Plotly chart.
       </p>
       <span class="tag experimental-tag">Beta</span>
     </a>
@@ -156,6 +186,17 @@
         controls reference, and links to the full technical PDF.
       </p>
       <span class="tag">Guide</span>
+    </a>
+
+    <a class="tool-card" href="./Docs/changelog.html">
+      <div class="head">
+        <div class="icon">🗒️</div>
+        <span class="name">Changelog</span>
+      </div>
+      <p class="desc">
+        Log of fixes and features, per version.
+      </p>
+      <span class="tag">Log</span>
     </a>
 
     <a class="tool-card" href="https://github.com/chrisbuerginrogers/ObieApp/tree/main/Python" target="_blank" rel="noopener">
@@ -239,6 +280,19 @@
       <span class="tag experimental-tag">Experimental</span>
     </a>
 
+    <a class="tool-card experimental" href="https://torebutlin.github.io/pydvma/app/" target="_blank" rel="noopener">
+      <div class="head">
+        <div class="icon">🔗</div>
+        <span class="name">pyDVMA (external)</span>
+      </div>
+      <p class="desc">
+        An independent, browser-based data acquisition &amp; measurement analysis app by
+        Tore Butlin — a different take on much of what ObieWebApp does. Not part of this
+        repo; opens on its own site.
+      </p>
+      <span class="tag experimental-tag">External</span>
+    </a>
+
   </div>
 
   <div class="ps-ver-row">
@@ -316,6 +370,32 @@ preloadPyodide();
   var _vIdx   = _vParts.indexOf('versions');
   var _currentArchivedVersion = (_vIdx >= 0 && _vParts[_vIdx + 1] && /^\d+\.\d+\.\d+$/.test(_vParts[_vIdx + 1]))
                                 ? _vParts[_vIdx + 1] : null;
+
+  // Archived snapshots are frozen forever, but "Beta" is a moving target —
+  // a frozen Beta section just shows whatever was newest the day this page
+  // was archived, which reads as confusingly out of date. So on any archived
+  // page, replace it with a single card pointing at the live site instead of
+  // duplicating (and eventually mis-describing) the current beta lineup.
+  if (_currentArchivedVersion) {
+    var banner = document.getElementById('archive-banner');
+    if (banner) {
+      banner.style.display = 'flex';
+      banner.innerHTML = '📦 You are viewing archived stable release <strong>v' + _currentArchivedVersion +
+        '</strong> — frozen and will never change. <a href="../../">Go to the live site for the current beta →</a>';
+    }
+    var betaLabel = document.getElementById('beta-section-label');
+    var betaGrid  = document.getElementById('beta-section-grid');
+    if (betaLabel) betaLabel.textContent = '🧬 Beta — latest';
+    if (betaGrid) {
+      betaGrid.innerHTML =
+        '<a class="tool-card experimental" href="../../">' +
+          '<div class="head"><div class="icon">🧬</div><span class="name">Current Beta Tools</span></div>' +
+          '<p class="desc">You’re viewing an archived stable snapshot (v' + _currentArchivedVersion + '). ' +
+          'The beta lineup changes constantly — visit the live site to see what’s currently in testing.</p>' +
+          '<span class="tag experimental-tag">Beta</span>' +
+        '</a>';
+    }
+  }
 
   window.goToVersion = function(v) {
     if (!v) {

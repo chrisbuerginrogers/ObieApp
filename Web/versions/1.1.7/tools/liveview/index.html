@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../coi-serviceworker.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LiveView — ObieWebApp 2</title>
+
+  <link rel="stylesheet" href="../../css/theme.css">
+  <script src="../../version.js"></script>
+  <script>document.write('<link rel="stylesheet" href="./liveview.css?v=' + OBIE_VERSION + '">');</script>
+
+  <script src="../../js/obie-settings.js"></script>
+  <script src="../../js/browser-check.js"></script>
+  <script>document.write('<scr'+'ipt src="./liveview.js?v=' + OBIE_VERSION + '" defer><\/scr'+'ipt>');</script>
+</head>
+<body>
+
+<div class="lvp-page">
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <header class="obie-header">
+    <a class="brand" href="../../index.html">
+      <div class="logo-icon">🎻</div>
+      <h1>ObieWebApp 2</h1>
+    </a>
+    <span class="crumb">· LiveView</span>
+    <div class="gap"></div>
+    <a class="btn" href="../../index.html" style="font-size:0.75rem;padding:3px 9px">← All tools</a>
+  </header>
+
+  <!-- ── Toolbar ──────────────────────────────────────────────────────────── -->
+  <div class="lvp-toolbar">
+    <button id="lv-folder-btn" class="tb-btn" onclick="lvSetDataFolder()">📁 Data Folder</button>
+    <span id="lv-folder-name" class="folder-name-disp"></span>
+    <div class="tb-flex"></div>
+    <button class="tb-btn" onclick="lvSaveAsDefaultSettings()">💾 Save as Default Settings</button>
+    <span id="lv-save-msg" class="save-msg"></span>
+    <button class="tb-btn" onclick="lvHelp()">Help</button>
+    <button id="lv-start-btn" class="tb-btn accent" onclick="lvToggleCapture()">▶ Start</button>
+  </div>
+
+  <!-- ── Body: settings sidebar + three live canvases ───────────────────── -->
+  <div class="lv-body">
+
+    <!-- Left settings panel -->
+    <div class="lv-left">
+      <div>
+        <div class="lv-sect">Input Device</div>
+        <select id="lv-mic-sel" style="width:100%;font-size:11px;margin-bottom:6px"
+                onchange="lvRestartWithDevice()"></select>
+      </div>
+      <div>
+        <div class="lv-sect">Mode</div>
+        <div class="mode-row">
+          <button class="mode-btn active" id="lv-mode-live"    onclick="lvSetMode('live')">Live</button>
+          <button class="mode-btn"        id="lv-mode-trigger" onclick="lvSetMode('trigger')">Trigger</button>
+        </div>
+      </div>
+      <div>
+        <div class="lv-sect">Trigger / Window</div>
+        <div class="lv-row">
+          <label>Threshold</label>
+          <input id="lv-inp-thr"  type="number" value="0.05" step="0.005" min="0.001" max="1">
+          <span class="lv-unit">V</span>
+        </div>
+        <div class="lv-row">
+          <label>Pre-trig</label>
+          <input id="lv-inp-pre"  type="number" value="0.01" step="0.005" min="0.001" max="0.5">
+          <span class="lv-unit">s</span>
+        </div>
+        <div class="lv-row">
+          <label>Post-trig</label>
+          <input id="lv-inp-post" type="number" value="0.30" step="0.05"  min="0.05"  max="5">
+          <span class="lv-unit">s</span>
+        </div>
+      </div>
+      <div>
+        <div class="lv-sect">Display</div>
+        <div class="lv-row">
+          <label>Averages</label>
+          <input id="lv-num-avg" type="number" value="4" min="1" max="50">
+        </div>
+      </div>
+      <div>
+        <div id="lv-status" class="lv-status">Press Start to begin</div>
+        <div id="lv-level-h" class="lv-stat">–</div>
+        <div style="font-size:9px;color:var(--muted);text-align:center">Hammer peak</div>
+        <div id="lv-level-m" class="lv-stat" style="color:#1565c0">–</div>
+        <div style="font-size:9px;color:var(--muted);text-align:center">Mic peak</div>
+        <div id="lv-hits" style="font-size:11px;color:var(--muted);text-align:center;margin-top:6px"></div>
+        <button id="lv-clear-btn" class="act-btn" style="width:100%;margin-top:6px;display:none"
+                onclick="lvClearFRF()">Clear FRF</button>
+      </div>
+    </div>
+
+    <!-- Right: three live canvases -->
+    <div class="lv-right">
+      <div class="lv-chart-wrap">
+        <div class="lv-chart-title" style="color:#c62828">Hammer — Channel R</div>
+        <canvas id="lv-hammer-canvas" class="lv-canvas"></canvas>
+      </div>
+      <div class="lv-chart-wrap">
+        <div class="lv-chart-title" id="lv-mic-ch-title" style="color:#1565c0">Microphone — Channel L</div>
+        <canvas id="lv-mic-canvas" class="lv-canvas"></canvas>
+      </div>
+      <div class="lv-chart-wrap">
+        <div class="lv-chart-title" id="lv-frf-title" style="color:#6a1b9a">FRF (Mic / Hammer)</div>
+        <canvas id="lv-frf-canvas" class="lv-canvas"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+</body>
+</html>
