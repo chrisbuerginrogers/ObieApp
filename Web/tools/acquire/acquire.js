@@ -1663,8 +1663,23 @@ window.acqOpenTemplateSettings = async function() {
     _renderTemplateList();
     _renderStencilList();
   }
+  // Reflect whatever stencil is already applied to this run (or none).
+  _selectedStencil = _currentStencilName
+    ? _stencils.findIndex(s => s.name === _currentStencilName)
+    : -1;
+  _renderStencilList();
+  _renderStencilThumb();
   _tplBaselineFields = _captureTplFieldValues();
   _updateTplPrimaryBtnLabel();
+};
+
+window.acqTogglePlotSettings = function() {
+  const body = document.getElementById('plot-settings-body');
+  const chevron = document.getElementById('plot-settings-chevron');
+  if (!body) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : '';
+  if (chevron) chevron.textContent = isOpen ? '▸' : '▾';
 };
 
 // Re-fetch the three built-in default templates from GitHub and overwrite
@@ -2343,32 +2358,46 @@ async function _loadStencilsFromFolder(dir) {
 function _renderStencilList() {
   const container = document.getElementById('stencil-list');
   if (!container) return;
-  if (!_stencils.length) {
-    container.innerHTML = '<div style="font-size:11px;color:var(--muted);padding:4px 0">No stencils saved — build one in Stencil Builder and set a Data Folder.</div>';
-    return;
-  }
-  container.innerHTML = _stencils.map((s, i) => {
-    const pos = s.settings?.positions;
-    const meta = pos != null ? `${pos} nodes` : '';
-    return `
+  const noneSelected = _selectedStencil === -1 || _selectedStencil === null;
+  let html = `
+      <div class="tpl-item${noneSelected ? ' selected' : ''}" onclick="acqSelectStencil(-1)">
+        <div class="tpl-name">None</div>
+      </div>`;
+  if (_stencils.length) {
+    html += _stencils.map((s, i) => {
+      const pos = s.settings?.positions;
+      const meta = pos != null ? `${pos} nodes` : '';
+      return `
       <div class="tpl-item${_selectedStencil === i ? ' selected' : ''}" onclick="acqSelectStencil(${i})">
         <div class="tpl-name">${s.name || 'Unnamed'}</div>
         ${meta ? `<div class="tpl-desc">${meta}</div>` : ''}
       </div>`;
-  }).join('');
+    }).join('');
+  } else {
+    html += '<div style="font-size:11px;color:var(--muted);padding:4px 0">No stencils saved — build one in Stencil Builder and set a Data Folder.</div>';
+  }
+  container.innerHTML = html;
 }
 
-window.acqSelectStencil = function(i) {
+// Selecting a stencil (or "None") applies it immediately — there is no
+// separate Apply step. Mirrors the old acqApplyStencil behavior.
+window.acqSelectStencil = async function(i) {
   _selectedStencil = i;
   _renderStencilList();
-};
+  const ind = document.getElementById('stencil-ind');
+  const msg = document.getElementById('stencil-applied-msg');
 
-window.acqApplyStencil = async function() {
-  if (_selectedStencil === null || !_stencils[_selectedStencil]) {
-    alert('Select a stencil first.');
+  if (i === -1 || i === null || !_stencils[i]) {
+    _currentStencilName = '';
+    _currentStencilData = null;
+    if (ind) ind.textContent = '';
+    _renderStencilThumb();
+    await _saveStencilToRun();
+    if (msg) { msg.textContent = '✓ No stencil'; setTimeout(() => { msg.textContent = ''; }, 2500); }
     return;
   }
-  const s = _stencils[_selectedStencil];
+
+  const s = _stencils[i];
   const positions = s.settings?.positions;
   if (positions != null) {
     const el = document.getElementById('inp-positions');
@@ -2378,17 +2407,74 @@ window.acqApplyStencil = async function() {
   // Store a clean copy without the internal _file key
   const { _file, ...stencilData } = s;
   _currentStencilData = stencilData;
-  const ind = document.getElementById('stencil-ind');
   if (ind) ind.textContent = _currentStencilName ? `📐 ${_currentStencilName}` : '';
+  _renderStencilThumb();
   // Persist stencil to current run folder so Modal Analysis can find it
   await _saveStencilToRun();
   // Show confirmation
-  const msg = document.getElementById('stencil-applied-msg');
   if (msg) { msg.textContent = `✓ ${_currentStencilName} applied`; setTimeout(() => { msg.textContent = ''; }, 2500); }
 };
 
+// Small dark-canvas thumbnail of the applied stencil's node layout, shown
+// in the Hit Detection column so the user can see what's active without
+// leaving the Run Settings tab.
+function _renderStencilThumb() {
+  const wrap = document.getElementById('stencil-thumb-wrap');
+  const canvas = document.getElementById('stencil-thumb-canvas');
+  const nameEl = document.getElementById('stencil-thumb-name');
+  if (!wrap || !canvas) return;
+
+  const nodes = _currentStencilData?.nodes;
+  if (!Array.isArray(nodes) || !nodes.length) {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = '';
+  if (nameEl) nameEl.textContent = _currentStencilName || '';
+
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  const xs = nodes.map(n => n.xMm), ys = nodes.map(n => n.yMm);
+  const xMin = Math.min(...xs), xMax = Math.max(...xs);
+  const yMin = Math.min(...ys), yMax = Math.max(...ys);
+  const pad = 14;
+  const spanX = (xMax - xMin) || 1, spanY = (yMax - yMin) || 1;
+  const scale = Math.min((W - 2 * pad) / spanX, (H - 2 * pad) / spanY);
+  const toXY = n => ({
+    x: W / 2 + (n.xMm - (xMin + xMax) / 2) * scale,
+    y: H / 2 + (n.yMm - (yMin + yMax) / 2) * scale
+  });
+
+  // Edges between row/col neighbors (same convention as Stencil Builder's canvas).
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  ctx.lineWidth = 1;
+  nodes.forEach(n => {
+    const right = nodes.find(m => m.row === n.row && m.col === n.col + 1);
+    const below = nodes.find(m => m.col === n.col && m.row === n.row + 1);
+    const p = toXY(n);
+    [right, below].forEach(m => {
+      if (!m) return;
+      const q = toXY(m);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(q.x, q.y);
+      ctx.stroke();
+    });
+  });
+
+  ctx.fillStyle = '#d07000';
+  nodes.forEach(n => {
+    const p = toXY(n);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
 async function _saveStencilToRun() {
-  if (!_currentStencilData || !_testHandle) return;
+  if (!_testHandle) return;
   try {
     let existing = {};
     try {

@@ -292,6 +292,9 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 .pref-section { font-size: 10px; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.5px; color: var(--muted); margin: 14px 0 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
 .pref-section:first-child { margin-top: 0; }
+.pref-section-toggle { cursor: pointer; user-select: none; }
+.pref-section-toggle:hover { color: var(--text); }
+.pref-section-toggle span { display: inline-block; width: 14px; font-size: 14px; line-height: 1; vertical-align: -1px; }
 .pref-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .pref-row label { font-size: 11px; color: var(--muted); min-width: 150px; }
 .pref-row input, .pref-row select { flex: 1; max-width: 160px; }

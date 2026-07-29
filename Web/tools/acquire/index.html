@@ -279,16 +279,10 @@
 
         <div class="setup-section-hdr">Node Stencil</div>
         <p style="font-size:10px;color:var(--muted);margin-bottom:6px;line-height:1.4">
-          Build stencils in <strong>Stencil Builder</strong>. Applied stencil is saved with each run.
+          Build stencils in <strong><a href="#" onclick="acqOpenStencilBuilder();return false;" style="color:inherit;text-decoration:underline;cursor:pointer" title="Open Stencil Builder in a new tab to create or edit a node stencil">Stencil Builder</a></strong>. Selecting one below applies it immediately and saves it with each run.
         </p>
-        <div class="save-row" style="margin-bottom:10px">
-          <button class="act-btn" onclick="acqOpenStencilBuilder()" title="Open Stencil Builder in a new tab to create or edit a node stencil">🔧 Build Stencil</button>
-        </div>
-        <div id="stencil-list" class="tpl-list" style="max-height:110px" title="Click a saved stencil to select it">
-          <div style="font-size:11px;color:var(--muted)">No stencils loaded — set a Data Folder.</div>
-        </div>
-        <div class="save-row" style="margin-top:10px;margin-bottom:14px">
-          <button class="act-btn accent" onclick="acqApplyStencil()" title="Apply the selected node stencil to this run">Apply Stencil</button>
+        <div id="stencil-list" class="tpl-list" style="max-height:110px" title="Click a stencil to apply it — None removes any stencil from this run"></div>
+        <div class="save-row" style="margin-top:6px;margin-bottom:14px">
           <span id="stencil-applied-msg" class="save-msg"></span>
         </div>
       </div>
@@ -338,6 +332,13 @@
           <span class="pref-unit">s</span>
         </div>
         <p class="pref-hint">Signal is zeroed after this time post-trigger.</p>
+
+        <div id="stencil-thumb-wrap" style="display:none;margin-top:10px">
+          <div class="plot-range-title" style="margin-top:0">Stencil Preview</div>
+          <canvas id="stencil-thumb-canvas" width="220" height="120"
+                  style="width:100%;max-width:220px;border:1px solid var(--border);border-radius:4px;background:#1a1a1a"></canvas>
+          <div id="stencil-thumb-name" style="font-size:10px;color:var(--muted);margin-top:3px"></div>
+        </div>
       </div>
 
       <div id="tpl-resizer-bc" class="acq-resizer tpl-col-resizer" title="Drag to resize columns"></div>
@@ -372,7 +373,10 @@
           <span class="pref-unit">bit</span>
         </div>
 
-        <div class="pref-section">Plot Settings</div>
+        <div class="pref-section pref-section-toggle" onclick="acqTogglePlotSettings()" title="Show/hide plot axis &amp; style settings">
+          <span id="plot-settings-chevron">▾</span> Plot Settings
+        </div>
+        <div id="plot-settings-body">
         <div class="pref-row">
           <label for="inp-db-spread" title="Total dB span shown on the FRF y axis">FRF dB range</label>
           <input id="inp-db-spread" type="number" value="38" step="1" min="5" max="120" style="max-width:80px" title="Total dB span shown on the FRF y axis">
@@ -452,6 +456,7 @@
           <input id="inp-fft-y-max" type="number" value="0" step="5" min="-60" max="60" class="range-inp" title="Hammer FFT y axis maximum (dB)">
           <span class="pref-unit">dB</span>
         </div>
+        </div><!-- /plot-settings-body -->
       </div>
 
     </div>
