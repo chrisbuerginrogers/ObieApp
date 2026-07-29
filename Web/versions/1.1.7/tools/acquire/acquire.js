@@ -880,6 +880,7 @@ window.acqSaveCustomPalette = function() {
 
 window.acqCloseTemplateSettings = function() {
   document.getElementById('tpl-settings-modal')?.classList.remove('open');
+  _stopStencilPoll();
 };
 
 window.acqLoadSettingsTxt = async function(input) {
@@ -1667,8 +1668,12 @@ window.acqOpenTemplateSettings = async function() {
   _selectedStencil = _currentStencilName
     ? _stencils.findIndex(s => s.name === _currentStencilName)
     : -1;
+  if (_selectedStencil !== -1 && _stencils[_selectedStencil]) {
+    _currentStencilFile = _stencils[_selectedStencil]._file || null;
+  }
   _renderStencilList();
   _renderStencilThumb();
+  _startStencilPoll();
   _tplBaselineFields = _captureTplFieldValues();
   _updateTplPrimaryBtnLabel();
 };
@@ -1709,6 +1714,8 @@ let _stencils = [];
 let _selectedStencil = null;
 let _currentStencilName = '';
 let _currentStencilData = null;   // full stencil JSON saved to each run folder
+let _currentStencilFile = null;   // filename in _templatesHandle the applied stencil was loaded from
+let _stencilPollInterval = null;  // re-reads _currentStencilFile while the modal is open, to pick up edits made in Stencil Builder
 
 function _tplMeta(s) {
   const bits = [];
@@ -2390,6 +2397,8 @@ window.acqSelectStencil = async function(i) {
   if (i === -1 || i === null || !_stencils[i]) {
     _currentStencilName = '';
     _currentStencilData = null;
+    _currentStencilFile = null;
+    _stopStencilPoll();
     if (ind) ind.textContent = '';
     _renderStencilThumb();
     await _saveStencilToRun();
@@ -2407,13 +2416,51 @@ window.acqSelectStencil = async function(i) {
   // Store a clean copy without the internal _file key
   const { _file, ...stencilData } = s;
   _currentStencilData = stencilData;
+  _currentStencilFile = _file || null;
   if (ind) ind.textContent = _currentStencilName ? `📐 ${_currentStencilName}` : '';
   _renderStencilThumb();
+  _startStencilPoll();
   // Persist stencil to current run folder so Modal Analysis can find it
   await _saveStencilToRun();
   // Show confirmation
   if (msg) { msg.textContent = `✓ ${_currentStencilName} applied`; setTimeout(() => { msg.textContent = ''; }, 2500); }
 };
+
+// While the Template & Settings modal is open with a stencil applied, poll
+// its source file every couple seconds so edits made live in Stencil Builder
+// (a separate tab) show up in the thumbnail without requiring a re-select.
+function _startStencilPoll() {
+  _stopStencilPoll();
+  if (!_currentStencilFile || !_templatesHandle) return;
+  _stencilPollInterval = setInterval(_pollAppliedStencilFile, 2000);
+}
+
+function _stopStencilPoll() {
+  if (_stencilPollInterval) { clearInterval(_stencilPollInterval); _stencilPollInterval = null; }
+}
+
+async function _pollAppliedStencilFile() {
+  if (!_currentStencilFile || !_templatesHandle) { _stopStencilPoll(); return; }
+  try {
+    const fh = await _templatesHandle.getFileHandle(_currentStencilFile);
+    const data = JSON.parse(await (await fh.getFile()).text());
+    if (data.type !== 'node-stencil') return;
+    if (JSON.stringify(data) === JSON.stringify(_currentStencilData)) return;
+    _currentStencilData = data;
+    _currentStencilName = data.name || _currentStencilName;
+    const ind = document.getElementById('stencil-ind');
+    if (ind) ind.textContent = _currentStencilName ? `📐 ${_currentStencilName}` : '';
+    _renderStencilThumb();
+    if (_selectedStencil != null && _stencils[_selectedStencil]) {
+      _stencils[_selectedStencil] = { ...data, _file: _currentStencilFile };
+      _renderStencilList();
+    }
+    await _saveStencilToRun();
+  } catch (_) {
+    // File missing/renamed — stop polling rather than erroring every tick.
+    _stopStencilPoll();
+  }
+}
 
 // Small dark-canvas thumbnail of the applied stencil's node layout, shown
 // in the Hit Detection column so the user can see what's active without
@@ -2992,7 +3039,10 @@ window.acqOpenLiveViewStandalone = function() {
 };
 
 window.acqOpenStencilBuilder = function() {
-  window.open('../template/index.html', '_blank');
+  const url = _currentStencilFile
+    ? `../template/index.html?file=${encodeURIComponent(_currentStencilFile)}`
+    : '../template/index.html';
+  window.open(url, '_blank');
 };
 
 window.acqLiveView = function() {

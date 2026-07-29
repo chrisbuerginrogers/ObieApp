@@ -991,4 +991,17 @@ window.tplHelp = function() { window.open('../../Docs/index.html', '_blank'); };
       }
     }
   } catch (_) {}
+
+  // Opened from Acquire's stencil thumbnail/link with a specific stencil applied —
+  // load that file directly instead of starting from a blank layout.
+  const wantedFile = new URLSearchParams(location.search).get('file');
+  if (wantedFile && _templatesHandle) {
+    try {
+      const fh = await _templatesHandle.getFileHandle(wantedFile);
+      const data = JSON.parse(await (await fh.getFile()).text());
+      _applyTemplate(data);
+    } catch (e) {
+      console.warn('Could not auto-load stencil from query param:', e.message);
+    }
+  }
 })();
