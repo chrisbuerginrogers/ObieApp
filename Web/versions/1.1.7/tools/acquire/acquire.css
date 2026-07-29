@@ -435,6 +435,9 @@ canvas.lv-canvas {
   padding: 5px 8px 4px; border-bottom: 1px solid var(--border);
   flex-shrink: 0; background: var(--bg-deep);
 }
+.info-hdr-toggle { cursor: pointer; user-select: none; }
+.info-hdr-toggle:hover { color: var(--text); }
+.info-hdr-toggle span { display: inline-block; width: 14px; font-size: 12px; line-height: 1; vertical-align: -1px; }
 .info-row {
   display: flex; justify-content: space-between; align-items: baseline;
   padding: 3px 8px; border-bottom: 1px solid #f0f2f5;

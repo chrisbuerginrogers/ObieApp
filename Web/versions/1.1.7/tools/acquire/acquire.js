@@ -98,6 +98,28 @@ let _palette = PALETTES.default;
 // ── Plotly config ─────────────────────────────────────────────────────────────
 const PCFG = { responsive: true, displayModeBar: false };
 
+// Plots use a transparent paper/plot background so they blend with the page,
+// but that makes Plotly's default "Download plot as png" export nearly
+// unreadable when opened outside the browser (checkered/transparent bg).
+// This custom button swaps in a white background just for the export, then
+// restores the transparent one immediately after.
+function _pngWhiteButton(filename) {
+  return {
+    name: 'downloadPngWhite',
+    title: 'Download plot as a png (white background)',
+    icon: Plotly.Icons.camera,
+    click: function(gd) {
+      const prevPaper = gd.layout.paper_bgcolor;
+      const prevPlot  = gd.layout.plot_bgcolor;
+      const restore = () => Plotly.relayout(gd, { paper_bgcolor: prevPaper, plot_bgcolor: prevPlot });
+      Plotly.relayout(gd, { paper_bgcolor: '#ffffff', plot_bgcolor: '#ffffff' })
+        .then(() => Plotly.downloadImage(gd, { format: 'png', filename: filename || 'plot', scale: 2 }))
+        .then(restore)
+        .catch(restore);
+    }
+  };
+}
+
 const MINI_BASE = {
   paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
   margin: { l: 44, r: 8, t: 18, b: 28 },
@@ -533,7 +555,8 @@ function renderFRF() {
     },
     autosize: true,
   }, { ...PCFG, displayModeBar: true, displaylogo: false,
-       modeBarButtonsToRemove: ['sendDataToCloud'] });
+       modeBarButtonsToRemove: ['sendDataToCloud', 'toImage'],
+       modeBarButtonsToAdd: [_pngWhiteButton('acquire-frf')] });
   // Clear the guard via setTimeout so any deferred relayout events Plotly fires
   // after react() (e.g. after a prior double-click autoscale) are also suppressed.
   setTimeout(() => { _yTrueAutorange = false; }, 0);
@@ -3127,6 +3150,17 @@ function _resetAgenda() {
     cb.closest('.agenda-item')?.classList.remove('done');
   });
 }
+
+// Show/hide the checklist — visible by default; not persisted across reloads,
+// same as the Plot Settings toggle.
+window.acqToggleChecklist = function() {
+  const body = document.getElementById('agenda-list');
+  const chevron = document.getElementById('checklist-chevron');
+  if (!body) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : '';
+  if (chevron) chevron.textContent = isOpen ? '▸' : '▾';
+};
 
 window.acqToggleAcquire = async function() {
   if (appState === 'idle' || appState === 'complete') {
