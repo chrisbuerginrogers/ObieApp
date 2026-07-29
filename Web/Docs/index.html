@@ -146,6 +146,7 @@
       <li><a href="#acquire">Acquire — Impact-hammer FRF measurement</a></li>
       <li><a href="#circlefit">Circle Fit — Fit natural frequency &amp; damping</a></li>
       <li><a href="#modeshape">Modal Analysis — Animate mode shapes</a></li>
+      <li><a href="#spectrum">Spectrum Monitor — Live microphone scope</a></li>
     </ul>
   </div>
 
@@ -713,6 +714,72 @@
       Use <a href="#circlefit" style="color:var(--accent)">Circle Fit</a> to precisely locate
       each mode's natural frequency first, then click <em>View in Modal Analysis</em> on that
       row — it's usually more accurate than eyeballing a peak on the FRF plot directly.
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── Spectrum Monitor ─────────────────────────────────────────── -->
+  <section class="tool-section" id="spectrum">
+    <div class="tool-header">
+      <div class="icon">🎙️</div>
+      <h2>Spectrum Monitor</h2>
+      <span class="tag">PyScript · beta</span>
+    </div>
+
+    <a class="tool-link" href="../tools/spectrum/">Open Spectrum Monitor →</a>
+
+    <p>
+      Spectrum Monitor is a live, single-channel microphone scope — not a measurement tool like
+      Acquire, just a quick way to see what a microphone is picking up: the raw waveform, an
+      averaged magnitude spectrum, and (on a separate tab) a scrolling spectrogram. It starts
+      capturing automatically as soon as the page loads and the browser grants microphone access.
+    </p>
+
+    <h3>Step-by-step workflow</h3>
+    <ol class="steps">
+      <li>
+        <strong>Grant microphone access.</strong> The tool starts capturing immediately on load —
+        accept the browser's microphone permission prompt. The status row shows
+        <em>Running</em> once it's live.
+      </li>
+      <li>
+        <strong>Pick the input device.</strong> Click the blue <em>Device: …</em> indicator on
+        the right of the status row (same pattern as Acquire) to open a small picker and choose
+        a different input device — it takes effect immediately, mid-capture.
+      </li>
+      <li>
+        <strong>Choose Ch 1 or Ch 2.</strong> For a stereo input device, the Channel toggle in
+        the left sidebar picks which of the two channels is displayed and analyzed; the
+        averaged spectrum resets whenever you switch channels.
+      </li>
+      <li>
+        <strong>Tune the averaging.</strong> <em>Averages (N)</em> sets how many recent snippets
+        the spectrum blends together (in linear power, then converted to dB — not a naive
+        dB average); <em>Snippet</em> sets how long each one is (seconds). Shorter snippets
+        update faster but resolve lower frequencies less precisely.
+      </li>
+      <li>
+        <strong>Pause to inspect.</strong> <em>⏸ Pause</em> freezes the current waveform and
+        spectrum so you can zoom and pan with Plotly's controls (the modebar only appears while
+        stopped or paused, to stay out of the way during live updates). <em>▶ Resume</em>
+        picks back up — the microphone itself never stops, only the display.
+      </li>
+      <li>
+        <strong>Spectrogram tab.</strong> Switch to the <em>Spectrogram</em> tab for a scrolling
+        heatmap of the last few seconds on the selected channel, computed with the same STFT
+        function Convolve uses for its spectrograms — see the
+        <a href="./math.html#spectrum" style="color:var(--accent)">math behind the averaged
+        spectrum</a> for the full derivation.
+      </li>
+    </ol>
+
+    <div class="callout">
+      <strong>Settings persist automatically</strong>
+      Device, channel, N, and snippet length are saved to this browser immediately as you change
+      them — there's no separate save button. Set a <strong>Data Folder</strong> to also persist
+      them to <code>ObieAppSettings/spectrum.json</code>, so they roam across browsers/machines
+      the same way Acquire's and LiveView's settings do.
     </div>
   </section>
 

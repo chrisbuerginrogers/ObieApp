@@ -190,6 +190,12 @@
           <li><a href="#cf-nodes">7.7 Per-Node Residue Extraction</a></li>
         </ul>
       </li>
+      <li><a href="#spectrum">8 · Live Averaged Spectrum (Spectrum Monitor)</a>
+        <ul>
+          <li><a href="#spec-window">8.1 Windowed FFT per Snippet</a></li>
+          <li><a href="#spec-avg">8.2 Power Averaging, Not dB Averaging</a></li>
+        </ul>
+      </li>
     </ul>
   </div>
 
@@ -952,6 +958,73 @@ disp[y][x] = amp * (Re_fine[y][x]*cos(θ) - Im_fine[y][x]*sin(θ))</pre>
       currently animates mode shapes from each node's raw interpolated FRF (§6) rather than a
       damping-corrected residue. It's available for a future feature.
     </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       8 · Live Averaged Spectrum
+       ═══════════════════════════════════════════════════════════════════ -->
+  <section class="math-section" id="spectrum">
+    <div class="section-header">
+      <h2>8 · Live Averaged Spectrum (Spectrum Monitor)</h2>
+    </div>
+
+    <p>
+      Spectrum Monitor's averaged spectrum is a simpler, live-only cousin of the H1 estimator in
+      §1 — there's no reference "input" channel to divide out, just one microphone channel's own
+      magnitude spectrum, smoothed over the last few snippets so a steady tone or resonance holds
+      still instead of jittering frame to frame.
+    </p>
+
+    <h3 id="spec-window">8.1 Windowed FFT per Snippet</h3>
+    <p>
+      Every snippet (default 0.3 s, user-adjustable) is Hann-windowed and transformed independently:
+    </p>
+
+    $$X[k] = \mathrm{FFT}\bigl(x[n]\cdot w[n]\bigr), \qquad
+      P[k] = \left(\frac{|X[k]|}{\sum_n w[n] / 2}\right)^{\!2}$$
+
+    <p>
+      Dividing by half the window's sum before squaring keeps the resulting power roughly
+      amplitude-correct regardless of window shape or FFT length — the same normalisation
+      convention used for a single-sided amplitude spectrum. This is implemented directly in
+      <code>Web/tools/spectrum/main.py</code> (<code>_process_snippet</code>) using
+      <code>numpy.fft.rfft</code> — a plain FFT, not a reuse of any canonical
+      <code>Python/processing/</code> module, since no existing module computes a single
+      channel's own magnitude spectrum this way.
+    </p>
+
+    <h3 id="spec-avg">8.2 Power Averaging, Not dB Averaging</h3>
+    <p>
+      The displayed spectrum block-averages the last \(N\) snippets' <em>power</em>, then
+      converts to dB once at the end:
+    </p>
+
+    $$\bar P[k] = \frac{1}{N}\sum_{i=1}^{N} P_i[k], \qquad
+      \mathrm{dB}[k] = 10\log_{10}\bigl(\bar P[k]\bigr)$$
+
+    <div class="callout">
+      <strong>Why not average the dB values directly?</strong>
+      Averaging already-logarithmic values understates the true average power whenever the
+      signal fluctuates (by Jensen's inequality, the log of a mean is always \(\geq\) the mean of
+      the logs) — a peak that only appears in some snippets would read quieter than it really is.
+      Averaging in linear power first, exactly as an FRF's auto-spectrum \(S_{ff}\) in §1 is
+      averaged across hits before any dB conversion, avoids that bias.
+    </div>
+
+    <p>
+      Changing the channel resets this running average immediately (mixing two channels' power
+      together mid-average would be meaningless); changing \(N\) or the snippet length does not
+      force a reset — the averaging window just grows, shrinks, or (if the FFT size itself
+      changes) silently restarts once the accumulated spectra no longer match the new bin count.
+    </p>
+
+    <p>
+      The Spectrogram tab is unrelated math — it reuses
+      <code>Python/processing/spectrogram.py</code>'s <code>compute_spectrogram</code> STFT
+      unchanged, the same function Convolve uses for its input/output spectrogram panes.
+    </p>
   </section>
 
   <div class="docs-link">

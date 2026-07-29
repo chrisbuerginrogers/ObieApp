@@ -1,0 +1,167 @@
+/* spectrum.css — Spectrum Monitor tool */
+
+/* ── White theme (matches all other tools) ───────────────────────────────── */
+:root {
+  --bg:        #ffffff;
+  --bg-mid:    #f5f7fa;
+  --bg-deep:   #eff1f4;
+  --surface:   #ffffff;
+  --border:    #c0c4cc;
+  --text:      #1a1a1a;
+  --muted:     #5a5f6a;
+  --accent:    #b35c00;
+  --accent-2:  #d07000;
+  --green:     #2e7d32;
+  --red:       #c62828;
+}
+
+html, body { overflow: hidden; height: 100%; margin: 0; }
+
+/* ── Header ───────────────────────────────────────────────────────────────── */
+header.obie-header { padding: 4px 12px; min-height: 0; background: #e8d8be; border-bottom-color: #c9b48f; }
+header.obie-header h1        { font-size: 1rem; }
+header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
+
+/* ── Loading overlay ──────────────────────────────────────────────────────── */
+.loading-overlay {
+  position: fixed; inset: 0;
+  background: rgba(255,255,255,0.97);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 999; gap: 10px;
+}
+.loading-overlay.gone { display: none; }
+.spin {
+  width: 34px; height: 34px;
+  border: 3px solid var(--border); border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.load-title { font-size: 12px; font-weight: 500; }
+.load-sub   { font-size: 10px; color: var(--muted); }
+
+/* ── Toolbar buttons ──────────────────────────────────────────────────────── */
+.tb-btn {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  padding: 5px 12px; font-size: 0.82rem; font-family: inherit;
+  color: var(--text); cursor: pointer; white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s;
+}
+.tb-btn:hover:not(:disabled) { background: var(--bg-deep); border-color: var(--accent); }
+.tb-btn:disabled { opacity: 0.45; cursor: default; }
+.tb-btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.tb-btn.accent:hover { background: var(--accent-2); border-color: var(--accent-2); }
+.tb-btn.stop {
+  background: #c62828; border-color: #c62828; color: #fff; font-weight: 600;
+}
+.tb-btn.stop:hover { background: #b71c1c; border-color: #b71c1c; }
+
+.act-btn {
+  background: var(--bg-deep); border: 1px solid var(--border); border-radius: 6px;
+  padding: 6px 14px; font-size: 0.85rem; font-family: inherit;
+  cursor: pointer; color: var(--text); transition: background 0.12s;
+}
+.act-btn:hover { background: var(--bg); border-color: var(--accent); }
+.act-btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.act-btn.accent:hover { background: var(--accent-2); }
+
+.tb-flex { flex: 1; }
+
+.folder-name-disp {
+  font-size: 0.78rem; color: var(--muted); max-width: 180px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ── Mode / view toggle rows (channel selector, view tabs) ───────────────── */
+.mode-row { display: flex; gap: 3px; }
+.mode-btn {
+  padding: 4px 10px; font-size: 11px; font-family: inherit;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--bg); cursor: pointer; text-align: center;
+  transition: background .12s; color: var(--text);
+}
+.mode-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+/* ── Modals (device picker) ───────────────────────────────────────────────── */
+.modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4); z-index: 500;
+  align-items: center; justify-content: center;
+}
+.modal-overlay.active { display: flex; }
+.modal-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 8px 28px rgba(0,0,0,0.22);
+  overflow: hidden; display: flex; flex-direction: column; max-height: 92vh;
+}
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 14px; background: var(--bg-deep);
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.modal-title { font-size: 13px; font-weight: 700; }
+.modal-close { background: none; border: none; cursor: pointer; font-size: 17px; color: var(--muted); line-height: 1; }
+.modal-close:hover { color: var(--text); }
+.modal-body { padding: 14px; overflow-y: auto; }
+
+.io-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.io-row label { font-size: 11px; color: var(--muted); width: 44px; flex-shrink: 0; }
+.io-row select { flex: 1; min-width: 0; font-size: 11px; padding: 2px 4px; }
+.io-recheck-btn {
+  flex-shrink: 0; width: 20px; height: 20px; padding: 0;
+  font-size: 12px; line-height: 1; border: 1px solid var(--border); border-radius: 4px;
+  background: var(--surface); color: var(--text); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.io-recheck-btn:hover { background: var(--bg-deep); border-color: var(--accent); }
+.pref-hint { font-size: 10px; color: var(--muted); font-style: italic; margin: -4px 0 8px 0; }
+
+/* ── Page shell ───────────────────────────────────────────────────────────── */
+.sm-page { display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: var(--bg); }
+
+.sm-toolbar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 12px; background: var(--bg-deep);
+  border-bottom: 1px solid var(--border); flex-shrink: 0; min-height: 42px;
+}
+
+.sm-status-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 2px 12px; min-height: 22px;
+  background: var(--bg-deep); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.sm-status-txt { font-size: 11px; color: var(--muted); font-style: italic; }
+
+/* ── Body layout ──────────────────────────────────────────────────────────── */
+.sm-body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+.sm-left {
+  width: 200px; flex-shrink: 0;
+  background: var(--surface); border-right: 1px solid var(--border);
+  overflow-y: auto; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.sm-sect {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.6px; color: var(--muted); margin-bottom: 6px;
+}
+.sm-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.sm-row label { font-size: 11px; color: var(--muted); min-width: 68px; }
+.sm-row input { flex: 1; font-size: 11px; padding: 2px 5px; min-width: 0; }
+.sm-unit { font-size: 10px; color: var(--muted); flex-shrink: 0; }
+.sm-stat { font-size: 15px; font-weight: 700; color: var(--accent); text-align: center; margin-top: 2px; }
+
+.sm-resizer {
+  width: 5px; flex-shrink: 0; cursor: col-resize;
+  background: var(--border); opacity: 0.4; transition: opacity .12s;
+}
+.sm-resizer:hover, .sm-resizer.dragging { opacity: 1; }
+
+.sm-right { flex: 1; display: flex; overflow: hidden; padding: 8px; min-width: 0; }
+.sm-view { flex: 1; display: flex; flex-direction: column; gap: 6px; overflow: hidden; min-width: 0; }
+.sm-chart-wrap { display: flex; flex-direction: column; min-height: 0; }
+.sm-chart-title {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.4px; color: var(--muted); padding: 1px 4px; flex-shrink: 0;
+}
+.sm-plot-div { flex: 1; min-height: 0; }

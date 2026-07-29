@@ -86,6 +86,21 @@
     </div>
 
     <div class="log-group">
+      <h3>Spectrum Monitor <span style="font-weight:400;opacity:0.7">(new)</span></h3>
+      <ul>
+        <li>New beta tool: a live, single-channel microphone scope. Shows the raw waveform and a
+            block-averaged magnitude spectrum (last N ~0.3 s snippets, averaged in linear power
+            then converted to dB), plus a scrolling spectrogram on a separate tab. Starts
+            capturing automatically on page load; <strong>⏸ Pause</strong> freezes the display
+            (the microphone itself keeps running) so you can zoom/pan with Plotly's controls,
+            which only appear while stopped or paused. Pick Channel 1 or 2 for stereo devices,
+            and change the input device from the blue <strong>Device:</strong> indicator, same as
+            Acquire. Settings persist to this browser immediately and, with a Data Folder set, to
+            <code>ObieAppSettings/spectrum.json</code> — no separate save button.</li>
+      </ul>
+    </div>
+
+    <div class="log-group">
       <h3>Acquire</h3>
       <ul>
         <li>Run folders now write a single consolidated <code>template.json</code> (settings +
