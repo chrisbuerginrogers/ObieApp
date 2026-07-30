@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Code Flow Diagrams — ObieWebApp</title>
+  <link rel="stylesheet" href="../css/theme.css">
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+
+    .obie-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; background: var(--bg-card);
+      border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; }
+    .brand h1 { font-size: 1rem; margin: 0; font-weight: 700; }
+    .logo-icon { font-size: 1.3rem; }
+    .crumb { font-size: 0.85rem; color: var(--muted); }
+    .gap { flex: 1; }
+    .back-btn {
+      font-size: 0.75rem; padding: 3px 9px; border-radius: 4px;
+      background: var(--bg-deep); border: 1px solid var(--border);
+      color: var(--fg); text-decoration: none; cursor: pointer;
+    }
+    .back-btn:hover { background: var(--border); }
+
+    .doc-main { max-width: 900px; margin: 0 auto; padding: 32px 20px 60px; }
+
+    h2.doc-title { font-size: 1.5rem; margin: 0 0 6px; }
+    p.doc-lead { color: var(--muted); margin: 0 0 8px; font-size: 0.95rem; }
+    p.doc-note {
+      color: var(--muted); margin: 0 0 32px; font-size: 0.85rem; font-style: italic;
+    }
+
+    .fc-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+      gap: 14px;
+    }
+    .fc-card {
+      display: block; text-decoration: none; color: inherit;
+      border: 1px solid var(--border); border-radius: 8px;
+      background: var(--bg-card); padding: 14px 16px;
+      transition: border-color 0.12s, transform 0.12s;
+    }
+    .fc-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .fc-card .head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+    .fc-card .icon { font-size: 1.3rem; }
+    .fc-card .name { font-weight: 700; font-size: 0.95rem; }
+    .fc-card .desc { font-size: 0.8rem; color: var(--muted); margin: 0; line-height: 1.4; }
+    .fc-card .file { font-size: 0.7rem; color: var(--accent); margin-top: 6px; font-family: monospace; }
+
+    .fc-tier {
+      font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--muted);
+      margin: 28px 0 10px; padding-bottom: 4px; border-bottom: 1px solid var(--border);
+    }
+    .fc-tier:first-of-type { margin-top: 0; }
+  </style>
+</head>
+<body>
+
+<header class="obie-header">
+  <a class="brand" href="../index.html">
+    <div class="logo-icon">🎻</div>
+    <h1>ObieWebApp</h1>
+  </a>
+  <span class="crumb">· Code Flow Diagrams</span>
+  <div class="gap"></div>
+  <a class="back-btn" href="./index.html">Documentation</a>
+  <a class="back-btn" href="../index.html">← All tools</a>
+</header>
+
+<main class="doc-main">
+
+  <h2 class="doc-title">Code Flow Diagrams</h2>
+  <p class="doc-lead">
+    An architecture reference for each tool — how its code actually works, as Mermaid
+    flowcharts and state diagrams alongside the real function names.
+  </p>
+  <p class="doc-note">
+    These are Markdown files with Mermaid diagram blocks. GitHub renders them beautifully
+    in the repo browser; most code editors do too. Opened directly in a plain browser tab
+    they'll show as raw text with the diagram source visible as code.
+  </p>
+
+  <p class="fc-tier">Stable</p>
+  <div class="fc-grid">
+
+    <a class="fc-card" href="../tools/explore/FLOWCHART.md">
+      <div class="head"><div class="icon">🔍</div><span class="name">Explore</span></div>
+      <p class="desc">File browsing, parsing, band averaging, and plotting.</p>
+      <div class="file">tools/explore/FLOWCHART.md</div>
+    </a>
+
+    <a class="fc-card" href="../tools/convolve/FLOWCHART.md">
+      <div class="head"><div class="icon">🔀</div><span class="name">Convolve</span></div>
+      <p class="desc">FRF + WAV loading, convolution math, playback and export.</p>
+      <div class="file">tools/convolve/FLOWCHART.md</div>
+    </a>
+
+    <a class="fc-card" href="../tools/acquire/FLOWCHART.md">
+      <div class="head"><div class="icon">🎯</div><span class="name">Acquire</span></div>
+      <p class="desc">Data Folder/run setup, the hit-detection state machine, audio capture, and the Node Stencil subsystem.</p>
+      <div class="file">tools/acquire/FLOWCHART.md</div>
+    </a>
+
+    <a class="fc-card" href="../tools/liveview/FLOWCHART.md">
+      <div class="head"><div class="icon">📡</div><span class="name">LiveView</span></div>
+      <p class="desc">Standalone real-time scope — pure JS audio pipeline, no PyScript.</p>
+      <div class="file">tools/liveview/FLOWCHART.md</div>
+    </a>
+
+  </div>
+
+  <p class="fc-tier">Beta</p>
+  <div class="fc-grid">
+
+    <a class="fc-card" href="../tools/modeshape/FLOWCHART.md">
+      <div class="head"><div class="icon">🌊</div><span class="name">Modal Analysis</span></div>
+      <p class="desc">Loading a survey, mode-shape reconstruction, and animation.</p>
+      <div class="file">tools/modeshape/FLOWCHART.md</div>
+    </a>
+
+    <a class="fc-card" href="../tools/template/FLOWCHART.md">
+      <div class="head"><div class="icon">📐</div><span class="name">Stencil Builder</span></div>
+      <p class="desc">Node layout editing, save/load, and the live "Watch Run" projection mode.</p>
+      <div class="file">tools/template/FLOWCHART.md</div>
+    </a>
+
+    <a class="fc-card" href="../tools/circlefit/FLOWCHART.md">
+      <div class="head"><div class="icon">⭕</div><span class="name">Circle Fit</span></div>
+      <p class="desc">Nyquist circle-fit pipeline: receptance conversion through residue extraction.</p>
+      <div class="file">tools/circlefit/FLOWCHART.md</div>
+    </a>
+
+    <a class="fc-card" href="../tools/spectrum/FLOWCHART.md">
+      <div class="head"><div class="icon">🎙️</div><span class="name">Spectrum Monitor</span></div>
+      <p class="desc">Live scope, block-averaged spectrum math, and the spectrogram view.</p>
+      <div class="file">tools/spectrum/FLOWCHART.md</div>
+    </a>
+
+  </div>
+
+  <p class="fc-tier">Experimental</p>
+  <div class="fc-grid">
+
+    <a class="fc-card" href="../tools/matlab/FLOWCHART.md">
+      <div class="head"><div class="icon">📊</div><span class="name">Export to MATLAB</span></div>
+      <p class="desc">Scanning TRF/AvC/AvR files and exporting a .mat file for MATLAB.</p>
+      <div class="file">tools/matlab/FLOWCHART.md</div>
+    </a>
+
+    <a class="fc-card" href="../tools/wavview/FLOWCHART.md">
+      <div class="head"><div class="icon">🔊</div><span class="name">WAV Viewer</span></div>
+      <p class="desc">WAV parsing and time-domain/FFT plotting.</p>
+      <div class="file">tools/wavview/FLOWCHART.md</div>
+    </a>
+
+    <a class="fc-card" href="../tools/setup/FLOWCHART.md">
+      <div class="head"><div class="icon">💻</div><span class="name">Setup</span></div>
+      <p class="desc">A static instructions page — OS/mode tab switching, nothing more.</p>
+      <div class="file">tools/setup/FLOWCHART.md</div>
+    </a>
+
+  </div>
+
+</main>
+</body>
+</html>
