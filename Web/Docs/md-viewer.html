@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Code Flow Diagram — ObieWebApp</title>
+  <link rel="stylesheet" href="../css/theme.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+  <style>
+    body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); }
+
+    .obie-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 16px; background: var(--surface);
+      border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; }
+    .brand h1 { font-size: 1rem; margin: 0; font-weight: 700; }
+    .logo-icon { font-size: 1.3rem; }
+    .crumb { font-size: 0.85rem; color: var(--muted); }
+    .gap { flex: 1; }
+    .back-btn {
+      font-size: 0.75rem; padding: 3px 9px; border-radius: 4px;
+      background: var(--bg-deep); border: 1px solid var(--border);
+      color: var(--text); text-decoration: none; cursor: pointer; white-space: nowrap;
+    }
+    .back-btn:hover { background: var(--border); }
+
+    .doc-main { max-width: 900px; margin: 0 auto; padding: 24px 20px 60px; }
+
+    #md-content h1 { font-size: 1.5rem; margin: 0 0 6px; }
+    #md-content h2 {
+      font-size: 1.1rem; margin: 30px 0 10px; padding-bottom: 4px;
+      border-bottom: 2px solid var(--accent);
+    }
+    #md-content h2:first-of-type { margin-top: 18px; }
+    #md-content p, #md-content li { line-height: 1.55; font-size: 0.92rem; }
+    #md-content ul { padding-left: 22px; margin: 8px 0; }
+    #md-content code {
+      background: var(--bg-deep); border-radius: 3px; padding: 1px 5px;
+      font-size: 0.85em; font-family: ui-monospace, 'SF Mono', monospace;
+    }
+    #md-content blockquote {
+      margin: 12px 0; padding: 8px 14px; border-left: 3px solid var(--accent);
+      background: var(--bg-deep); border-radius: 0 6px 6px 0; font-size: 0.88rem;
+    }
+    #md-content blockquote p { margin: 0; }
+    #md-content table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 0.85rem; }
+    #md-content th, #md-content td {
+      border: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top;
+    }
+    #md-content th { background: var(--bg-deep); }
+    #md-content pre:not(.mermaid) {
+      background: #2b2213; color: #f0e6d2; padding: 10px 12px; border-radius: 6px;
+      overflow-x: auto; font-size: 0.8rem;
+    }
+    #md-content .mermaid {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 14px; margin: 14px 0; overflow-x: auto; text-align: center;
+    }
+    #md-content hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+
+    #md-status { color: var(--muted); font-style: italic; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+<header class="obie-header">
+  <a class="brand" href="../index.html">
+    <div class="logo-icon">🎻</div>
+    <h1>ObieWebApp</h1>
+  </a>
+  <span class="crumb" id="crumb-title">· Code Flow Diagram</span>
+  <div class="gap"></div>
+  <a class="back-btn" id="github-link" href="#" target="_blank" rel="noopener" style="display:none">View on GitHub ↗</a>
+  <a class="back-btn" href="./flowcharts.html">All diagrams</a>
+  <a class="back-btn" href="../index.html">← All tools</a>
+</header>
+
+<main class="doc-main">
+  <div id="md-content"><p id="md-status">Loading…</p></div>
+</main>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'strict' });
+
+  const params = new URLSearchParams(location.search);
+  const src   = params.get('src');
+  const title = params.get('title');
+  const content = document.getElementById('md-content');
+
+  if (title) document.getElementById('crumb-title').textContent = '· ' + title;
+
+  const ghLink = document.getElementById('github-link');
+  if (src) {
+    // Resolve src against a fixed fake base (this page always lives at Web/Docs/)
+    // rather than location.href, so the repo-relative path is correct regardless
+    // of how/where this site is actually hosted (GitHub Pages subpath, local
+    // server rooted at Web/, etc).
+    const repoPath = new URL(src, 'https://x.invalid/Web/Docs/').pathname.replace(/^\//, '');
+    ghLink.href = 'https://github.com/chrisbuerginrogers/ObieApp/blob/main/' + repoPath;
+    ghLink.style.display = '';
+  }
+
+  async function load() {
+    if (!src) { content.innerHTML = '<p id="md-status">No file specified — pass ?src=path/to/file.md</p>'; return; }
+    try {
+      const res = await fetch(src);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const text = await res.text();
+      content.innerHTML = marked.parse(text);
+
+      const blocks = content.querySelectorAll('code.language-mermaid');
+      for (const code of blocks) {
+        const div = document.createElement('div');
+        div.className = 'mermaid';
+        div.textContent = code.textContent;
+        code.parentElement.replaceWith(div);
+      }
+      if (blocks.length) await mermaid.run({ querySelector: '.mermaid' });
+    } catch (e) {
+      content.innerHTML = '<p id="md-status">Could not load "' + src + '": ' + e.message + '</p>';
+    }
+  }
+  load();
+</script>
+
+</body>
+</html>
