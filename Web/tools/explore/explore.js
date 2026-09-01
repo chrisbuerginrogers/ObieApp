@@ -119,6 +119,8 @@
   let _colorsHandle         = null;  // ObieAppSettings/colors/ dir
   let _customPalettesList   = [];   // cached from folder (or localStorage)
   let _dirFiles  = [];     // [{name, ext, path, handle}] — scanned from data folder
+  let _searchScopeDir   = null; // FileSystemDirectoryHandle — set when scope is a specific folder
+  let _searchScopeFiles = [];   // scan results for _searchScopeDir
   let _searchResults  = []; // current filtered list
   let _pendingPaths   = {}; // filename → full relative path, populated just before pyExploreLoadFile
   let _pendingColors  = {}; // filename → hex color, set by list loader, consumed by obieExploreAddDataset
@@ -986,6 +988,62 @@
   };
   window.expCloseSearch = () => $('search-modal')?.classList.remove('open');
 
+  window.expSearchScopeChanged = function() {
+    const scopeFolder = $('scope-folder')?.checked;
+    const pickBtn = $('search-scope-pick-btn');
+    if (pickBtn) pickBtn.style.display = scopeFolder ? '' : 'none';
+    if (scopeFolder && !_searchScopeDir) {
+      window.expSearchPickFolder();   // no folder chosen yet — prompt immediately
+      return;
+    }
+    _runSearch();
+  };
+
+  window.expSearchPickFolder = async function() {
+    try {
+      const dir = await window.showDirectoryPicker({ mode: 'read', startIn: _dataDir || undefined });
+      _searchScopeDir = dir;
+      _searchScopeFiles = await _scanDir(dir, '');
+      const nameEl = $('search-scope-folder-name');
+      if (nameEl) nameEl.textContent = `${dir.name} — ${_searchScopeFiles.length} files`;
+      const allRadio = $('scope-all'), folderRadio = $('scope-folder');
+      if (allRadio) allRadio.checked = false;
+      if (folderRadio) folderRadio.checked = true;
+      const pickBtn = $('search-scope-pick-btn');
+      if (pickBtn) pickBtn.style.display = '';
+      _runSearch();
+    } catch(e) {
+      if (e.name !== 'AbortError') console.warn('expSearchPickFolder:', e);
+      // No folder chosen (or picker unsupported) — fall back to searching the whole Data Folder.
+      if (!_searchScopeDir) {
+        const allRadio = $('scope-all'), folderRadio = $('scope-folder');
+        if (allRadio) allRadio.checked = true;
+        if (folderRadio) folderRadio.checked = false;
+        const pickBtn = $('search-scope-pick-btn');
+        if (pickBtn) pickBtn.style.display = 'none';
+      }
+    }
+  };
+
+  // Acquire names files "<inst> <PFX><NN>[_<hit>].ext" for per-position files
+  // (e.g. "Chris H03.trf", "Chris H03_008.wav") and "<inst> <CODE>.ext" for
+  // averaged AvC/AvR files, where CODE is one prefix ("H") or several
+  // concatenated ("HV") when a run combines multiple prefix groups. Extract
+  // just that letter code — the run of letters at the start of the last
+  // filename token, after stripping the extension and any "_<hit>" suffix —
+  // so a Prefix search matches the actual H/V designator, not any substring
+  // of the instrument name.
+  function _extractPrefixCode(filename) {
+    const dot = filename.lastIndexOf('.');
+    const base = dot >= 0 ? filename.slice(0, dot) : filename;
+    const words = base.split(/\s+/);
+    if (words.length < 2) return '';   // no space → no distinct code token, avoid false matches
+    const lastWord = words[words.length - 1];
+    const noHitSuffix = lastWord.replace(/_\d+$/, '');
+    const m = noHitSuffix.match(/^[A-Za-z]+/);
+    return m ? m[0].toLowerCase() : '';
+  }
+
   function _runSearch() {
     const pattern = ($('search-pattern')?.value || '').trim();
     const kw1 = ($('search-kw1')?.value || '').trim().toLowerCase();
@@ -1000,7 +1058,10 @@
     const patterns = pattern ? pattern.split(',').map(p => p.trim()).filter(Boolean) : [];
     const keywords = [kw1, kw2, kw3].filter(Boolean);
 
-    _searchResults = _dirFiles.filter(f => {
+    const scopeFolder = $('scope-folder')?.checked;
+    const source = (scopeFolder && _searchScopeDir) ? _searchScopeFiles : _dirFiles;
+
+    _searchResults = source.filter(f => {
       const n = f.name.toLowerCase();
 
       // File type filter
@@ -1011,8 +1072,13 @@
         if (!ok) return false;
       }
 
-      // Pattern: filename must contain at least one (case-insensitive)
-      if (patterns.length && !patterns.some(p => n.includes(p.toLowerCase()))) return false;
+      // Prefix: the letter code just before the numbering/extension must match
+      // at least one entered prefix (case-insensitive) — also matches combined
+      // multi-prefix codes like "HV" when searching for just "H" or "V".
+      if (patterns.length) {
+        const code = _extractPrefixCode(f.name);
+        if (!patterns.some(p => code.includes(p.toLowerCase()))) return false;
+      }
 
       // Keywords: OR — at least one must match (if any specified)
       if (keywords.length && !keywords.some(k => n.includes(k))) return false;
@@ -1097,9 +1163,30 @@
 
   // ── File ops ──────────────────────────────────────────────────────────
 
-  window.expBrowse = function() {
+  window.expBrowse = async function() {
+    const exts = ['.trf', '.trv', '.avc', '.avr', '.csv', '.mat'];
+
+    // Prefer the File System Access picker so it can start in the Data Folder.
+    if (window.showOpenFilePicker) {
+      try {
+        const opts = {
+          multiple: true,
+          types: [{ description: 'FRF files', accept: { 'application/octet-stream': exts } }],
+        };
+        if (_dataDir) opts.startIn = _dataDir;
+        const handles = await window.showOpenFilePicker(opts);
+        if (!window.pyExploreLoadFile) { alert('Python not ready — try again.'); return; }
+        for (const h of handles) {
+          const file = await h.getFile();
+          window.pyExploreLoadFile(file.name, new Uint8Array(await file.arrayBuffer()));
+        }
+      } catch(e) { if (e.name !== 'AbortError') console.warn('expBrowse:', e); }
+      return;
+    }
+
+    // Fallback for browsers without the File System Access API.
     const inp = document.createElement('input');
-    inp.type = 'file'; inp.multiple = true; inp.accept = '.trf,.trv,.avc,.avr,.csv,.mat';
+    inp.type = 'file'; inp.multiple = true; inp.accept = exts.join(',');
     inp.addEventListener('change', async () => {
       if (!window.pyExploreLoadFile) { alert('Python not ready — try again.'); return; }
       for (const f of inp.files)

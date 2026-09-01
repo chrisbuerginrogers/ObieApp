@@ -131,6 +131,15 @@
             <strong>HiZ on for the hammer</strong>.</li>
         <li>Downloading the FRF plot as a PNG (camera icon in the plot toolbar) now renders it on a
             white background instead of transparent, so it's readable when pasted elsewhere.</li>
+        <li>Opening Acquire now walks you through a short forced setup every time a Data Folder
+            connects: pick <strong>Type</strong>, <strong>Device</strong>, and a
+            <strong>Template</strong> (and a <strong>Node Stencil</strong>, shown only for
+            📡 Modal Analysis) before continuing. Node Stencil is now hidden entirely for
+            🔊 Radiation. The final step replaces the old plain "name your instrument" box with an
+            instrument picker (type a new name or pick an existing one) combined with Notes —
+            each test now adds its own dated, numbered entry (e.g. "(3) 8/31/26 19:54  Test 03")
+            to that instrument's <code>notes.txt</code>, with prior entries kept read-only
+            underneath instead of one entry being overwritten every time.</li>
       </ul>
     </div>
 

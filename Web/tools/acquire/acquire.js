@@ -902,9 +902,44 @@ window.acqSaveCustomPalette = function() {
 
 
 window.acqCloseTemplateSettings = function() {
+  if (_wizardActive) { _wizardAdvanceToStep2(); return; }
   document.getElementById('tpl-settings-modal')?.classList.remove('open');
   _stopStencilPoll();
 };
+
+// ════════════════════════════════════════════════════════════════════════════
+// Setup wizard — forces Type/Device/Template/(Stencil) then Instrument+Notes
+// every time a Data Folder resolves (auto-restore or manual pick), before the
+// main page is usable. Step 1 reuses #tpl-settings-modal itself (in
+// "wizard-mode": Columns B/C and the normal close/footer are hidden, replaced
+// by one Continue button) so all its existing template/stencil logic works
+// unchanged. Step 2 is the Instrument + Notes modal.
+// ════════════════════════════════════════════════════════════════════════════
+let _wizardActive = false;
+
+async function _startSetupWizard() {
+  _wizardActive = true;
+  await window.acqOpenTemplateSettings();
+  document.getElementById('tpl-settings-box')?.classList.add('wizard-mode');
+}
+
+// Enables the wizard's Step 1 "Continue" button once a template (any row,
+// including "Current Settings") and — for Modal Analysis only — a stencil
+// have been explicitly selected this time the modal opened.
+function _updateWizardStep1Btn() {
+  const btn = document.getElementById('wiz-step1-continue-btn');
+  if (!btn) return;
+  const type = document.getElementById('inp-input-device')?.value || 'microphone';
+  const ok = (_selectedTpl !== null) && (type === 'microphone' || _selectedStencil !== null);
+  btn.disabled = !ok;
+}
+
+function _wizardAdvanceToStep2() {
+  document.getElementById('tpl-settings-modal')?.classList.remove('open');
+  document.getElementById('tpl-settings-box')?.classList.remove('wizard-mode');
+  _stopStencilPoll();
+  _openInstrumentSetupModal();
+}
 
 window.acqLoadSettingsTxt = async function(input) {
   const file = input.files[0];
@@ -1449,50 +1484,19 @@ function _currentInstrumentName() {
 // where there's no instrument folder to write into).
 function _notesKey() { return 'obieAcquire_notes_' + (_currentInstrumentName() || 'default'); }
 
-// Pre-filled prompt shown the first time Notes is opened for an instrument
-// that has no notes.txt yet (and no local draft) — a fill-in-the-blanks
-// template so researchers capture the same fields every session.
-function _defaultNotesText() {
-  const now = new Date();
-  const pad = n => String(n).padStart(2, '0');
-  const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  return `date: ${stamp}
-location (e.g., JC workshop, Oberlin acoustics, etc.)
-name of experiment (if applicable)
-names of researchers
-
-Instrument Information:
-instrument (e.g., violin, viola, cello, guitar, mandolin, etc.)
-model (e.g., Titian Strad, Guadagnini, personal, etc.)
-maker name
-maker ID (e.g., serial number)
-year built (4 digits)
-country of origin
-session (e.g. Oberlin 2017, VSA 2008)
-making school (e.g. Old Italian)
-
-Measurement Information:
-type (Radiation, admittance, modal analysis, taptones, etc.)
-protocol (HV24, etc.)
-`;
-}
-
 window.acqNotes = async function() {
   document.getElementById('notes-modal')?.classList.add('open');
   const ta = document.getElementById('notes-textarea');
   const st = document.getElementById('notes-save-msg');
   if (st) st.textContent = '';
   let text = localStorage.getItem(_notesKey()) || '';
-  let foundOnDisk = false;
   if (_testsHandle) {
     try {
       const file = await (await _testsHandle.getFileHandle('notes.txt')).getFile();
       text = await file.text();
-      foundOnDisk = true;
       localStorage.setItem(_notesKey(), text);
     } catch (_) { /* no notes.txt on disk yet — fall back to local draft */ }
   }
-  if (!text.trim() && !foundOnDisk) text = _defaultNotesText();
   if (ta) ta.value = text;
   _renderNotesPhotoList();
 };
@@ -1510,7 +1514,7 @@ window.acqDeleteNotes = async function() {
   if (_testsHandle) {
     try { await _testsHandle.removeEntry('notes.txt'); } catch (_) { /* file may not exist */ }
   }
-  if (ta) ta.value = _defaultNotesText();
+  if (ta) ta.value = '';
   if (st) { st.textContent = '✓ Notes cleared'; setTimeout(() => st.textContent = '', 2500); }
 };
 
@@ -1699,6 +1703,10 @@ window.acqOpenTemplateSettings = async function() {
   _startStencilPoll();
   _tplBaselineFields = _captureTplFieldValues();
   _updateTplPrimaryBtnLabel();
+  _updateStencilSectionVisibility();
+  _updateWizardStep1Btn();
+  const titleEl = document.getElementById('tpl-modal-title');
+  if (titleEl) titleEl.textContent = _wizardActive ? 'Setup — Step 1 of 2' : 'Template & Settings';
 };
 
 window.acqTogglePlotSettings = function() {
@@ -1764,7 +1772,7 @@ function _lvFieldsToSettings(fields) {
     mic_time_cutoff_s: parseFloat(fields['Mic cutoff']       ?? '0.30'),
     ham_cal:           parseFloat(fields['Hammer Cal']       ?? '1'),
     mic_cal:           parseFloat(fields['Mic Cal']          ?? '1'),
-    prefix:            (fields['Set Names'] || 'H').split(',')[0].trim(),
+    prefix:            (fields['Set Names'] || 'H').trim(),
     soundcard:         (fields['Soundcard'] || '').trim(),
     swap_channels:     (fields['flip?'] || '').trim().toLowerCase() === 'true',
   };
@@ -1905,6 +1913,7 @@ function _restoreTplSnapshot(snap) {
 window.acqSelectAndApplyTpl = function(i) {
   _selectedTpl = i;
   _renderTemplateList();
+  _updateWizardStep1Btn();
   if (i === -1) return;  // Current Settings = no-op, nothing to apply
   const t = _templates[i];
   if (!t) return;
@@ -1961,7 +1970,6 @@ window.acqSelectAndApplyTpl = function(i) {
   frfCache = {}; tapCache = {};
   renderFRF(); _clearTrigPlots();
   window.pyResetAll?.();
-  _refreshOverlays();
 
   const undoBtn = document.getElementById('tpl-undo-btn');
   if (undoBtn) undoBtn.style.display = '';
@@ -2060,30 +2068,178 @@ window.acqRenameTest = async function() {
   }
 };
 
+// ── Instrument + Notes modal ─────────────────────────────────────────────
+// Used both as wizard Step 2 (chained from Step 1, not closable until
+// finished) and standalone via the toolbar's 🎻 Instrument button (closable,
+// for switching instruments mid-session).
+
+const _NON_INSTRUMENT_DIRS = new Set(['ObieAppSettings', 'Test_Samples', 'Group Averages']);
+
+async function _listInstrumentNames(rootDirHandle) {
+  const names = [];
+  try {
+    for await (const [name, h] of rootDirHandle.entries()) {
+      if (h.kind === 'directory' && !_NON_INSTRUMENT_DIRS.has(name)) names.push(name);
+    }
+  } catch (_) {}
+  names.sort((a, b) => a.localeCompare(b));
+  return names;
+}
+
+// Read-only peek at an instrument's notes.txt for the live preview — returns
+// '' if the instrument or file doesn't exist yet (brand-new instrument).
+async function _peekNotesText(rootDirHandle, name) {
+  try {
+    const instrHandle = await rootDirHandle.getDirectoryHandle(name);
+    const file = await (await instrHandle.getFileHandle('notes.txt')).getFile();
+    return await file.text();
+  } catch (_) {
+    return '';
+  }
+}
+
+// Splits notes.txt content into entries at lines matching "(N) ...". Entries
+// with no such header (old-style single-blob notes) come back as one entry
+// with an empty header, so pre-existing notes.txt files still round-trip.
+function _parseNotesEntries(text) {
+  if (!text || !text.trim()) return [];
+  const headerRe = /^\(\d+\)\s/;
+  const entries = [];
+  let current = null;
+  for (const line of text.split('\n')) {
+    if (headerRe.test(line)) {
+      if (current) entries.push(current);
+      current = { header: line, body: [] };
+    } else {
+      if (!current) current = { header: '', body: [] };
+      current.body.push(line);
+    }
+  }
+  if (current) entries.push(current);
+  return entries.map(e => ({ header: e.header, body: e.body.join('\n').replace(/\n+$/, '') }));
+}
+
+function _escHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+// "(N) 8/31/26 19:54   Test 03" — N is this instrument's entry count so far
+// (+1), the test number is pulled from the "<instrument>_NN" folder name.
+function _formatNotesHeader(n, testFolderName) {
+  const now = new Date();
+  const pad = x => String(x).padStart(2, '0');
+  const dateStr = `${now.getMonth() + 1}/${now.getDate()}/${String(now.getFullYear()).slice(-2)}`;
+  const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const m = testFolderName.match(/_(\d+)$/);
+  const testNum = m ? m[1] : testFolderName;
+  return `(${n}) ${dateStr} ${timeStr}   Test ${testNum}`;
+}
+
+let _wizSeededFor  = null;  // last instrument name the notes body was auto-seeded for
+let _wizPreviewTimer = null;
+
+window._wizardRefreshInstrumentPreview = function() {
+  clearTimeout(_wizPreviewTimer);
+  _wizPreviewTimer = setTimeout(_wizardRefreshInstrumentPreviewNow, 250);
+};
+
+async function _wizardRefreshInstrumentPreviewNow() {
+  const name = (document.getElementById('wiz-instrument-inp')?.value || '').trim();
+  const primaryBtn = document.getElementById('instr-setup-primary-btn');
+  const headerEl   = document.getElementById('wiz-notes-current-header');
+  const historyEl  = document.getElementById('wiz-notes-history');
+  const bodyEl     = document.getElementById('wiz-notes-body');
+
+  if (primaryBtn) primaryBtn.disabled = !name;
+  if (!name || !_rootDirHandle) {
+    if (headerEl) headerEl.textContent = '';
+    if (historyEl) historyEl.innerHTML = '';
+    return;
+  }
+
+  const [testName, notesText] = await Promise.all([
+    _peekNextTestNumber(_rootDirHandle, name),
+    _peekNotesText(_rootDirHandle, name),
+  ]);
+  const entries = _parseNotesEntries(notesText);
+  if (headerEl) headerEl.textContent = _formatNotesHeader(entries.length + 1, testName);
+  if (historyEl) {
+    historyEl.innerHTML = entries.map(e => `
+      <div class="notes-history-entry">
+        ${e.header ? `<div class="notes-history-hdr">${_escHtml(e.header)}</div>` : ''}
+        <div class="notes-history-body">${_escHtml(e.body)}</div>
+      </div>`).join('');
+  }
+  if (bodyEl && _wizSeededFor !== name) {
+    bodyEl.value = `Instrument name: ${name}\n`;
+    _wizSeededFor = name;
+  }
+}
+
+async function _openInstrumentSetupModal() {
+  const current = (document.getElementById('inp-instrument-banner')?.textContent || '').trim();
+  const nameInp = document.getElementById('wiz-instrument-inp');
+  if (nameInp) nameInp.value = (current && current !== '—') ? current : '';
+  _wizSeededFor = null;
+
+  const datalist = document.getElementById('wiz-instrument-datalist');
+  if (datalist && _rootDirHandle) {
+    const names = await _listInstrumentNames(_rootDirHandle);
+    datalist.innerHTML = names.map(n => `<option value="${_escHtml(n)}">`).join('');
+  }
+
+  document.getElementById('instrument-setup-box')?.classList.toggle('wizard-mode', _wizardActive);
+  const primaryBtn = document.getElementById('instr-setup-primary-btn');
+  if (primaryBtn) primaryBtn.textContent = _wizardActive ? 'Start Acquiring' : 'Set Instrument';
+  const titleEl = document.getElementById('instr-setup-title');
+  if (titleEl) titleEl.textContent = _wizardActive ? 'Setup — Step 2 of 2: Instrument & Notes' : 'Instrument';
+
+  document.getElementById('instrument-setup-modal')?.classList.add('open');
+  await _wizardRefreshInstrumentPreviewNow();
+  requestAnimationFrame(() => nameInp?.focus());
+}
+
 window.acqSetInstrument = function() {
   if (!_rootDirHandle) { alert('Set a Data Folder first.'); return; }
-  const current = (document.getElementById('inp-instrument-banner')?.textContent || '').trim();
-  const inp = document.getElementById('instrument-inp');
-  if (inp) { inp.value = current === '—' ? '' : current; }
-  document.getElementById('instrument-modal')?.classList.add('open');
-  requestAnimationFrame(() => document.getElementById('instrument-inp')?.focus());
+  _openInstrumentSetupModal();
 };
 
-window.acqCloseInstrument = function() {
-  document.getElementById('instrument-modal')?.classList.remove('open');
+window.acqCloseInstrumentSetup = function() {
+  if (_wizardActive) return;   // not closable mid-wizard — must Start Acquiring
+  document.getElementById('instrument-setup-modal')?.classList.remove('open');
 };
 
-window.acqConfirmInstrument = async function() {
-  const inp  = document.getElementById('instrument-inp');
-  const name = inp?.value.trim();
+window.acqInstrumentSetupPrimary = async function() {
+  const name = (document.getElementById('wiz-instrument-inp')?.value || '').trim();
   if (!name) return;
   const prev = (document.getElementById('inp-instrument-banner')?.textContent || '').trim();
-  const msg = document.getElementById('instrument-modal-msg');
+  const msg  = document.getElementById('instrument-setup-msg');
   if (msg) msg.textContent = 'Setting up…';
+
+  const header = document.getElementById('wiz-notes-current-header')?.textContent || '';
+  const body   = (document.getElementById('wiz-notes-body')?.value || '').trim();
+  const existingNotes = await _peekNotesText(_rootDirHandle, name);
+  const newEntry   = `${header}\n${body}`.trim();
+  const fullNotes  = existingNotes.trim() ? `${newEntry}\n\n${existingNotes.trim()}\n` : `${newEntry}\n`;
+
   await _refreshInstrumentFolder(name);
+
+  if (_testsHandle) {
+    try {
+      const fh = await _testsHandle.getFileHandle('notes.txt', { create: true });
+      const w  = await fh.createWritable();
+      await w.write(fullNotes);
+      await w.close();
+    } catch (e) {
+      if (_isFolderGoneError(e)) _handleFolderGone();
+    }
+  }
+  localStorage.setItem(_notesKey(), fullNotes);
+
   if (msg) msg.textContent = '';
-  document.getElementById('instrument-modal')?.classList.remove('open');
-  _refreshOverlays();
+  document.getElementById('instrument-setup-modal')?.classList.remove('open');
+  _wizardActive = false;
+
   if (name !== prev && prev !== '—') {
     frfCache = {}; tapCache = {};
     renderFRF(); _clearTrigPlots();
@@ -2091,42 +2247,61 @@ window.acqConfirmInstrument = async function() {
   }
 };
 
+// Scans an instrument folder for existing test-subfolder suffixes ("_NN") and
+// returns what the next test folder name should be — reusing the last one if
+// it's still empty of raw/TRF data, else incrementing. Shared by
+// _refreshInstrumentFolder (which then actually creates it) and
+// _peekNextTestNumber (read-only preview in the Instrument+Notes modal).
+async function _nextTestNameFor(instrHandle, instrumentName) {
+  let maxNum = 0, maxNumName = null;
+  try {
+    for await (const [name, h] of instrHandle.entries()) {
+      if (h.kind === 'directory') {
+        const m = name.match(/_(\d+)$/);
+        if (m) { const n = parseInt(m[1]); if (n > maxNum) { maxNum = n; maxNumName = name; } }
+      }
+    }
+  } catch (_) {}
+
+  // Check whether the highest-numbered folder contains any real measurement data
+  // (files inside raw/ or TRF/). If it's empty we reuse it; otherwise increment.
+  let lastFolderHasData = false;
+  if (maxNum > 0 && maxNumName) {
+    try {
+      const lastH = await instrHandle.getDirectoryHandle(maxNumName);
+      for (const subdir of ['raw', 'TRF']) {
+        try {
+          const sdH = await lastH.getDirectoryHandle(subdir);
+          for await (const _ of sdH.entries()) { lastFolderHasData = true; break; }
+        } catch (_) {}
+        if (lastFolderHasData) break;
+      }
+    } catch (_) {}
+  }
+
+  return (maxNum > 0 && maxNumName && !lastFolderHasData)
+    ? maxNumName
+    : `${instrumentName}_${String(maxNum + 1).padStart(2, '0')}`;
+}
+
+// Read-only peek for the Instrument+Notes modal's live preview — never
+// creates the instrument folder, so a brand-new name just previews "<name>_01".
+async function _peekNextTestNumber(rootDirHandle, instrumentName) {
+  try {
+    const instrHandle = await rootDirHandle.getDirectoryHandle(instrumentName);
+    return await _nextTestNameFor(instrHandle, instrumentName);
+  } catch (_) {
+    return `${instrumentName}_01`;
+  }
+}
+
 async function _refreshInstrumentFolder(instrumentName) {
   if (!_rootDirHandle || !instrumentName || instrumentName === 'scratch') return;
   try {
     const instrHandle = await _rootDirHandle.getDirectoryHandle(instrumentName, { create: true });
     _testsHandle = instrHandle;
 
-    // Find the highest existing run number to auto-name the next one.
-    let maxNum = 0, maxNumName = null;
-    try {
-      for await (const [name, h] of instrHandle.entries()) {
-        if (h.kind === 'directory') {
-          const m = name.match(/_(\d+)$/);
-          if (m) { const n = parseInt(m[1]); if (n > maxNum) { maxNum = n; maxNumName = name; } }
-        }
-      }
-    } catch (_) {}
-
-    // Check whether the highest-numbered folder contains any real measurement data
-    // (files inside raw/ or TRF/). If it's empty we reuse it; otherwise increment.
-    let lastFolderHasData = false;
-    if (maxNum > 0 && maxNumName) {
-      try {
-        const lastH = await instrHandle.getDirectoryHandle(maxNumName);
-        for (const subdir of ['raw', 'TRF']) {
-          try {
-            const sdH = await lastH.getDirectoryHandle(subdir);
-            for await (const _ of sdH.entries()) { lastFolderHasData = true; break; }
-          } catch (_) {}
-          if (lastFolderHasData) break;
-        }
-      } catch (_) {}
-    }
-
-    _pendingTestName = (maxNum > 0 && maxNumName && !lastFolderHasData)
-      ? maxNumName
-      : `${instrumentName}_${String(maxNum + 1).padStart(2, '0')}`;
+    _pendingTestName = await _nextTestNameFor(instrHandle, instrumentName);
 
     // Create (or reopen) the test subfolder so Start never has to.
     const testHandle = await instrHandle.getDirectoryHandle(_pendingTestName, { create: true });
@@ -2178,15 +2353,6 @@ async function _refreshInstrumentFolder(instrumentName) {
     alert(`⚠️ Could not set up folder for "${instrumentName}":\n${e.message}`);
     _setSaveStatus(false, e.message);
   }
-}
-
-// Show/hide the instrument overlay based on current state.
-// Instrument overlay only appears when a data folder IS connected but no instrument is named.
-function _refreshOverlays() {
-  // Only show the instrument overlay when a template has been loaded but no
-  // instrument folder is set up yet. Without a template, scratch/unnamed mode is fine.
-  const needsInstrument = !!_rootDirHandle && !_rawHandle && !!_currentTemplateName;
-  document.getElementById('instrument-overlay')?.classList.toggle('hidden', !needsInstrument);
 }
 
 // Core folder-setup logic, callable with any directory handle (manual pick or auto-restore)
@@ -2244,9 +2410,10 @@ async function _applyDataFolder(dirHandle) {
     if (testDisp) testDisp.textContent = '—';
   }
 
-  // Hide the no-folder overlay, then show instrument overlay if still unnamed
+  // Hide the no-folder overlay, then force the setup wizard every time a
+  // folder resolves (auto-restore or manual pick) before the page is usable.
   document.getElementById('folder-overlay')?.classList.add('hidden');
-  _refreshOverlays();
+  await _startSetupWizard();
 }
 
 let _folderApplying = false;
@@ -2414,6 +2581,7 @@ function _renderStencilList() {
 window.acqSelectStencil = async function(i) {
   _selectedStencil = i;
   _renderStencilList();
+  _updateWizardStep1Btn();
   const ind = document.getElementById('stencil-ind');
   const msg = document.getElementById('stencil-applied-msg');
 
@@ -2586,7 +2754,17 @@ window.acqSyncInputDevice = function() {
   const val = document.getElementById('inp-input-device')?.value || 'microphone';
   localStorage.setItem('obieAcquire_inputDevice', val);
   _applyInputDeviceLabels();
+  _updateStencilSectionVisibility();
+  _updateWizardStep1Btn();
 };
+
+// Node Stencil only applies to Modal Analysis (accelerometer) — Radiation runs
+// never use a stencil, so hide the section rather than leave it inert.
+function _updateStencilSectionVisibility() {
+  const val = document.getElementById('inp-input-device')?.value || 'microphone';
+  const section = document.getElementById('stencil-section');
+  if (section) section.style.display = (val === 'accelerometer') ? '' : 'none';
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 // LiveView dialog — embedded, toggled by the LiveView toolbar button

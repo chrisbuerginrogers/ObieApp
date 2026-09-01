@@ -167,15 +167,6 @@
         <div class="folder-overlay-sub" id="folder-overlay-sub"></div>
       </div>
 
-      <!-- No-instrument overlay — shown when folder is connected but no instrument is named -->
-      <div id="instrument-overlay" class="folder-overlay hidden">
-        <div class="folder-overlay-msg">🎻 Name your instrument before acquiring</div>
-        <button class="tb-btn start" onclick="acqSetInstrument()" style="padding:6px 18px;font-size:12px">
-          Set Instrument…
-        </button>
-        <div class="folder-overlay-sub" id="instrument-overlay-sub"></div>
-      </div>
-
       <!-- Plot controls toolbar -->
       <div class="plot-toolbar">
         <button class="tb-btn" onclick="acqRescaleY()" title="Rescale Y to data range">↕Y</button>
@@ -240,10 +231,10 @@
      / Input Device picker and all run + plot settings, in one place.
      ═══════════════════════════════════════════════════════════════════════ -->
 <div id="tpl-settings-modal" class="modal-overlay">
-  <div class="modal-box" style="width:min(96vw,980px);max-width:980px">
+  <div id="tpl-settings-box" class="modal-box" style="width:min(96vw,980px);max-width:980px">
     <div class="modal-header">
-      <span class="modal-title">Template &amp; Settings</span>
-      <button class="modal-close" onclick="acqTplExitCancel()" title="Close without saving changes">✕</button>
+      <span id="tpl-modal-title" class="modal-title">Template &amp; Settings</span>
+      <button id="tpl-modal-close-btn" class="modal-close" onclick="acqTplExitCancel()" title="Close without saving changes">✕</button>
     </div>
     <div class="modal-body" style="display:flex;gap:8px;overflow:hidden;max-height:70vh">
 
@@ -281,13 +272,15 @@
           <button id="tpl-undo-btn" class="act-btn" onclick="acqUndoTemplateApply()" style="display:none" title="Revert the settings you just applied by clicking a template">↺ Undo</button>
         </div>
 
-        <div class="setup-section-hdr">Node Stencil</div>
-        <p style="font-size:10px;color:var(--muted);margin-bottom:6px;line-height:1.4">
-          Build stencils in <strong><a href="#" onclick="acqOpenStencilBuilder();return false;" style="color:inherit;text-decoration:underline;cursor:pointer" title="Open Stencil Builder in a new tab to create or edit a node stencil">Stencil Builder</a></strong>. Selecting one below applies it immediately and saves it with each run.
-        </p>
-        <div id="stencil-list" class="tpl-list" style="max-height:110px" title="Click a stencil to apply it — None removes any stencil from this run"></div>
-        <div class="save-row" style="margin-top:6px;margin-bottom:14px">
-          <span id="stencil-applied-msg" class="save-msg"></span>
+        <div id="stencil-section">
+          <div class="setup-section-hdr">Node Stencil</div>
+          <p style="font-size:10px;color:var(--muted);margin-bottom:6px;line-height:1.4">
+            Build stencils in <strong><a href="#" onclick="acqOpenStencilBuilder();return false;" style="color:inherit;text-decoration:underline;cursor:pointer" title="Open Stencil Builder in a new tab to create or edit a node stencil">Stencil Builder</a></strong>. Selecting one below applies it immediately and saves it with each run.
+          </p>
+          <div id="stencil-list" class="tpl-list" style="max-height:110px" title="Click a stencil to apply it — None removes any stencil from this run"></div>
+          <div class="save-row" style="margin-top:6px;margin-bottom:14px">
+            <span id="stencil-applied-msg" class="save-msg"></span>
+          </div>
         </div>
       </div>
 
@@ -472,35 +465,45 @@
       <span id="tpl-reset-msg" class="save-msg"></span>
       <span id="prefs-save-msg" class="save-msg"></span>
       <div style="flex:1"></div>
-      <button class="act-btn" onclick="acqTplExitCancel()" title="Close this dialog and discard any changes">Cancel</button>
-      <button class="act-btn" onclick="acqTplExitCreateTemplate()" title="Save these settings as a brand-new template">Create New Template</button>
+      <button class="act-btn" id="tpl-cancel-btn" onclick="acqTplExitCancel()" title="Close this dialog and discard any changes">Cancel</button>
+      <button class="act-btn" id="tpl-create-btn" onclick="acqTplExitCreateTemplate()" title="Save these settings as a brand-new template">Create New Template</button>
       <button id="tpl-primary-btn" class="act-btn accent" onclick="acqTplExitPrimary()" title="Apply these settings to this run">Use Template</button>
+      <button id="wiz-step1-continue-btn" class="act-btn accent" onclick="acqTplExitPrimary()" title="Apply this template (and stencil) and continue" disabled>Continue →</button>
     </div>
   </div>
 </div>
 
 
 <!-- ═══════════════════════════════════════════════════════════════════════
-     Instrument modal
+     Instrument + Notes modal — used both as wizard Step 2 and, standalone, as
+     the toolbar's "change instrument" dialog.
      ═══════════════════════════════════════════════════════════════════════ -->
-<div id="instrument-modal" class="modal-overlay">
-  <div class="modal-box" style="width:min(92vw,380px)">
+<div id="instrument-setup-modal" class="modal-overlay">
+  <div id="instrument-setup-box" class="modal-box" style="width:min(92vw,560px)">
     <div class="modal-header">
-      <span class="modal-title">Set Instrument</span>
-      <button class="modal-close" onclick="acqCloseInstrument()">✕</button>
+      <span id="instr-setup-title" class="modal-title">Instrument</span>
+      <button id="instr-setup-close-btn" class="modal-close" onclick="acqCloseInstrumentSetup()">✕</button>
     </div>
     <div class="modal-body">
       <div class="pref-row">
-        <label for="instrument-inp">Instrument name</label>
-        <input id="instrument-inp" type="text" placeholder="e.g. Violin"
-               style="flex:1;max-width:200px"
-               onkeydown="if(event.key==='Enter') acqConfirmInstrument()">
+        <label for="wiz-instrument-inp">Instrument name</label>
+        <input id="wiz-instrument-inp" type="text" placeholder="Type or pick an existing instrument"
+               list="wiz-instrument-datalist" style="flex:1"
+               oninput="_wizardRefreshInstrumentPreview()"
+               onkeydown="if(event.key==='Enter'){event.preventDefault();acqInstrumentSetupPrimary();}">
+        <datalist id="wiz-instrument-datalist"></datalist>
       </div>
       <p class="pref-hint">Creates the folder if it doesn't exist, then queues the next test number.</p>
-      <div class="save-row">
-        <button class="act-btn accent" onclick="acqConfirmInstrument()">Set</button>
-        <button class="act-btn" onclick="acqCloseInstrument()">Cancel</button>
-        <span id="instrument-modal-msg" class="save-msg"></span>
+
+      <div class="setup-section-hdr" style="margin-top:12px">Instrument Notes</div>
+      <div id="wiz-notes-current-header" class="notes-entry-hdr"></div>
+      <textarea id="wiz-notes-body" rows="6" placeholder="Enter notes for this test…"></textarea>
+      <div id="wiz-notes-history" class="notes-history"></div>
+
+      <div class="save-row" style="margin-top:10px">
+        <button id="instr-setup-cancel-btn" class="act-btn" onclick="acqCloseInstrumentSetup()">Cancel</button>
+        <button id="instr-setup-primary-btn" class="act-btn accent" onclick="acqInstrumentSetupPrimary()" disabled>Start Acquiring</button>
+        <span id="instrument-setup-msg" class="save-msg"></span>
       </div>
     </div>
   </div>

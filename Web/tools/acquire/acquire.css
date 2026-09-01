@@ -332,14 +332,42 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 .save-msg  { font-size: 11px; color: var(--green); font-style: italic; }
 
 /* ── Notes modal ─────────────────────────────────────────────────────── */
-#notes-textarea {
+#notes-textarea, #wiz-notes-body {
   width: 100%; box-sizing: border-box;
   font-family: inherit; font-size: 12px; line-height: 1.5;
   border: 1px solid var(--border); border-radius: 4px;
   padding: 8px; resize: vertical; min-height: 200px;
   background: #fafafa; color: var(--text);
 }
-#notes-textarea:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+#notes-textarea:focus, #wiz-notes-body:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+#wiz-notes-body { min-height: 90px; margin-top: 2px; }
+
+/* ── Instrument + Notes modal (also wizard Step 2) ───────────────────── */
+.notes-entry-hdr { color: var(--red, #c62828); font-weight: 700; font-size: 12px; margin: 2px 0; }
+.notes-history {
+  margin-top: 12px; max-height: 180px; overflow-y: auto;
+  border-top: 1px solid var(--border); padding-top: 8px;
+}
+.notes-history-entry { margin-bottom: 10px; }
+.notes-history-hdr { color: var(--muted); font-weight: 700; font-size: 11px; }
+.notes-history-body { font-size: 11px; line-height: 1.4; color: var(--text); opacity: 0.8; white-space: pre-wrap; }
+
+/* ── Setup wizard mode — reuses #tpl-settings-modal and #instrument-setup-modal,
+     just hides the parts that don't belong in the forced startup sequence. ── */
+#tpl-settings-box.wizard-mode { width: min(92vw, 360px) !important; }
+#tpl-settings-box.wizard-mode #tpl-col-b,
+#tpl-settings-box.wizard-mode #tpl-resizer-ab,
+#tpl-settings-box.wizard-mode #tpl-col-c,
+#tpl-settings-box.wizard-mode #tpl-modal-close-btn,
+#tpl-settings-box.wizard-mode #tpl-cancel-btn,
+#tpl-settings-box.wizard-mode #tpl-create-btn,
+#tpl-settings-box.wizard-mode #tpl-primary-btn { display: none; }
+#wiz-step1-continue-btn { display: none; }
+#tpl-settings-box.wizard-mode #wiz-step1-continue-btn { display: inline-block; }
+#wiz-step1-continue-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+#instrument-setup-box.wizard-mode #instr-setup-close-btn,
+#instrument-setup-box.wizard-mode #instr-setup-cancel-btn { display: none; }
 
 /* ── Template modal ──────────────────────────────────────────────────── */
 .tpl-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; overflow-y: auto; }
