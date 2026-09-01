@@ -78,6 +78,7 @@ Every new web tool under `Web/tools/<tool-name>/` must follow the exact same str
   <script src="../../js/audio.js"></script>
   <script src="../../js/obie-settings.js"></script>
   <script src="../../js/browser-check.js"></script>       <!-- Chrome check -->
+  <script src="../../js/version-nav.js"></script>         <!-- Beta purple theme + archived-page nav fix -->
   <script src="./[tool-name].js" defer></script>
 </head>
 <body>
@@ -175,6 +176,17 @@ window.toolHelp = function() { window.open('../../Docs/index.html', '_blank'); }
 `browser-check.js` must be included in every tool's `<head>` (see shell above). It alerts the user if they are not on Chrome or Edge, which is required for the File System Access API and SharedArrayBuffer.
 
 Do **not** inline this logic or duplicate it — always load the shared `../../js/browser-check.js`.
+
+---
+
+## Rule 3b — Beta Theme + Archived-Page Nav Fix (Automatic)
+
+`version-nav.js` must be included in every tool's `<head>` (see shell above), right after `browser-check.js`. It detects whether the page is being served from `Web/tools/<tool>/` (live — Beta or Experimental) or a frozen `Web/versions/X.Y.Z/tools/<tool>/` snapshot (Stable):
+
+- **Live**: adds `obie-beta` to `<html>`, which `theme.css`'s `html.obie-beta` block uses to swap the header's brown accent for purple — a quick visual "this isn't the stable release" signal. This relies on the header always sourcing its color from `--header-bg`/`--header-border` (see theme.css) rather than `--bg-deep`/`--border`, which several tools redeclare locally for their own light theme — **do not** hardcode or reintroduce a tool-local override of the header's background/border color.
+- **Archived**: rewrites the header's brand-logo and "← All tools" links (both `href="../../index.html"` by default) to instead reach the live site's home page, since from inside a `versions/X.Y.Z/tools/<tool>/` snapshot the default href only reaches that snapshot's own frozen `index.html`.
+
+Do **not** inline this logic or duplicate it — always load the shared `../../js/version-nav.js`.
 
 ---
 

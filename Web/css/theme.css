@@ -14,6 +14,27 @@
   --accent-2:  #ff6f00;   /* primary plot/data color */
   --accent-3:  #6e8b3d;   /* olive accent */
   --shadow:    0 1px 3px rgba(80, 50, 10, 0.08);
+
+  /* Header-only tokens, deliberately separate from --bg-deep/--border above:
+     several tools (acquire, convolve, matlab, spectrum) run their own
+     white/light-gray theme and redeclare --bg-deep/--border for their own
+     surfaces, but the shared header bar should always look the same
+     regardless — these two names are never redeclared by any tool CSS. */
+  --header-bg:     #e8d8be;
+  --header-border: #c9b48f;
+}
+
+/* Beta/Experimental tool pages (anything served from the live Web/tools/
+   tree, not a frozen Web/versions/X.Y.Z/ snapshot) swap the brown accent for
+   purple as a quick "this isn't the stable release" visual signal. Toggled
+   by js/version-nav.js, which adds this class to <html>. Higher specificity
+   than a plain `:root` rule, so it wins even over tool CSS files that
+   re-declare --accent/--accent-2 in their own :root block. */
+html.obie-beta {
+  --header-bg:     #e3d7f5;
+  --header-border: #c9b0e0;
+  --accent:        #7b2cbf;
+  --accent-2:      #ab47bc;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -32,8 +53,8 @@ header.obie-header {
   align-items: center;
   gap: 14px;
   padding: 18px 28px;
-  background: var(--bg-deep);
-  border-bottom: 1px solid var(--border);
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--header-border);
 }
 header.obie-header a.brand {
   display: flex;

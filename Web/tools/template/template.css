@@ -1,5 +1,23 @@
 /* Template Builder — tool layout */
 
+/* Matches the light theme every other tool (Acquire, Explore, Convolve, …)
+   overrides theme.css's default brown/parchment palette with — this file
+   previously had no :root block, so it was inheriting the brown theme.
+   Header color still comes from theme.css's --header-bg/--header-border,
+   unaffected by this. */
+:root {
+  --bg:        #ffffff;
+  --bg-deep:   #eff1f4;
+  --surface:   #ffffff;
+  --border:    #c0c4cc;
+  --text:      #1a1a1a;
+  --muted:     #5a5f6a;
+  --accent:    #b35c00;
+  --accent-2:  #d07000;
+  --green:     #2e7d32;
+  --red:       #c62828;
+}
+
 .tpl-page {
   display: flex;
   flex-direction: column;
@@ -320,7 +338,7 @@
 /* ── Watch indicator ─────────────────────────────────────────────── */
 .tpl-watch-ind {
   font-size: 0.78rem;
-  color: #5a9e4a;
+  color: var(--green);
   font-weight: 600;
   white-space: nowrap;
   max-width: 220px;
