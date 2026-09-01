@@ -113,6 +113,51 @@ const _TEST_SAMPLE_SEEDS = [
   ['Titian Strad H.AvC', _GH_SAMPLES + 'Titian%20Strad%20H.AvC'],
 ];
 
+// Copies any file present in `srcHandle` but missing from `destHandle` into
+// destHandle — never overwrites a file that already exists there. Used to pull
+// forward files left behind in the pre-rename "_ObieAppSettings" folder
+// (older web-app versions, and the LabVIEW environment, both wrote there)
+// without ever touching or deleting the legacy folder itself.
+async function _mergeMissingFiles(srcHandle, destHandle) {
+  for await (const [name, h] of srcHandle.entries()) {
+    if (h.kind !== 'file') continue;
+    try {
+      await destHandle.getFileHandle(name);
+      continue;   // already present in the new folder — never overwrite
+    } catch (_) { /* not present — copy it over */ }
+    try {
+      const buf = await (await h.getFile()).arrayBuffer();
+      const fh  = await destHandle.getFileHandle(name, { create: true });
+      const w   = await fh.createWritable();
+      await w.write(buf);
+      await w.close();
+    } catch (e) { console.warn('Legacy _ObieAppSettings merge failed for', name, e); }
+  }
+}
+
+// If a legacy "_ObieAppSettings" folder exists alongside the current
+// "ObieAppSettings" one, pull forward anything missing — the top-level
+// preference files plus every subfolder. Runs on every startup (cheap once
+// the two are in sync) so anything later added on the LabVIEW side keeps
+// showing up here too. Silent — this is expected to become a no-op quickly.
+async function _mergeLegacySettingsFolder(dirHandle, settingsHandle, subHandles) {
+  let legacyHandle;
+  try {
+    legacyHandle = await dirHandle.getDirectoryHandle('_ObieAppSettings');
+  } catch (_) {
+    return;   // no legacy folder — nothing to do
+  }
+
+  await _mergeMissingFiles(legacyHandle, settingsHandle);
+
+  for (const [subName, destHandle] of Object.entries(subHandles)) {
+    try {
+      const legacySub = await legacyHandle.getDirectoryHandle(subName);
+      await _mergeMissingFiles(legacySub, destHandle);
+    } catch (_) { /* legacy folder has no such subfolder — nothing to merge */ }
+  }
+}
+
 async function _seedFiles(dirHandle, seeds) {
   let failures = 0;
   for (const [name, urlOrObj] of seeds) {
@@ -168,6 +213,17 @@ async function openObieAppSettings(dirHandle) {
     const f5 = await _seedFiles(samplesHandle, _TEST_SAMPLE_SEEDS);
     seedsFailed = (f1 + f2 + f3 + f4 + f5) > 0;
   }
+
+  // Pull forward anything left behind in a pre-rename "_ObieAppSettings"
+  // folder (older web-app versions and LabVIEW both used that name) that
+  // isn't already in the current "ObieAppSettings" — additive only, never
+  // overwrites, and runs every time in case the legacy folder gains files later.
+  await _mergeLegacySettingsFolder(dirHandle, settingsHandle, {
+    Templates: templatesHandle,
+    bands:     bandsHandle,
+    colors:    colorsHandle,
+    lists:     listsHandle,
+  });
 
   return { settingsHandle, templatesHandle, bandsHandle, colorsHandle, listsHandle, isNew, seedsFailed };
 }
