@@ -457,7 +457,14 @@
   }
 
   // ── Render main plot ──────────────────────────────────────────────────
-  function render() {
+  function render(preserveView) {
+    // When preserveView is set, keep the axes exactly where they currently
+    // are on screen (e.g. changing smoothing shouldn't jolt the view just
+    // because the smoothed data's peak/extent shifted slightly).
+    const _pvGd = preserveView ? $('explore-plot') : null;
+    const _pvXRange = _pvGd?._fullLayout?.xaxis?.range ? [..._pvGd._fullLayout.xaxis.range] : null;
+    const _pvYRange = _pvGd?._fullLayout?.yaxis?.range ? [..._pvGd._fullLayout.yaxis.range] : null;
+
     _updateComplexAvgOption();
     const plotTraces = [];
     const bandShapes = [], bandTraces = [];
@@ -532,7 +539,9 @@
 
     // Y range — computed from FRF data only (visible X range), before coherence scaling
     let yRange;
-    if (!_S.yLog) {
+    if (_pvYRange) {
+      yRange = _pvYRange;
+    } else if (!_S.yLog) {
       if (_S.yMin != null && _S.yMax != null) {
         yRange = [_S.yMin, _S.yMax];
       } else {
@@ -586,9 +595,9 @@
     if (cohChk) { cohChk.disabled = !anyCoh; cohChk.checked = _S.showCoh && anyCoh; }
 
     const border = cssVar('--border'), text = cssVar('--text');
-    const xRange = (_S.xMin != null && _S.xMax != null)
+    const xRange = _pvXRange || ((_S.xMin != null && _S.xMax != null)
       ? (_S.xLog ? [Math.log10(Math.max(_S.xMin,1)), Math.log10(_S.xMax)] : [_S.xMin, _S.xMax])
-      : undefined;
+      : undefined);
 
     const layout = {
       paper_bgcolor:'#ffffff', plot_bgcolor:'#ffffff',
@@ -1582,7 +1591,7 @@
     render();
   };
   window.expToggleXLog = function() { _S.xLog = !_S.xLog; _syncAxisBtns(); render(); };
-  window.expSetSmoothing = function(v) { _S.smoothing = parseFloat(v) || 0; render(); };
+  window.expSetSmoothing = function(v) { _S.smoothing = parseFloat(v) || 0; render(true); };
   window.expSetNormalize = function(v) {
     _S.normMode = v;   // 'as_measured' | 'normalize' | 'avg_range'
     _S.normalize = v === 'normalize';  // keep legacy field in sync
@@ -1600,11 +1609,11 @@
     if (isFinite(hi)) _S.normFHi = hi;
     render();
   };
-  window.expToggleBandShading = function(v) { _S.bandShading = !!v; render(); };
-  window.expToggleCoherence  = function(v) { _S.showCoh = !!v; render(); };
+  window.expToggleBandShading = function(v) { _S.bandShading = !!v; render(true); };
+  window.expToggleCoherence  = function(v) { _S.showCoh = !!v; render(true); };
   window.expSetBandPreset = function(v) {
     if (v === 'custom') { expCustomBands(); return; }
-    _S.bandPreset = v; render();
+    _S.bandPreset = v; render(true);
   };
   window.expCustomBands = async function() {
     const input = prompt(
@@ -1628,7 +1637,7 @@
       if (!o) { o = document.createElement('option'); o.value = 'custom'; sel.appendChild(o); }
       o.textContent = 'Custom'; sel.value = 'custom';
     }
-    render();
+    render(true);
 
     // Offer to save as a preset to ObieAppSettings/bands/
     if (_bandsHandle) {

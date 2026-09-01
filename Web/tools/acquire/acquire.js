@@ -513,11 +513,13 @@ function renderFRF() {
     }
   }
 
-  // Map coherence (0–1) into the middle 50% of the y range, centered vertically.
-  // Coherence traces are prepended so they render BEHIND FRF and tap traces.
+  // Map coherence (0–1) into a narrow band hugging the vertical center of the
+  // y range, so it reads as sitting exactly in the middle rather than
+  // swinging across a large chunk of the plot. Coherence traces are
+  // prepended so they render BEHIND FRF and tap traces.
   if (pendingCoh.length && yRange) {
-    const coBottom = yRange[0] + (yRange[1] - yRange[0]) * 0.25;
-    const coTop    = yRange[0] + (yRange[1] - yRange[0]) * 0.75;
+    const coBottom = yRange[0] + (yRange[1] - yRange[0]) * 0.45;
+    const coTop    = yRange[0] + (yRange[1] - yRange[0]) * 0.55;
     const cohTraces = pendingCoh.map(({ freq, coh }) => ({
       x: freq,
       y: coh.map(c => coBottom + Math.max(0, Math.min(1, c)) * (coTop - coBottom)),
