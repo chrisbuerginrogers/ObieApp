@@ -1236,10 +1236,12 @@ window.acqTplExitUpdateTemplate = async function() {
   const tpl = { name: t.name, ...(t.description ? { description: t.description } : {}),
                 settings: built.prefs, ...(notes ? { notes } : {}) };
   try {
-    const fh = await _templatesHandle.getFileHandle(t._file, { create: true });
-    const w  = await fh.createWritable();
-    await w.write(JSON.stringify(tpl, null, 2));
-    await w.close();
+    await _withWriteRetry(async () => {
+      const fh = await _templatesHandle.getFileHandle(t._file, { create: true });
+      const w  = await fh.createWritable();
+      await w.write(JSON.stringify(tpl, null, 2));
+      await w.close();
+    });
   } catch (e) {
     alert('Failed to update template: ' + e.message);
     return;
@@ -1269,10 +1271,12 @@ window.acqTplExitCreateTemplate = async function() {
   };
   const safeName = name.trim().replace(/[\\/:*?"<>|]/g, '_') + '.json';
   try {
-    const fh = await _templatesHandle.getFileHandle(safeName, { create: true });
-    const w  = await fh.createWritable();
-    await w.write(JSON.stringify(tpl, null, 2));
-    await w.close();
+    await _withWriteRetry(async () => {
+      const fh = await _templatesHandle.getFileHandle(safeName, { create: true });
+      const w  = await fh.createWritable();
+      await w.write(JSON.stringify(tpl, null, 2));
+      await w.close();
+    });
   } catch (e) {
     alert('Failed to save template: ' + e.message);
     return;
@@ -1525,10 +1529,12 @@ window.acqSaveNotes = async function() {
     return;
   }
   try {
-    const fh = await _testsHandle.getFileHandle('notes.txt', { create: true });
-    const w  = await fh.createWritable();
-    await w.write(val);
-    await w.close();
+    await _withWriteRetry(async () => {
+      const fh = await _testsHandle.getFileHandle('notes.txt', { create: true });
+      const w  = await fh.createWritable();
+      await w.write(val);
+      await w.close();
+    });
     if (st) { st.textContent = '✓ Saved to Data Folder'; setTimeout(() => st.textContent = '', 2500); }
   } catch (e) {
     if (_isFolderGoneError(e)) _handleFolderGone();
@@ -1591,10 +1597,12 @@ window.acqAddNotesPhotos = async function(input) {
   try {
     const photosHandle = await _testsHandle.getDirectoryHandle('photos', { create: true });
     for (const file of files) {
-      const fh = await photosHandle.getFileHandle(file.name, { create: true });
-      const w  = await fh.createWritable();
-      await w.write(file);
-      await w.close();
+      await _withWriteRetry(async () => {
+        const fh = await photosHandle.getFileHandle(file.name, { create: true });
+        const w  = await fh.createWritable();
+        await w.write(file);
+        await w.close();
+      });
     }
     if (st) { st.textContent = `✓ Added ${files.length} photo${files.length > 1 ? 's' : ''}`; setTimeout(() => st.textContent = '', 2500); }
     _renderNotesPhotoList();
@@ -1654,10 +1662,12 @@ window.acqSnapPhoto = async function() {
 
   try {
     const photosHandle = await _testsHandle.getDirectoryHandle('photos', { create: true });
-    const fh = await photosHandle.getFileHandle(filename, { create: true });
-    const w  = await fh.createWritable();
-    await w.write(blob);
-    await w.close();
+    await _withWriteRetry(async () => {
+      const fh = await photosHandle.getFileHandle(filename, { create: true });
+      const w  = await fh.createWritable();
+      await w.write(blob);
+      await w.close();
+    });
     if (st) { st.textContent = '✓ Photo saved'; setTimeout(() => st.textContent = '', 2000); }
     _renderNotesPhotoList();
   } catch (e) {
@@ -2034,15 +2044,19 @@ window.acqRenameTest = async function() {
       for await (const [entryName, entry] of oldHandle.entries()) {
         if (entry.kind === 'file') {
           const buf = await (await entry.getFile()).arrayBuffer();
-          const fw = await (await newHandle.getFileHandle(entryName, { create: true })).createWritable();
-          await fw.write(buf); await fw.close();
+          await _withWriteRetry(async () => {
+            const fw = await (await newHandle.getFileHandle(entryName, { create: true })).createWritable();
+            await fw.write(buf); await fw.close();
+          });
         } else if (entry.kind === 'directory') {
           const newSub = await newHandle.getDirectoryHandle(entryName, { create: true });
           for await (const [subName, subEntry] of entry.entries()) {
             if (subEntry.kind === 'file') {
               const buf = await (await subEntry.getFile()).arrayBuffer();
-              const fw = await (await newSub.getFileHandle(subName, { create: true })).createWritable();
-              await fw.write(buf); await fw.close();
+              await _withWriteRetry(async () => {
+                const fw = await (await newSub.getFileHandle(subName, { create: true })).createWritable();
+                await fw.write(buf); await fw.close();
+              });
             }
           }
         }
@@ -2200,10 +2214,12 @@ async function _commitInstrumentAndNotes(name) {
 
   if (_testsHandle) {
     try {
-      const fh = await _testsHandle.getFileHandle('notes.txt', { create: true });
-      const w  = await fh.createWritable();
-      await w.write(fullNotes);
-      await w.close();
+      await _withWriteRetry(async () => {
+        const fh = await _testsHandle.getFileHandle('notes.txt', { create: true });
+        const w  = await fh.createWritable();
+        await w.write(fullNotes);
+        await w.close();
+      });
     } catch (e) {
       if (_isFolderGoneError(e)) _handleFolderGone();
     }
@@ -2312,10 +2328,12 @@ async function _refreshInstrumentFolder(instrumentName) {
         sample_rate: audioCtx?.sampleRate || _loadPrefs().sample_rate || 48000,
         ...(_currentStencilData ? { stencil: _currentStencilData } : {})
       };
-      const fh = await testHandle.getFileHandle('template.json', { create: true });
-      const w  = await fh.createWritable();
-      await w.write(JSON.stringify(snapshot, null, 2));
-      await w.close();
+      await _withWriteRetry(async () => {
+        const fh = await testHandle.getFileHandle('template.json', { create: true });
+        const w  = await fh.createWritable();
+        await w.write(JSON.stringify(snapshot, null, 2));
+        await w.close();
+      });
     } catch (_) {}
 
     const instrDisp = document.getElementById('inp-instrument-banner');
@@ -2470,40 +2488,52 @@ function _sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
 // exactly one of _isFolderGoneError's DOMExceptions even though the folder
 // hasn't actually gone anywhere — most often noticeable a few hits into a
 // session, once the sync client has caught up to the previous hits and
-// starts touching files again. Retry a few times with a short backoff before
-// concluding the folder is really gone.
+// starts touching files again. Every disk write in this file (hits/TRF/AvC/
+// AvR, notes, photos, templates, template.json, acquire.json, test rename)
+// goes through _withWriteRetry so a transient lock like that gets a few
+// short-backoff retries before anything reacts as if the folder is gone.
 const _WRITE_RETRY_DELAYS_MS = [150, 400, 900];
 
-async function _writeFile(folderHandle, filename, bytes) {
+async function _withWriteRetry(fn) {
   for (let attempt = 0; ; attempt++) {
     try {
-      const fh = await folderHandle.getFileHandle(filename, { create: true });
-      const w  = await fh.createWritable();
-      await w.write(bytes);
-      await w.close();
-      return;
+      return await fn();
     } catch (e) {
       if (_isFolderGoneError(e) && attempt < _WRITE_RETRY_DELAYS_MS.length) {
         await _sleep(_WRITE_RETRY_DELAYS_MS[attempt]);
         continue;
       }
-      if (_isFolderGoneError(e)) _handleFolderGone();
-      else console.warn('_writeFile failed:', filename, e.name, e.message);
-      // Never re-throw — prevents "PyodideFuture exception was never retrieved"
-      // when Python calls onSaveHit / onSaveTRF / onSaveAvC and the write fails.
-      return;
+      throw e;  // exhausted retries (or not a retryable error) — caller's own catch handles it
     }
+  }
+}
+
+async function _writeFile(folderHandle, filename, bytes) {
+  try {
+    await _withWriteRetry(async () => {
+      const fh = await folderHandle.getFileHandle(filename, { create: true });
+      const w  = await fh.createWritable();
+      await w.write(bytes);
+      await w.close();
+    });
+  } catch (e) {
+    if (_isFolderGoneError(e)) _handleFolderGone();
+    else console.warn('_writeFile failed:', filename, e.name, e.message);
+    // Never re-throw — prevents "PyodideFuture exception was never retrieved"
+    // when Python calls onSaveHit / onSaveTRF / onSaveAvC and the write fails.
   }
 }
 
 async function _saveAcqSettings() {
   if (!_settingsHandle) return;
   try {
-    const json = JSON.stringify(_loadPrefs(), null, 2);
-    const fh   = await _settingsHandle.getFileHandle('acquire.json', { create: true });
-    const w    = await fh.createWritable();
-    await w.write(json);
-    await w.close();
+    await _withWriteRetry(async () => {
+      const json = JSON.stringify(_loadPrefs(), null, 2);
+      const fh   = await _settingsHandle.getFileHandle('acquire.json', { create: true });
+      const w    = await fh.createWritable();
+      await w.write(json);
+      await w.close();
+    });
   } catch (e) {
     if (_isFolderGoneError(e)) _handleFolderGone();
     else console.warn('_saveAcqSettings:', e);
@@ -2706,12 +2736,15 @@ async function _saveStencilToRun() {
       const rfh = await _testHandle.getFileHandle('template.json');
       existing = JSON.parse(await (await rfh.getFile()).text());
     } catch (_) {}
-    const fh = await _testHandle.getFileHandle('template.json', { create: true });
-    const w  = await fh.createWritable();
-    await w.write(JSON.stringify({ ...existing, stencil: _currentStencilData }, null, 2));
-    await w.close();
+    await _withWriteRetry(async () => {
+      const fh = await _testHandle.getFileHandle('template.json', { create: true });
+      const w  = await fh.createWritable();
+      await w.write(JSON.stringify({ ...existing, stencil: _currentStencilData }, null, 2));
+      await w.close();
+    });
   } catch (e) {
-    console.warn('Could not save stencil to template.json:', e.message);
+    if (_isFolderGoneError(e)) _handleFolderGone();
+    else console.warn('Could not save stencil to template.json:', e.message);
   }
 }
 
