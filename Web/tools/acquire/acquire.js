@@ -2463,17 +2463,36 @@ function _isFolderGoneError(e) {
       || e.name === 'NoModificationAllowedError';
 }
 
+function _sleep(ms) { return new Promise(res => setTimeout(res, ms)); }
+
+// A cloud-sync client watching the Data Folder (OneDrive, Dropbox, Google
+// Drive, …) can briefly lock or swap a file mid-sync, which surfaces here as
+// exactly one of _isFolderGoneError's DOMExceptions even though the folder
+// hasn't actually gone anywhere — most often noticeable a few hits into a
+// session, once the sync client has caught up to the previous hits and
+// starts touching files again. Retry a few times with a short backoff before
+// concluding the folder is really gone.
+const _WRITE_RETRY_DELAYS_MS = [150, 400, 900];
+
 async function _writeFile(folderHandle, filename, bytes) {
-  try {
-    const fh = await folderHandle.getFileHandle(filename, { create: true });
-    const w  = await fh.createWritable();
-    await w.write(bytes);
-    await w.close();
-  } catch (e) {
-    if (_isFolderGoneError(e)) _handleFolderGone();
-    else console.warn('_writeFile failed:', filename, e.name, e.message);
-    // Never re-throw — prevents "PyodideFuture exception was never retrieved"
-    // when Python calls onSaveHit / onSaveTRF / onSaveAvC and the write fails.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const fh = await folderHandle.getFileHandle(filename, { create: true });
+      const w  = await fh.createWritable();
+      await w.write(bytes);
+      await w.close();
+      return;
+    } catch (e) {
+      if (_isFolderGoneError(e) && attempt < _WRITE_RETRY_DELAYS_MS.length) {
+        await _sleep(_WRITE_RETRY_DELAYS_MS[attempt]);
+        continue;
+      }
+      if (_isFolderGoneError(e)) _handleFolderGone();
+      else console.warn('_writeFile failed:', filename, e.name, e.message);
+      // Never re-throw — prevents "PyodideFuture exception was never retrieved"
+      // when Python calls onSaveHit / onSaveTRF / onSaveAvC and the write fails.
+      return;
+    }
   }
 }
 
