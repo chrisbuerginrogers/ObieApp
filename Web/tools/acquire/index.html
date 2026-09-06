@@ -68,15 +68,17 @@
       <button id="lv-btn" class="tb-btn" onclick="acqLiveView()">LiveView</button>
       <button class="tb-btn" onclick="acqHelp()">Help</button>
       <button class="tb-btn" onclick="acqTips()">Tips</button>
-      <button id="acq-start-btn" class="tb-btn start" onclick="acqToggleAcquire()">▶ Start</button>
+      <button class="tb-btn" onclick="acqNotes()" title="Session notes for this instrument">Notes</button>
     </div>
   </div>
 
   <!-- ── Banner row: template button + position tabs + stencil indicator ── -->
   <div class="acq-banner-row">
     <div class="acq-run-meta">
-      <button id="tpl-settings-btn" class="tb-btn" onclick="acqOpenTemplateSettings()">Template: <span id="tpl-settings-btn-name">none</span></button>
-      <button class="tb-btn" onclick="acqNotes()" title="Session notes for this instrument">Notes</button>
+      <select id="tpl-dropdown-sel" class="tb-btn tpl-dropdown-sel" onchange="acqPickTemplateFromDropdown(this.value)" title="Pick a saved template to set up a run">
+        <option value="-1" selected>Template: None</option>
+      </select>
+      <button id="acq-start-btn" class="tb-btn start" onclick="acqToggleAcquire()">▶ Start</button>
       <!-- inp-instrument-banner / inp-test-banner: kept as hidden data holders —
            lots of JS reads their textContent as the source of truth for the
            current instrument/test name. Visible instrument name now lives on
@@ -239,53 +241,67 @@
     </div>
     <div class="modal-body" style="display:flex;gap:8px;overflow:hidden;max-height:70vh">
 
-      <!-- ── Column A: Input device + Template + Stencil ─────────────────── -->
-      <div id="tpl-col-a" style="width:280px;flex-shrink:0;overflow-y:auto;padding-right:10px">
+      <!-- ── Column A: Input device + Instrument + Notes ─────────────────── -->
+      <div id="tpl-col-a" style="width:280px;flex-shrink:0;padding-right:10px;display:flex;flex-direction:column;overflow:hidden">
 
-        <div class="setup-section-hdr">Input <span style="font-weight:400;font-style:italic;text-transform:none;color:var(--muted)">(changes happen immediately)</span></div>
-        <div class="io-row">
-          <label title="Input device type">Type</label>
-          <select id="inp-input-device" onchange="acqSyncInputDevice()" title="Input device type">
-            <option value="microphone">🔊 Radiation</option>
-            <option value="accelerometer">📡 Modal Analysis</option>
-          </select>
-        </div>
-        <div class="io-row">
-          <label for="prefs-device">Device</label>
-          <button class="io-recheck-btn" onclick="acqRecheckDevices()" title="Recheck devices">⟳</button>
-          <select id="prefs-device" onchange="acqApplyDeviceSelection()" title="Audio input device to record from — takes effect immediately"></select>
-        </div>
-
-        <div class="save-row" style="margin-bottom:14px">
-          <label class="act-btn" style="cursor:pointer;margin:0" title="Load run settings from a previously exported .txt file">
-            Load Settings…
-            <input type="file" accept=".txt" onchange="acqLoadSettingsTxt(this)" style="display:none">
-          </label>
-          <span id="prefs-load-msg" class="save-msg"></span>
-        </div>
-
-        <div class="setup-section-hdr">Measurement Template</div>
-        <p style="font-size:10px;color:var(--muted);margin-bottom:6px;line-height:1.4">
-          Click a template to apply it — the numbers to the right update immediately.
-        </p>
-        <div id="tpl-list" class="tpl-list" style="max-height:180px;margin-bottom:8px" title="Click a saved template to apply its settings"></div>
-        <div class="save-row" style="margin-bottom:14px">
-          <button id="tpl-undo-btn" class="act-btn" onclick="acqUndoTemplateApply()" style="display:none" title="Revert the settings you just applied by clicking a template">↺ Undo</button>
-        </div>
-
-        <div id="stencil-section">
-          <div class="setup-section-hdr">Node Stencil</div>
-          <p style="font-size:10px;color:var(--muted);margin-bottom:6px;line-height:1.4">
-            Build stencils in <strong><a href="#" onclick="acqOpenStencilBuilder();return false;" style="color:inherit;text-decoration:underline;cursor:pointer" title="Open Stencil Builder in a new tab to create or edit a node stencil">Stencil Builder</a></strong>. Selecting one below applies it immediately and saves it with each run.
-          </p>
-          <div id="stencil-list" class="tpl-list" style="max-height:110px" title="Click a stencil to apply it — None removes any stencil from this run"></div>
-          <div class="save-row" style="margin-top:6px;margin-bottom:14px">
-            <span id="stencil-applied-msg" class="save-msg"></span>
+        <div class="tpl-card tpl-tint-1">
+          <div class="setup-section-hdr">Input <span style="font-weight:400;font-style:italic;text-transform:none;color:var(--muted)">(changes happen immediately)</span></div>
+          <div class="io-row">
+            <label title="Input device type">Type</label>
+            <select id="inp-input-device" onchange="acqSyncInputDevice()" title="Input device type">
+              <option value="microphone">🔊 Radiation</option>
+              <option value="accelerometer">📡 Modal Analysis</option>
+            </select>
           </div>
+          <div class="io-row">
+            <label for="prefs-device">Device</label>
+            <button class="io-recheck-btn" onclick="acqRecheckDevices()" title="Recheck devices">⟳</button>
+            <select id="prefs-device" onchange="acqApplyDeviceSelection()" title="Audio input device to record from — takes effect immediately"></select>
+          </div>
+        </div>
+
+        <div class="tpl-card tpl-tint-2">
+          <div class="setup-section-hdr">Instrument</div>
+          <input id="wiz-instrument-inp" type="text" placeholder="Type or pick an existing instrument"
+                 list="wiz-instrument-datalist" style="width:100%;box-sizing:border-box"
+                 oninput="_tplInstrumentPreview()"
+                 onkeydown="if(event.key==='Enter'){event.preventDefault();}">
+          <datalist id="wiz-instrument-datalist"></datalist>
+          <p class="pref-hint" style="margin:6px 0 0">Creates the folder if it doesn't exist, then queues the next test number.</p>
+        </div>
+
+        <div class="tpl-card tpl-tint-3" style="flex:1;min-height:0;display:flex;flex-direction:column;margin-bottom:0">
+          <div class="setup-section-hdr">Notes</div>
+          <div id="wiz-notes-current-header" class="notes-entry-hdr"></div>
+          <textarea id="wiz-notes-body" rows="3" placeholder="Enter notes for this test…" style="margin-bottom:6px;flex-shrink:0"></textarea>
+          <div id="wiz-notes-history" class="notes-history" style="flex:1;min-height:0;max-height:none"></div>
         </div>
       </div>
 
       <div id="tpl-resizer-ab" class="acq-resizer tpl-col-resizer" title="Drag to resize columns"></div>
+
+      <!-- ── Columns B/C wrap: one connected "template" card — the picker row
+           atop, then all the settings that actually get saved into a
+           template file, so they read as one thing rather than five. ── -->
+      <div id="tpl-bc-wrap" class="tpl-card tpl-tint-template" style="display:flex;flex-direction:column;flex:1;min-width:0;overflow:hidden">
+
+        <div id="tpl-picker-row" style="display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:wrap;flex-shrink:0;padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid var(--border)">
+          <select id="tpl-modal-sel" class="tpl-modal-sel" onchange="acqSelectAndApplyTpl(parseInt(this.value,10))" title="Pick a saved template — the settings below update immediately" style="width:220px">
+            <option value="-1">Template: None</option>
+          </select>
+          <button class="io-recheck-btn" onclick="acqDeleteSelectedTemplate(event)" title="Delete the selected template">🗑</button>
+          <div id="stencil-modal-picker" style="display:flex;gap:6px;align-items:center">
+            <select id="stencil-modal-sel" onchange="acqSelectStencil(parseInt(this.value,10))" title="Pick a node stencil — None removes any stencil from this run" style="width:180px">
+              <option value="-1">Stencil: None</option>
+            </select>
+            <span style="font-size:10px;color:var(--muted);white-space:nowrap">
+              <a href="#" onclick="acqOpenStencilBuilder();return false;" style="color:inherit;text-decoration:underline;cursor:pointer" title="Open Stencil Builder in a new tab to create or edit a node stencil">Stencil Builder</a>
+            </span>
+          </div>
+          <span id="stencil-applied-msg" class="save-msg"></span>
+        </div>
+
+        <div style="display:flex;gap:8px;flex:1;overflow:hidden;min-height:0">
 
       <!-- ── Column B: Common (per-session) settings ─────────────────────── -->
       <div id="tpl-col-b" style="width:280px;flex-shrink:0;overflow-y:auto;padding-right:10px">
@@ -458,6 +474,9 @@
         </div><!-- /plot-settings-body -->
       </div>
 
+        </div><!-- /tpl-col-b + tpl-col-c row -->
+      </div><!-- /tpl-bc-wrap -->
+
     </div>
 
     <div class="save-row" style="padding:10px 18px;border-top:1px solid var(--border);margin-top:0;flex-wrap:wrap">
@@ -469,43 +488,6 @@
       <button class="act-btn" id="tpl-cancel-btn" onclick="acqTplExitCancel()" title="Close this dialog and discard any changes">Cancel</button>
       <button class="act-btn" id="tpl-create-btn" onclick="acqTplExitCreateTemplate()" title="Save these settings as a brand-new template">Create New Template</button>
       <button id="tpl-primary-btn" class="act-btn accent" onclick="acqTplExitPrimary()" title="Apply these settings to this run">Use Template</button>
-      <button id="wiz-step1-continue-btn" class="act-btn accent" onclick="acqTplExitPrimary()" title="Apply this template (and stencil) and continue" disabled>Continue →</button>
-    </div>
-  </div>
-</div>
-
-
-<!-- ═══════════════════════════════════════════════════════════════════════
-     Instrument + Notes modal — used both as wizard Step 2 and, standalone, as
-     the toolbar's "change instrument" dialog.
-     ═══════════════════════════════════════════════════════════════════════ -->
-<div id="instrument-setup-modal" class="modal-overlay">
-  <div id="instrument-setup-box" class="modal-box" style="width:min(92vw,560px)">
-    <div class="modal-header">
-      <span id="instr-setup-title" class="modal-title">Instrument</span>
-      <button id="instr-setup-close-btn" class="modal-close" onclick="acqCloseInstrumentSetup()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="pref-row">
-        <label for="wiz-instrument-inp">Instrument name</label>
-        <input id="wiz-instrument-inp" type="text" placeholder="Type or pick an existing instrument"
-               list="wiz-instrument-datalist" style="flex:1"
-               oninput="_wizardRefreshInstrumentPreview()"
-               onkeydown="if(event.key==='Enter'){event.preventDefault();acqInstrumentSetupPrimary();}">
-        <datalist id="wiz-instrument-datalist"></datalist>
-      </div>
-      <p class="pref-hint">Creates the folder if it doesn't exist, then queues the next test number.</p>
-
-      <div class="setup-section-hdr" style="margin-top:12px">Instrument Notes</div>
-      <div id="wiz-notes-current-header" class="notes-entry-hdr"></div>
-      <textarea id="wiz-notes-body" rows="6" placeholder="Enter notes for this test…"></textarea>
-      <div id="wiz-notes-history" class="notes-history"></div>
-
-      <div class="save-row" style="margin-top:10px">
-        <button id="instr-setup-cancel-btn" class="act-btn" onclick="acqCloseInstrumentSetup()">Cancel</button>
-        <button id="instr-setup-primary-btn" class="act-btn accent" onclick="acqInstrumentSetupPrimary()" disabled>Start Acquiring</button>
-        <span id="instrument-setup-msg" class="save-msg"></span>
-      </div>
     </div>
   </div>
 </div>

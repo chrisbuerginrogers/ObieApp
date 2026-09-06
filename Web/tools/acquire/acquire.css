@@ -68,6 +68,17 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 .tb-btn.start   { background: #2e7d32; border-color: #1b5e20; color: #fff; font-weight: 700; }
 .tb-btn.start:hover { background: #1b5e20; }
 
+.tpl-dropdown-sel {
+  -webkit-appearance: none; appearance: none;
+  padding-right: 20px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                     linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 11px) center, calc(100% - 7px) center;
+  background-size: 4px 4px, 4px 4px;
+  background-repeat: no-repeat;
+  max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
 .act-btn {
   background: var(--surface); border: 1px solid var(--border); border-radius: 3px;
   padding: 1px 7px; font-size: 11px; font-family: inherit;
@@ -340,52 +351,39 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
   background: #fafafa; color: var(--text);
 }
 #notes-textarea:focus, #wiz-notes-body:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
-#wiz-notes-body { min-height: 90px; margin-top: 2px; }
+#wiz-notes-body { min-height: 60px; margin-top: 2px; }
 
-/* ── Instrument + Notes modal (also wizard Step 2) ───────────────────── */
+/* ── Instrument + Notes (column A of the Template & Settings modal) ─── */
 .notes-entry-hdr { color: var(--red, #c62828); font-weight: 700; font-size: 12px; margin: 2px 0; }
 .notes-history {
-  margin-top: 12px; max-height: 180px; overflow-y: auto;
+  margin-top: 8px; max-height: 180px; overflow-y: auto;
   border-top: 1px solid var(--border); padding-top: 8px;
 }
 .notes-history-entry { margin-bottom: 10px; }
 .notes-history-hdr { color: var(--muted); font-weight: 700; font-size: 11px; }
 .notes-history-body { font-size: 11px; line-height: 1.4; color: var(--text); opacity: 0.8; white-space: pre-wrap; }
 
-/* ── Setup wizard mode — reuses #tpl-settings-modal and #instrument-setup-modal,
-     just hides the parts that don't belong in the forced startup sequence. ── */
-#tpl-settings-box.wizard-mode { width: min(92vw, 360px) !important; }
-#tpl-settings-box.wizard-mode #tpl-col-b,
-#tpl-settings-box.wizard-mode #tpl-resizer-ab,
-#tpl-settings-box.wizard-mode #tpl-col-c,
-#tpl-settings-box.wizard-mode #tpl-modal-close-btn,
-#tpl-settings-box.wizard-mode #tpl-cancel-btn,
-#tpl-settings-box.wizard-mode #tpl-create-btn,
-#tpl-settings-box.wizard-mode #tpl-primary-btn { display: none; }
-#wiz-step1-continue-btn { display: none; }
-#tpl-settings-box.wizard-mode #wiz-step1-continue-btn { display: inline-block; }
-#wiz-step1-continue-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-#instrument-setup-box.wizard-mode #instr-setup-close-btn,
-#instrument-setup-box.wizard-mode #instr-setup-cancel-btn { display: none; }
-
-/* ── Template modal ──────────────────────────────────────────────────── */
-.tpl-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; overflow-y: auto; }
-.tpl-item {
-  border: 1px solid var(--border); border-radius: 5px;
-  padding: 8px 10px; background: var(--bg-deep); cursor: pointer;
-  transition: border-color 0.1s, background 0.1s;
+/* Column A's Input/Instrument/Notes each get their own card + tint so they
+   read as distinct groups instead of one continuous block. The whole
+   Template area (picker row + Run Settings/Hit Detection/Calibration/Audio
+   Capture/Plot Settings) is one more of these cards, in its own neutral
+   grey tint — everything that's actually part of a saved template. */
+.tpl-card {
+  border: 1px solid var(--border); border-radius: 6px;
+  padding: 10px 10px 12px; margin-bottom: 10px;
 }
-.tpl-item:hover { border-color: var(--accent); background: #fdf6ed; }
-.tpl-item.selected { border-color: var(--accent); background: #fdf6ed; }
-.tpl-name { font-size: 12px; font-weight: 600; }
-.tpl-desc { font-size: 10px; color: var(--muted); margin-top: 2px; }
-.tpl-del-btn {
-  flex-shrink: 0; background: none; border: none; cursor: pointer;
-  font-size: 13px; padding: 2px 4px; border-radius: 3px;
-  opacity: 0.35; transition: opacity 0.12s, background 0.12s;
+.tpl-card:last-child { margin-bottom: 0; }
+.tpl-tint-1 { background: var(--surface); }
+.tpl-tint-2 { background: var(--bg-deep); }
+.tpl-tint-3 { background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.tpl-tint-template { background: #e8e8e8; }
+
+/* ── Template & Settings modal: the Template/Stencil picker row atop
+     columns B/C ──────────────────────────────────────────────────────── */
+.tpl-modal-sel, #stencil-modal-sel {
+  font-size: 12px; padding: 3px 6px; border: 1px solid var(--border);
+  border-radius: 3px; background: var(--surface); color: var(--text);
 }
-.tpl-del-btn:hover { opacity: 1; background: #fde8e8; }
 
 .card { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
 

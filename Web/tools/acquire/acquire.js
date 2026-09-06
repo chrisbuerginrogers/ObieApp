@@ -628,8 +628,7 @@ window.acqRescaleFFT = function() {
 
 function _setTemplateName(name) {
   _currentTemplateName = name || '';
-  const btnName = document.getElementById('tpl-settings-btn-name');
-  if (btnName) btnName.textContent = _currentTemplateName || 'none';
+  _renderTplDropdown();
   _updateTplPrimaryBtnLabel();
 }
 function _clearTemplateName() { _setTemplateName(''); }
@@ -641,6 +640,17 @@ function _mirrorInstrumentName() {
   const name = document.getElementById('inp-instrument-banner')?.textContent?.trim();
   const btnName = document.getElementById('instrument-btn-name');
   if (btnName) btnName.textContent = (name && name !== '—') ? name : 'Instrument';
+}
+
+// Hides the toolbar's 🎻 Instrument button and the test-name/save-status
+// indicator while no instrument is set up yet (default scratch/live-view
+// landing) — shown again once _refreshInstrumentFolder succeeds.
+function _updateInstrumentUiVisibility() {
+  const has = !!_testsHandle;
+  const instrBtn = document.getElementById('instrument-btn');
+  const saveInd  = document.getElementById('save-status-ind');
+  if (instrBtn) instrBtn.style.display = has ? '' : 'none';
+  if (saveInd)  saveInd.style.display  = has ? '' : 'none';
 }
 
 window.acqApplyThreshold = function(val) {
@@ -904,44 +914,9 @@ window.acqSaveCustomPalette = function() {
 
 
 window.acqCloseTemplateSettings = function() {
-  if (_wizardActive) { _wizardAdvanceToStep2(); return; }
   document.getElementById('tpl-settings-modal')?.classList.remove('open');
   _stopStencilPoll();
 };
-
-// ════════════════════════════════════════════════════════════════════════════
-// Setup wizard — forces Type/Device/Template/(Stencil) then Instrument+Notes
-// every time a Data Folder resolves (auto-restore or manual pick), before the
-// main page is usable. Step 1 reuses #tpl-settings-modal itself (in
-// "wizard-mode": Columns B/C and the normal close/footer are hidden, replaced
-// by one Continue button) so all its existing template/stencil logic works
-// unchanged. Step 2 is the Instrument + Notes modal.
-// ════════════════════════════════════════════════════════════════════════════
-let _wizardActive = false;
-
-async function _startSetupWizard() {
-  _wizardActive = true;
-  await window.acqOpenTemplateSettings();
-  document.getElementById('tpl-settings-box')?.classList.add('wizard-mode');
-}
-
-// Enables the wizard's Step 1 "Continue" button once a template (any row,
-// including "Current Settings") and — for Modal Analysis only — a stencil
-// have been explicitly selected this time the modal opened.
-function _updateWizardStep1Btn() {
-  const btn = document.getElementById('wiz-step1-continue-btn');
-  if (!btn) return;
-  const type = document.getElementById('inp-input-device')?.value || 'microphone';
-  const ok = (_selectedTpl !== null) && (type === 'microphone' || _selectedStencil !== null);
-  btn.disabled = !ok;
-}
-
-function _wizardAdvanceToStep2() {
-  document.getElementById('tpl-settings-modal')?.classList.remove('open');
-  document.getElementById('tpl-settings-box')?.classList.remove('wizard-mode');
-  _stopStencilPoll();
-  _openInstrumentSetupModal();
-}
 
 window.acqLoadSettingsTxt = async function(input) {
   const file = input.files[0];
@@ -1207,25 +1182,39 @@ function _applyPrefsToRun(prefs, deviceChanged) {
 // ── Template & Settings modal — the exit paths ───────────────────────────────
 // The single primary button dispatches to one of these two depending on
 // whether the form still matches the template it was loaded from
-// (_tplBaselineFields, captured on modal open / template select / undo):
+// (_tplBaselineFields, captured on modal open / template select):
 // unchanged → apply to this run only; edited → save the edits back into the
 // template first, then apply. Create New Template and Cancel stay separate.
 window.acqTplExitPrimary = async function() {
   if (_currentTemplateName && _tplFormDirty()) {
     await acqTplExitUpdateTemplate();
   } else {
-    acqTplExitUseOnce();
+    await acqTplExitUseOnce();
   }
 };
+
+// Reads and validates the Instrument name field (column A) — alerts and
+// returns null if blank, since a run always needs an instrument to save into.
+function _requireInstrumentName() {
+  const name = (document.getElementById('wiz-instrument-inp')?.value || '').trim();
+  if (!name) {
+    alert('Enter an instrument name (left column) before using these settings.');
+    return null;
+  }
+  return name;
+}
 
 // Applies the form to the live run without touching any template file.
 // Used directly when no template is associated, and via the primary button
 // when the form still matches the associated template exactly (nothing to
 // save back) — so the template association is left as-is either way.
-window.acqTplExitUseOnce = function() {
+window.acqTplExitUseOnce = async function() {
+  const name = _requireInstrumentName();
+  if (!name) return;
   const built = _buildPrefsFromForm();
   if (!built) return;
   _applyPrefsToRun(built.prefs, built.deviceChanged);
+  await _commitInstrumentAndNotes(name);
   acqCloseTemplateSettings();
 };
 
@@ -1239,6 +1228,8 @@ window.acqTplExitUpdateTemplate = async function() {
     alert('Could not find this template\'s file on disk — use "Create New Template" instead.');
     return;
   }
+  const name = _requireInstrumentName();
+  if (!name) return;
   const built = _buildPrefsFromForm();
   if (!built) return;
   const notes = (document.getElementById('notes-textarea')?.value || localStorage.getItem(_notesKey()) || '').trim();
@@ -1256,6 +1247,7 @@ window.acqTplExitUpdateTemplate = async function() {
   Object.assign(t, tpl);
   _renderTemplateList();
   _applyPrefsToRun(built.prefs, built.deviceChanged);
+  await _commitInstrumentAndNotes(name);
   acqCloseTemplateSettings();
 };
 
@@ -1293,6 +1285,10 @@ window.acqTplExitCreateTemplate = async function() {
 };
 
 window.acqTplExitCancel = function() {
+  // Undo any in-modal template pick that was never committed — both the
+  // toolbar's and the modal's own Template <select> must snap back to
+  // whatever was actually applied before this modal session opened.
+  _setTemplateName(_tplNameOnOpen);
   acqCloseTemplateSettings();
 };
 
@@ -1675,14 +1671,16 @@ window.acqSnapPhoto = async function() {
 // Template modal
 // ════════════════════════════════════════════════════════════════════════════
 
+// The template actually applied when this modal was last opened — restored
+// by Cancel if the user previews a different template and backs out.
+let _tplNameOnOpen = '';
+
 window.acqOpenTemplateSettings = async function() {
+  _tplNameOnOpen = _currentTemplateName;
   document.getElementById('tpl-settings-modal')?.classList.add('open');
   _populatePrefsForm();
   _enumeratePrefsDevices();
   _selectedTpl = null;
-  _tplUndoSnapshot = null;
-  const undoBtn = document.getElementById('tpl-undo-btn');
-  if (undoBtn) undoBtn.style.display = 'none';
   _templates = [];
   _stencils  = [];
   _selectedStencil = null;
@@ -1706,9 +1704,19 @@ window.acqOpenTemplateSettings = async function() {
   _tplBaselineFields = _captureTplFieldValues();
   _updateTplPrimaryBtnLabel();
   _updateStencilSectionVisibility();
-  _updateWizardStep1Btn();
   const titleEl = document.getElementById('tpl-modal-title');
-  if (titleEl) titleEl.textContent = _wizardActive ? 'Setup — Step 1 of 2' : 'Template & Settings';
+  if (titleEl) titleEl.textContent = 'Template & Settings';
+
+  // Instrument + Notes (column A)
+  const nameInp = document.getElementById('wiz-instrument-inp');
+  if (nameInp) nameInp.value = _currentInstrumentName();
+  _wizSeededFor = null;
+  const datalist = document.getElementById('wiz-instrument-datalist');
+  if (datalist && _rootDirHandle) {
+    const names = await _listInstrumentNames(_rootDirHandle);
+    datalist.innerHTML = names.map(n => `<option value="${_escHtml(n)}">`).join('');
+  }
+  await _tplInstrumentPreviewNow();
 };
 
 window.acqTogglePlotSettings = function() {
@@ -1750,16 +1758,6 @@ let _currentStencilData = null;   // full stencil JSON saved to each run folder
 let _currentStencilFile = null;   // filename in _templatesHandle the applied stencil was loaded from
 let _stencilPollInterval = null;  // re-reads _currentStencilFile while the modal is open, to pick up edits made in Stencil Builder
 
-function _tplMeta(s) {
-  const bits = [];
-  if (s.positions  != null) bits.push(`${s.positions} pos`);
-  if (s.taps       != null) bits.push(`${s.taps} hits`);
-  if (s.frf_x_max  != null) bits.push(`≤${s.frf_x_max} Hz`);
-  if (s.threshold  != null) bits.push(`thr ${s.threshold}`);
-  if (s.ham_cal    != null && s.ham_cal !== 1) bits.push(`ham×${s.ham_cal}`);
-  if (s.mic_cal    != null && s.mic_cal !== 1) bits.push(`mic×${s.mic_cal}`);
-  return bits.join(' · ');
-}
 
 // JS port of Python/fileio/labview_txt.py — parse LabVIEW Key=<value/> format
 
@@ -1780,36 +1778,82 @@ function _lvFieldsToSettings(fields) {
   };
 }
 
-function _renderTemplateList() {
-  const container = document.getElementById('tpl-list');
-  if (!container) return;
+// Kept as a thin alias — many call sites across the file ask for the
+// template list to be refreshed after _templates changes (folder connect,
+// create/delete/reset-default-templates); with the card list gone, that just
+// means re-syncing the dropdowns.
+function _renderTemplateList() { _renderTplDropdown(); }
 
-  // Synthetic "Current Settings" entry always at the top
-  const curSel = _selectedTpl === -1;
-  const currentItem = `
-    <div class="tpl-item${curSel ? ' selected' : ''}" onclick="acqSelectAndApplyTpl(-1)"
-         style="border-color:#1565c0;${curSel ? 'background:#e8f0fe;' : ''}">
-      <div class="tpl-name" style="color:#1565c0">Current Settings</div>
-      <div class="tpl-desc">${_tplMeta(_loadPrefs())}</div>
-    </div>`;
-
-  const list = _templates.length
-    ? _templates.map((t, i) => {
-        const s = t.settings || t.run || t;
-        const meta = _tplMeta(s);
-        return `
-          <div class="tpl-item${_selectedTpl === i ? ' selected' : ''}" style="display:flex;align-items:center;gap:6px" onclick="acqSelectAndApplyTpl(${i})">
-            <div style="flex:1;min-width:0">
-              <div class="tpl-name">${t.name || 'Unnamed'}</div>
-              ${meta ? `<div class="tpl-desc">${meta}</div>` : ''}
-            </div>
-            <button class="tpl-del-btn" title="Delete template" onclick="acqDeleteTpl(${i},event)">🗑</button>
-          </div>`;
-      }).join('')
-    : '<div style="font-size:11px;color:var(--muted);padding:4px 0">No saved templates — set a Data Folder to load from <code>ObieAppSettings/Templates/</code>, or use Load Settings… above.</div>';
-
-  container.innerHTML = currentItem + list;
+// Keeps every Template <select> (toolbar + the one atop the Template &
+// Settings modal's columns B/C) in sync with _templates and whichever
+// template is actually applied (_currentTemplateName) — not with whatever a
+// select was last showing, so a "Template: None" pick that's a no-op (see
+// acqSelectAndApplyTpl(-1)) snaps back to the real applied template.
+function _renderTplDropdown() {
+  const optsHtml = '<option value="-1">Template: None</option>' +
+    _templates.map((t, i) => `<option value="${i}">Template: ${_escHtml(t.name || 'Unnamed')}</option>`).join('');
+  const curIdx = _currentTemplateName ? _templates.findIndex(t => t.name === _currentTemplateName) : -1;
+  ['tpl-dropdown-sel', 'tpl-modal-sel'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    sel.innerHTML = optsHtml;
+    sel.value = String(curIdx);
+  });
 }
+
+// Deletes whichever template the modal's top dropdown currently shows.
+window.acqDeleteSelectedTemplate = async function(event) {
+  event?.stopPropagation();
+  const sel = document.getElementById('tpl-modal-sel');
+  const i = sel ? parseInt(sel.value, 10) : -1;
+  if (isNaN(i) || i < 0 || !_templates[i]) { alert('Pick a template first.'); return; }
+  await acqDeleteTpl(i, event || { stopPropagation(){} });
+};
+
+// Toolbar Template <select> onchange — opens the Template & Settings modal
+// already showing the picked template's settings (or just the modal itself
+// for "Template: None", e.g. to review current settings without picking one).
+window.acqPickTemplateFromDropdown = async function(val) {
+  const i = parseInt(val, 10);
+  await window.acqOpenTemplateSettings();
+  if (!isNaN(i) && i >= 0) acqSelectAndApplyTpl(i);
+};
+
+// Toolbar Template <select>: a quick click opens the Template & Settings
+// modal on whatever's currently applied (same as the 🎻 Instrument button's
+// "review/change everything" behavior); a press-and-hold (~300ms) instead
+// opens the native option list, like a normal select. Requires
+// HTMLSelectElement.showPicker() — on browsers without it this block is
+// skipped entirely and the select just falls back to always opening its
+// list on click, exactly like before.
+(function _initTplDropdownHoldToOpen() {
+  const sel = document.getElementById('tpl-dropdown-sel');
+  if (!sel || typeof sel.showPicker !== 'function') return;
+  const HOLD_MS = 300;
+  let pressTimer = null;
+  let heldLongEnough = false;
+
+  sel.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;  // left click only
+    e.preventDefault();  // stops the browser from opening the list immediately
+    sel.focus();
+    heldLongEnough = false;
+    clearTimeout(pressTimer);
+    pressTimer = setTimeout(() => {
+      heldLongEnough = true;
+      try { sel.showPicker(); } catch (_) {}
+    }, HOLD_MS);
+  });
+
+  sel.addEventListener('mouseup', () => {
+    clearTimeout(pressTimer);
+    if (!heldLongEnough) window.acqOpenTemplateSettings();
+  });
+
+  sel.addEventListener('mouseleave', () => {
+    if (!heldLongEnough) clearTimeout(pressTimer);
+  });
+})();
 
 window.acqDeleteTpl = async function(i, event) {
   event.stopPropagation();  // don't select the row
@@ -1831,7 +1875,7 @@ window.acqDeleteTpl = async function(i, event) {
 };
 
 // Every field id that a template/"Load Settings…" apply can touch — used to
-// snapshot/restore the form for the one-level Undo button.
+// detect whether the form still matches the applied template (_tplFormDirty).
 const _TPL_APPLY_FIELD_IDS = [
   'inp-threshold', 'inp-pre', 'inp-post', 'inp-taps', 'inp-positions', 'inp-prefix',
   'inp-mic-cal', 'inp-ham-cal', 'inp-line-width',
@@ -1846,7 +1890,7 @@ const _TPL_APPLY_FIELD_IDS = [
 // since the template was loaded" is judged, for the single primary exit
 // button's label ("Use Template" vs "Update and Use Template"). Reset
 // whenever the fields are known to match _currentTemplateName again: modal
-// open, a template being selected/applied, and Undo.
+// open or a template being selected/applied.
 let _tplBaselineFields = null;
 
 function _captureTplFieldValues() {
@@ -1883,44 +1927,16 @@ function _updateTplPrimaryBtnLabel() {
   }
 }
 
-let _tplUndoSnapshot = null;
-
-function _snapshotTplFields() {
-  const fields = {};
-  for (const id of _TPL_APPLY_FIELD_IDS) {
-    const el = document.getElementById(id);
-    if (el) fields[id] = el.value;
-  }
-  return { fields, templateName: _currentTemplateName, notes: document.getElementById('notes-textarea')?.value ?? null };
-}
-
-function _restoreTplSnapshot(snap) {
-  for (const id of Object.keys(snap.fields)) {
-    const el = document.getElementById(id);
-    if (el) el.value = snap.fields[id];
-  }
-  _setTemplateName(snap.templateName);
-  if (snap.notes != null) {
-    const ta = document.getElementById('notes-textarea');
-    if (ta) ta.value = snap.notes;
-    localStorage.setItem(_notesKey(), snap.notes);
-  }
-}
-
-// Clicking a template in the list applies it immediately — the settings
-// fields in columns B/C update right away, no separate "Apply" step. One
-// level of Undo is kept in case the click was accidental; fields are only
-// written to disk/pushed to the live run when the user exits the modal via
-// Use for this run only / Update Template / Create New Template.
+// Picking a template from the dropdown applies it immediately — the settings
+// fields in columns B/C update right away, no separate "Apply" step. Fields
+// are only written to disk/pushed to the live run when the user exits the
+// modal via Use for this run only / Update Template / Create New Template.
 window.acqSelectAndApplyTpl = function(i) {
   _selectedTpl = i;
   _renderTemplateList();
-  _updateWizardStep1Btn();
-  if (i === -1) return;  // Current Settings = no-op, nothing to apply
+  if (i === -1) return;  // "Template: None" = no-op, nothing to apply
   const t = _templates[i];
   if (!t) return;
-
-  _tplUndoSnapshot = _snapshotTplFields();
 
   const s = t.settings || t.run || t;
   const set = (id, val) => {
@@ -1973,21 +1989,6 @@ window.acqSelectAndApplyTpl = function(i) {
   renderFRF(); _clearTrigPlots();
   window.pyResetAll?.();
 
-  const undoBtn = document.getElementById('tpl-undo-btn');
-  if (undoBtn) undoBtn.style.display = '';
-
-  _tplBaselineFields = _captureTplFieldValues();
-  _updateTplPrimaryBtnLabel();
-};
-
-window.acqUndoTemplateApply = function() {
-  if (!_tplUndoSnapshot) return;
-  _restoreTplSnapshot(_tplUndoSnapshot);
-  _tplUndoSnapshot = null;
-  _selectedTpl = null;
-  _renderTemplateList();
-  const undoBtn = document.getElementById('tpl-undo-btn');
-  if (undoBtn) undoBtn.style.display = 'none';
   _tplBaselineFields = _captureTplFieldValues();
   _updateTplPrimaryBtnLabel();
 };
@@ -2070,10 +2071,7 @@ window.acqRenameTest = async function() {
   }
 };
 
-// ── Instrument + Notes modal ─────────────────────────────────────────────
-// Used both as wizard Step 2 (chained from Step 1, not closable until
-// finished) and standalone via the toolbar's 🎻 Instrument button (closable,
-// for switching instruments mid-session).
+// ── Instrument + Notes (column A of the Template & Settings modal) ──────
 
 const _NON_INSTRUMENT_DIRS = new Set(['ObieAppSettings', 'Test_Samples', 'Group Averages']);
 
@@ -2140,19 +2138,19 @@ function _formatNotesHeader(n, testFolderName) {
 let _wizSeededFor  = null;  // last instrument name the notes body was auto-seeded for
 let _wizPreviewTimer = null;
 
-window._wizardRefreshInstrumentPreview = function() {
+// Instrument name field (column A of the Template & Settings modal) — live
+// preview of the notes header/history for whatever name is currently typed.
+window._tplInstrumentPreview = function() {
   clearTimeout(_wizPreviewTimer);
-  _wizPreviewTimer = setTimeout(_wizardRefreshInstrumentPreviewNow, 250);
+  _wizPreviewTimer = setTimeout(_tplInstrumentPreviewNow, 250);
 };
 
-async function _wizardRefreshInstrumentPreviewNow() {
+async function _tplInstrumentPreviewNow() {
   const name = (document.getElementById('wiz-instrument-inp')?.value || '').trim();
-  const primaryBtn = document.getElementById('instr-setup-primary-btn');
   const headerEl   = document.getElementById('wiz-notes-current-header');
   const historyEl  = document.getElementById('wiz-notes-history');
   const bodyEl     = document.getElementById('wiz-notes-body');
 
-  if (primaryBtn) primaryBtn.disabled = !name;
   if (!name || !_rootDirHandle) {
     if (headerEl) headerEl.textContent = '';
     if (historyEl) historyEl.innerHTML = '';
@@ -2178,46 +2176,20 @@ async function _wizardRefreshInstrumentPreviewNow() {
   }
 }
 
-async function _openInstrumentSetupModal() {
-  const current = (document.getElementById('inp-instrument-banner')?.textContent || '').trim();
-  const nameInp = document.getElementById('wiz-instrument-inp');
-  if (nameInp) nameInp.value = (current && current !== '—') ? current : '';
-  _wizSeededFor = null;
-
-  const datalist = document.getElementById('wiz-instrument-datalist');
-  if (datalist && _rootDirHandle) {
-    const names = await _listInstrumentNames(_rootDirHandle);
-    datalist.innerHTML = names.map(n => `<option value="${_escHtml(n)}">`).join('');
-  }
-
-  document.getElementById('instrument-setup-box')?.classList.toggle('wizard-mode', _wizardActive);
-  const primaryBtn = document.getElementById('instr-setup-primary-btn');
-  if (primaryBtn) primaryBtn.textContent = _wizardActive ? 'Start Acquiring' : 'Set Instrument';
-  const titleEl = document.getElementById('instr-setup-title');
-  if (titleEl) titleEl.textContent = _wizardActive ? 'Setup — Step 2 of 2: Instrument & Notes' : 'Instrument';
-
-  document.getElementById('instrument-setup-modal')?.classList.add('open');
-  await _wizardRefreshInstrumentPreviewNow();
-  requestAnimationFrame(() => nameInp?.focus());
-}
-
+// Toolbar's 🎻 Instrument button — reopens the Template & Settings modal
+// (pre-filled with the current instrument) so renaming/switching instruments
+// happens through the same single dialog as initial setup.
 window.acqSetInstrument = function() {
   if (!_rootDirHandle) { alert('Set a Data Folder first.'); return; }
-  _openInstrumentSetupModal();
+  window.acqOpenTemplateSettings();
 };
 
-window.acqCloseInstrumentSetup = function() {
-  if (_wizardActive) return;   // not closable mid-wizard — must Start Acquiring
-  document.getElementById('instrument-setup-modal')?.classList.remove('open');
-};
-
-window.acqInstrumentSetupPrimary = async function() {
-  const name = (document.getElementById('wiz-instrument-inp')?.value || '').trim();
-  if (!name) return;
-  const prev = (document.getElementById('inp-instrument-banner')?.textContent || '').trim();
-  const msg  = document.getElementById('instrument-setup-msg');
-  if (msg) msg.textContent = 'Setting up…';
-
+// Writes the instrument folder + notes.txt for the name currently in
+// #wiz-instrument-inp. Called from the Template & Settings modal's primary
+// exit paths (Use Template / Use Settings / Update and Use Template) — never
+// from Create New Template, which only persists a template file.
+async function _commitInstrumentAndNotes(name) {
+  const prev = _currentInstrumentName();
   const header = document.getElementById('wiz-notes-current-header')?.textContent || '';
   const body   = (document.getElementById('wiz-notes-body')?.value || '').trim();
   const existingNotes = await _peekNotesText(_rootDirHandle, name);
@@ -2238,16 +2210,21 @@ window.acqInstrumentSetupPrimary = async function() {
   }
   localStorage.setItem(_notesKey(), fullNotes);
 
-  if (msg) msg.textContent = '';
-  document.getElementById('instrument-setup-modal')?.classList.remove('open');
-  _wizardActive = false;
-
-  if (name !== prev && prev !== '—') {
+  if (name !== prev && prev) {
     frfCache = {}; tapCache = {};
     renderFRF(); _clearTrigPlots();
     window.pyResetAll?.();
   }
-};
+  _updateInstrumentUiVisibility();
+
+  // Setting up an instrument (via a picked template) is the user's signal to
+  // begin acquiring — don't make them also hit Start. Only auto-starts from a
+  // stopped state; never interrupts a run already in progress (e.g. renaming
+  // the instrument mid-session via the toolbar's 🎻 button).
+  if (appState === 'idle' || appState === 'complete') {
+    acqToggleAcquire();
+  }
+}
 
 // Scans an instrument folder for existing test-subfolder suffixes ("_NN") and
 // returns what the next test folder name should be — reusing the last one if
@@ -2361,7 +2338,7 @@ async function _refreshInstrumentFolder(instrumentName) {
 async function _applyDataFolder(dirHandle) {
   _rootDirHandle = dirHandle;
 
-  // ObieAppSettings first — gives us the saved instrument name
+  // ObieAppSettings first
   let _acqFolderIsNew, _acqSeedsFailed;
   ({ settingsHandle: _settingsHandle, templatesHandle: _templatesHandle,
      isNew: _acqFolderIsNew, seedsFailed: _acqSeedsFailed } =
@@ -2373,25 +2350,20 @@ async function _applyDataFolder(dirHandle) {
     alert('This is a new Data Folder and I moved over the default settings folder.' + seedNote);
   }
 
-  // Load saved prefs (instrument name comes from here)
+  // Load saved prefs (axis ranges, sample rate, etc. — everything except the
+  // live-view overrides applied below)
   let savedPrefs = null;
   try {
     const file = await (await _settingsHandle.getFileHandle('acquire.json')).getFile();
-    savedPrefs  = JSON.parse(await file.text());
-    _populatePrefsForm(savedPrefs);
-    _pushSettingsFromPrefs(savedPrefs);
+    savedPrefs = JSON.parse(await file.text());
   } catch (_) {
     // No saved prefs — reset axes to clean defaults so stale localStorage zoom
     // values from previous sessions don't bleed into this new folder.
     _resetAxisRanges(null);
-    _populatePrefsForm(null, true);
-    _pushSettingsFromPrefs(_loadPrefs());
   }
 
-  // Determine instrument name: prefs > 'scratch'
-  const instrument = (savedPrefs?.instrument || '') || 'scratch';
-
-  // Load templates and stencils
+  // Load templates and stencils (needed immediately so the toolbar's Template
+  // dropdown has content before the user ever opens the settings modal)
   _templates = [];
   _stencils  = [];
   await _loadTemplatesFromFolder(_templatesHandle);
@@ -2400,22 +2372,27 @@ async function _applyDataFolder(dirHandle) {
   const btn = document.getElementById('data-folder-btn');
   if (btn) btn.textContent = '📁 ' + dirHandle.name;
 
-  // Set up instrument folder (creates test subfolder + raw/TRF, sets _rawHandle)
-  const instrBannerEl = document.getElementById('inp-instrument-banner');
-  if (instrBannerEl) instrBannerEl.textContent = instrument;
-  _mirrorInstrumentName();
-  if (instrument !== 'scratch') {
-    await _refreshInstrumentFolder(instrument);
-  } else {
-    _setSaveStatus(null);
-    const testDisp = document.getElementById('inp-test-banner');
-    if (testDisp) testDisp.textContent = '—';
-  }
+  // Land in a lightweight scratch/live-view state every time a folder resolves
+  // (auto-restore or manual pick) — no instrument, no filename, not running.
+  // Calibrations/cutoffs are forced to their "live" defaults without touching
+  // any saved prefs on disk; the real saved settings are only ever read again
+  // once the user picks a template. _rawHandle stays null until then.
+  _rawHandle = _trfHandle = _testHandle = _testsHandle = null;
+  const liveViewPrefs = {
+    ...(savedPrefs || _loadPrefs()),
+    instrument: 'scratch',
+    ham_cal: 1.0, mic_cal: 1.0,
+    time_cutoff_s: 0.30, mic_time_cutoff_s: 0.30,
+  };
+  _populatePrefsForm(liveViewPrefs, true);
+  _pushSettingsFromPrefs(liveViewPrefs);
+  _clearTemplateName();
+  _setSaveStatus(null);
+  const testDisp = document.getElementById('inp-test-banner');
+  if (testDisp) testDisp.textContent = '—';
+  _updateInstrumentUiVisibility();
 
-  // Hide the no-folder overlay, then force the setup wizard every time a
-  // folder resolves (auto-restore or manual pick) before the page is usable.
   document.getElementById('folder-overlay')?.classList.add('hidden');
-  await _startSetupWizard();
 }
 
 let _folderApplying = false;
@@ -2457,8 +2434,10 @@ function _handleFolderGone() {
   _rawHandle       = null;
   _trfHandle       = null;
   _testHandle      = null;
+  _testsHandle     = null;
   _settingsHandle  = null;
   _templatesHandle = null;
+  _updateInstrumentUiVisibility();
 
   // Stop audio capture — fire-and-forget, errors are irrelevant here
   _stopAudio().catch(() => {});
@@ -2554,28 +2533,16 @@ async function _loadStencilsFromFolder(dir) {
   _renderStencilList();
 }
 
+// Keeps the "Stencil: …" <select> atop the modal's columns B/C in sync with
+// _stencils and _selectedStencil (Node Stencil only applies to Modal Analysis
+// — the row itself is shown/hidden by _updateStencilSectionVisibility).
 function _renderStencilList() {
-  const container = document.getElementById('stencil-list');
-  if (!container) return;
-  const noneSelected = _selectedStencil === -1 || _selectedStencil === null;
-  let html = `
-      <div class="tpl-item${noneSelected ? ' selected' : ''}" onclick="acqSelectStencil(-1)">
-        <div class="tpl-name">None</div>
-      </div>`;
-  if (_stencils.length) {
-    html += _stencils.map((s, i) => {
-      const pos = s.settings?.positions;
-      const meta = pos != null ? `${pos} nodes` : '';
-      return `
-      <div class="tpl-item${_selectedStencil === i ? ' selected' : ''}" onclick="acqSelectStencil(${i})">
-        <div class="tpl-name">${s.name || 'Unnamed'}</div>
-        ${meta ? `<div class="tpl-desc">${meta}</div>` : ''}
-      </div>`;
-    }).join('');
-  } else {
-    html += '<div style="font-size:11px;color:var(--muted);padding:4px 0">No stencils saved — build one in Stencil Builder and set a Data Folder.</div>';
-  }
-  container.innerHTML = html;
+  const sel = document.getElementById('stencil-modal-sel');
+  if (!sel) return;
+  const noneSelected = _selectedStencil === -1 || _selectedStencil == null;
+  sel.innerHTML = '<option value="-1">Stencil: None</option>' +
+    _stencils.map((s, i) => `<option value="${i}">Stencil: ${_escHtml(s.name || 'Unnamed')}</option>`).join('');
+  sel.value = noneSelected ? '-1' : String(_selectedStencil);
 }
 
 // Selecting a stencil (or "None") applies it immediately — there is no
@@ -2583,7 +2550,6 @@ function _renderStencilList() {
 window.acqSelectStencil = async function(i) {
   _selectedStencil = i;
   _renderStencilList();
-  _updateWizardStep1Btn();
   const ind = document.getElementById('stencil-ind');
   const msg = document.getElementById('stencil-applied-msg');
 
@@ -2757,14 +2723,13 @@ window.acqSyncInputDevice = function() {
   localStorage.setItem('obieAcquire_inputDevice', val);
   _applyInputDeviceLabels();
   _updateStencilSectionVisibility();
-  _updateWizardStep1Btn();
 };
 
 // Node Stencil only applies to Modal Analysis (accelerometer) — Radiation runs
 // never use a stencil, so hide the section rather than leave it inert.
 function _updateStencilSectionVisibility() {
   const val = document.getElementById('inp-input-device')?.value || 'microphone';
-  const section = document.getElementById('stencil-section');
+  const section = document.getElementById('stencil-modal-picker');
   if (section) section.style.display = (val === 'accelerometer') ? '' : 'none';
 }
 
@@ -3425,6 +3390,7 @@ async function _startAudio() {
   } else if (!_rawHandle) {
     // Folder wasn't pre-created — try now as a fallback
     await _refreshInstrumentFolder(_instrument);
+    _updateInstrumentUiVisibility();
   }
 
   // If audio is already running (run completed naturally), reuse the existing
