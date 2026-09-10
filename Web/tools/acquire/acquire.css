@@ -378,9 +378,9 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 .notes-history-hdr { color: var(--muted); font-weight: 700; font-size: 11px; }
 .notes-history-body { font-size: 11px; line-height: 1.4; color: var(--text); opacity: 0.8; white-space: pre-wrap; }
 
-/* Column A's Input/Instrument/Notes each get their own card + tint so they
-   read as distinct groups instead of one continuous block. The whole
-   Template area (picker row + Run Settings/Hit Detection/Calibration/Audio
+/* Column A's Instrument/Photos each get their own card + tint so they read
+   as distinct groups instead of one continuous block. The whole Template
+   area (picker row + Input/Run Settings/Hit Detection/Calibration/Audio
    Capture/Plot Settings) is one more of these cards, in its own neutral
    grey tint — everything that's actually part of a saved template. */
 .tpl-card {
@@ -392,6 +392,24 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 .tpl-tint-2 { background: var(--bg-deep); }
 .tpl-tint-3 { background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
 .tpl-tint-template { background: #e8e8e8; }
+
+/* Template area tabs — "Template" (picker row + all the settings that get
+   saved into a template file) vs. "Notes" (the instrument's notes, which
+   don't) sharing the same grey card. */
+.tpl-tabs {
+  display: flex; gap: 4px; flex-shrink: 0;
+  margin-bottom: 10px; border-bottom: 1px solid var(--border);
+}
+.tpl-tab-btn {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  margin-bottom: -1px; padding: 4px 10px; font-size: 12px; font-weight: 600;
+  color: var(--muted); cursor: pointer; font-family: inherit;
+}
+.tpl-tab-btn:hover { color: var(--text); }
+.tpl-tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tpl-tab-content {
+  display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden;
+}
 
 /* ── Template & Settings modal: the Template/Stencil picker row atop
      columns B/C ──────────────────────────────────────────────────────── */

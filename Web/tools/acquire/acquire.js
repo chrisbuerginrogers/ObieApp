@@ -992,6 +992,7 @@ function _populatePrefsForm(overridePrefs, skipPlotSync) {
   set('inp-ham-cal',     prefs.ham_cal);
   const swapEl = document.getElementById('inp-swap-channels');
   if (swapEl) swapEl.checked = prefs.swap_channels ?? false;
+  _updateCalLabels();
   const instrVal = prefs.instrument || 'scratch';
   const instrDisp = document.getElementById('inp-instrument-banner');
   if (instrDisp) instrDisp.textContent = instrVal;
@@ -1560,13 +1561,18 @@ window.acqSaveNotes = async function() {
 // (object URLs of the actual file contents) rather than bare filenames.
 let _notesPhotoUrls = [];   // object URLs from the last render — revoked before each re-render
 
+// Two hosts show the same photo list — the standalone Notes modal
+// (#notes-photo-list) and column A of the Template & Settings modal
+// (#tpl-photo-list) — so this renders into whichever of them are present.
 async function _renderNotesPhotoList() {
-  const container = document.getElementById('notes-photo-list');
-  if (!container) return;
+  const containers = ['notes-photo-list', 'tpl-photo-list']
+    .map(id => document.getElementById(id)).filter(Boolean);
+  if (!containers.length) return;
+  const setAll = html => containers.forEach(c => { c.innerHTML = html; });
   _notesPhotoUrls.forEach(u => URL.revokeObjectURL(u));
   _notesPhotoUrls = [];
   if (!_testsHandle) {
-    container.innerHTML = '<div style="font-size:11px;color:var(--muted)">Name an instrument to save photos to disk.</div>';
+    setAll('<div style="font-size:11px;color:var(--muted)">Name an instrument to save photos to disk.</div>');
     return;
   }
   try {
@@ -1576,24 +1582,23 @@ async function _renderNotesPhotoList() {
       if (h.kind === 'file') entries.push([name, h]);
     }
     if (!entries.length) {
-      container.innerHTML = '<div style="font-size:11px;color:var(--muted)">No photos yet.</div>';
+      setAll('<div style="font-size:11px;color:var(--muted)">No photos yet.</div>');
       return;
     }
     entries.sort((a, b) => a[0].localeCompare(b[0]));
-    container.innerHTML = '';
+    let html = '';
     for (const [name, h] of entries) {
       let url;
       try { url = URL.createObjectURL(await h.getFile()); }
       catch (_) { continue; }
       _notesPhotoUrls.push(url);
-      const a = document.createElement('a');
-      a.href = url; a.target = '_blank'; a.rel = 'noopener'; a.title = name;
-      a.style.cssText = 'display:block;width:52px;height:52px;flex-shrink:0;border-radius:4px;overflow:hidden;border:1px solid var(--border)';
-      a.innerHTML = `<img src="${url}" alt="${name}" style="width:100%;height:100%;object-fit:cover;display:block">`;
-      container.appendChild(a);
+      html += `<a href="${url}" target="_blank" rel="noopener" title="${_escHtml(name)}"
+                  style="display:block;width:52px;height:52px;flex-shrink:0;border-radius:4px;overflow:hidden;border:1px solid var(--border)">` +
+              `<img src="${url}" alt="${_escHtml(name)}" style="width:100%;height:100%;object-fit:cover;display:block"></a>`;
     }
+    setAll(html);
   } catch (_) {
-    container.innerHTML = '<div style="font-size:11px;color:var(--muted)">No photos yet.</div>';
+    setAll('<div style="font-size:11px;color:var(--muted)">No photos yet.</div>');
   }
 }
 
@@ -1601,9 +1606,10 @@ window.acqAddNotesPhotos = async function(input) {
   const files = Array.from(input.files || []);
   input.value = '';
   if (!files.length) return;
-  const st = document.getElementById('notes-photo-msg');
+  const sts = ['notes-photo-msg', 'tpl-photo-msg'].map(id => document.getElementById(id)).filter(Boolean);
+  const setMsg = text => sts.forEach(st => { st.textContent = text; setTimeout(() => { st.textContent = ''; }, 2500); });
   if (!_testsHandle) {
-    if (st) { st.textContent = 'Name an instrument first to save photos to disk'; setTimeout(() => st.textContent = '', 2500); }
+    setMsg('Name an instrument first to save photos to disk');
     return;
   }
   try {
@@ -1616,11 +1622,11 @@ window.acqAddNotesPhotos = async function(input) {
         await w.close();
       });
     }
-    if (st) { st.textContent = `✓ Added ${files.length} photo${files.length > 1 ? 's' : ''}`; setTimeout(() => st.textContent = '', 2500); }
+    setMsg(`✓ Added ${files.length} photo${files.length > 1 ? 's' : ''}`);
     _renderNotesPhotoList();
   } catch (e) {
     if (_isFolderGoneError(e)) _handleFolderGone();
-    if (st) { st.textContent = '⚠ Save failed: ' + e.message; setTimeout(() => st.textContent = '', 2500); }
+    setMsg('⚠ Save failed: ' + e.message);
   }
 };
 
@@ -1729,7 +1735,7 @@ window.acqOpenTemplateSettings = async function() {
   const titleEl = document.getElementById('tpl-modal-title');
   if (titleEl) titleEl.textContent = 'Template & Settings';
 
-  // Instrument + Notes (column A)
+  // Instrument (column A) + Notes (its own tab)
   const nameInp = document.getElementById('wiz-instrument-inp');
   if (nameInp) nameInp.value = _currentInstrumentName();
   _wizSeededFor = null;
@@ -1739,6 +1745,23 @@ window.acqOpenTemplateSettings = async function() {
     datalist.innerHTML = names.map(n => `<option value="${_escHtml(n)}">`).join('');
   }
   await _tplInstrumentPreviewNow();
+  acqSwitchTplTab('notes');
+
+  // Photos (column A)
+  _renderNotesPhotoList();
+};
+
+// Switches the grey Template-area card between its "Template" tab (picker
+// row + everything that gets saved into a template file) and "Notes" tab
+// (the instrument's notes, given the whole card's width to work with).
+window.acqSwitchTplTab = function(tab) {
+  const isTemplate = tab === 'template';
+  const tplTab   = document.getElementById('tpl-tab-template');
+  const notesTab = document.getElementById('tpl-tab-notes');
+  if (tplTab)   tplTab.style.display   = isTemplate ? '' : 'none';
+  if (notesTab) notesTab.style.display = isTemplate ? 'none' : '';
+  document.getElementById('tpl-tab-btn-template')?.classList.toggle('active', isTemplate);
+  document.getElementById('tpl-tab-btn-notes')?.classList.toggle('active', !isTemplate);
 };
 
 window.acqTogglePlotSettings = function() {
@@ -2733,12 +2756,37 @@ function _responseLabel() {
     ? 'Accelerometer' : 'Microphone';
 }
 
+// Calibration section: each row is pinned to a physical channel position
+// (top = Channel 1/L, bottom = Channel 2/R) — Swap Channels moves the
+// Hammer/Mic role (and that role's own calibration value, since it's the
+// same <input> that travels with its row) between those two positions,
+// rather than the rows swapping which role's number they hold.
+window._updateCalLabels = function() {
+  const swapped = document.getElementById('inp-swap-channels')?.checked ?? false;
+  const micName = _responseLabel();
+  const hamLbl = document.getElementById('lbl-ham-cal');
+  if (hamLbl) {
+    hamLbl.textContent = swapped ? 'Channel 2 (R): Hammer cal.' : 'Channel 1 (L): Hammer cal.';
+  }
+  const micLbl = document.getElementById('lbl-mic-cal');
+  if (micLbl) {
+    micLbl.textContent = swapped ? `Channel 1 (L): ${micName} cal.` : `Channel 2 (R): ${micName} cal.`;
+    micLbl.title = `${micName} calibration factor`;
+  }
+  const hamRow = document.getElementById('row-ham-cal');
+  const micRow = document.getElementById('row-mic-cal');
+  const parent = hamRow?.parentElement;
+  if (parent && hamRow && micRow) {
+    if (swapped) parent.insertBefore(micRow, hamRow);
+    else         parent.insertBefore(hamRow, micRow);
+  }
+};
+
 function _applyInputDeviceLabels() {
   const label = _responseLabel();
   const titleEl = document.getElementById('mini-title-response');
   if (titleEl) titleEl.textContent = label;
-  const calEl = document.getElementById('lbl-mic-cal');
-  if (calEl) { calEl.textContent = `${label} cal.`; calEl.title = `${label} calibration factor`; }
+  _updateCalLabels();
   const lvEl = document.getElementById('lv-mic-ch-title');
   if (lvEl) lvEl.textContent = `${label} — Channel L`;
   const frfEl = document.getElementById('lv-frf-title');
