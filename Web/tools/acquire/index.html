@@ -65,19 +65,31 @@
 
       <div class="tb-flex"></div>
 
-      <button id="lv-btn" class="tb-btn" onclick="acqLiveView()">LiveView</button>
       <button class="tb-btn" onclick="acqHelp()">Help</button>
       <button class="tb-btn" onclick="acqTips()">Tips</button>
       <button class="tb-btn" onclick="acqNotes()" title="Session notes for this instrument">Notes</button>
+      <button class="tb-btn ask-claude-btn" onclick="acqAskClaude()"
+              title="Opens a new Claude.ai chat with a question started, using ObieWebApp's documentation as context — finish typing your question and send it">
+        ✨ Ask Claude
+      </button>
     </div>
   </div>
 
   <!-- ── Banner row: template button + position tabs + stencil indicator ── -->
   <div class="acq-banner-row">
     <div class="acq-run-meta">
-      <select id="tpl-dropdown-sel" class="tb-btn tpl-dropdown-sel" onchange="acqPickTemplateFromDropdown(this.value)" title="Pick a saved template to set up a run">
-        <option value="-1" selected>Template: None</option>
-      </select>
+      <div class="tpl-split">
+        <button id="tpl-name-btn" class="tb-btn tpl-split-left" onclick="acqOpenTemplateSettings()" title="Open the current template's settings">
+          Template: <span id="tpl-name-btn-label">None</span>
+        </button>
+        <div class="tpl-split-right">
+          <button class="tb-btn tpl-split-caret" tabindex="-1" aria-hidden="true">▾</button>
+          <select id="tpl-dropdown-sel" class="tpl-split-sel" onchange="acqPickTemplateFromDropdown(this.value)" title="Pick a saved template to set up a run">
+            <option value="-1" selected>Template: None</option>
+          </select>
+        </div>
+      </div>
+      <button id="lv-btn" class="tb-btn" onclick="acqLiveView()">LiveView</button>
       <button id="acq-start-btn" class="tb-btn start" onclick="acqToggleAcquire()">▶ Start</button>
       <!-- inp-instrument-banner / inp-test-banner: kept as hidden data holders —
            lots of JS reads their textContent as the source of truth for the
@@ -96,7 +108,7 @@
   <div class="acq-status-row">
     <span id="status-bar" class="acq-status-txt">Idle — press Start to begin acquisition</span>
     <span id="acq-count" class="acq-count-txt"></span>
-    <span id="soundcard-ind" onclick="acqOpenDevicePicker()" style="font-size:10px;color:#1565c0;font-weight:600;white-space:nowrap;margin-left:6px;cursor:pointer" title="Click to change input device"></span>
+    <span id="soundcard-ind" onclick="acqOpenDevicePicker()" style="font-size:13px;color:#1565c0;font-weight:600;white-space:nowrap;margin-left:6px;cursor:pointer" title="Click to change input device"></span>
   </div>
 
   <!-- ── Main body ────────────────────────────────────────────────────────── -->
@@ -194,12 +206,6 @@
 
     <!-- Right info panel: agenda checklist + current run settings -->
     <div id="acq-info-panel" class="acq-info-panel">
-      <div style="padding:6px 8px 0">
-        <button class="ask-claude-btn" onclick="acqAskClaude()"
-                title="Opens a new Claude.ai chat with a question started, using ObieWebApp's documentation as context — finish typing your question and send it">
-          ✨ Ask Claude
-        </button>
-      </div>
       <div class="info-hdr info-hdr-toggle" onclick="acqToggleChecklist()" title="Show/hide checklist">
         <span id="checklist-chevron">▾</span> Checklist
       </div>

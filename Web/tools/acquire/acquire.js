@@ -1794,11 +1794,13 @@ function _lvFieldsToSettings(fields) {
 // means re-syncing the dropdowns.
 function _renderTemplateList() { _renderTplDropdown(); }
 
-// Keeps every Template <select> (toolbar + the one atop the Template &
-// Settings modal's columns B/C) in sync with _templates and whichever
-// template is actually applied (_currentTemplateName) — not with whatever a
-// select was last showing, so a "Template: None" pick that's a no-op (see
-// acqSelectAndApplyTpl(-1)) snaps back to the real applied template.
+// Keeps every Template <select> (the toolbar's invisible list-trigger +
+// the one atop the Template & Settings modal's columns B/C) and the
+// toolbar's visible "Template: <name>" button label all in sync with
+// _templates and whichever template is actually applied
+// (_currentTemplateName) — not with whatever a select was last showing, so
+// a "Template: None" pick that's a no-op (see acqSelectAndApplyTpl(-1))
+// snaps back to the real applied template.
 function _renderTplDropdown() {
   const optsHtml = '<option value="-1">Template: None</option>' +
     _templates.map((t, i) => `<option value="${i}">Template: ${_escHtml(t.name || 'Unnamed')}</option>`).join('');
@@ -1809,6 +1811,8 @@ function _renderTplDropdown() {
     sel.innerHTML = optsHtml;
     sel.value = String(curIdx);
   });
+  const label = document.getElementById('tpl-name-btn-label');
+  if (label) label.textContent = _currentTemplateName || 'None';
 }
 
 // Deletes whichever template the modal's top dropdown currently shows.
@@ -1828,42 +1832,6 @@ window.acqPickTemplateFromDropdown = async function(val) {
   await window.acqOpenTemplateSettings();
   if (!isNaN(i) && i >= 0) acqSelectAndApplyTpl(i);
 };
-
-// Toolbar Template <select>: a quick click opens the Template & Settings
-// modal on whatever's currently applied (same as the 🎻 Instrument button's
-// "review/change everything" behavior); a press-and-hold (~300ms) instead
-// opens the native option list, like a normal select. Requires
-// HTMLSelectElement.showPicker() — on browsers without it this block is
-// skipped entirely and the select just falls back to always opening its
-// list on click, exactly like before.
-(function _initTplDropdownHoldToOpen() {
-  const sel = document.getElementById('tpl-dropdown-sel');
-  if (!sel || typeof sel.showPicker !== 'function') return;
-  const HOLD_MS = 300;
-  let pressTimer = null;
-  let heldLongEnough = false;
-
-  sel.addEventListener('mousedown', (e) => {
-    if (e.button !== 0) return;  // left click only
-    e.preventDefault();  // stops the browser from opening the list immediately
-    sel.focus();
-    heldLongEnough = false;
-    clearTimeout(pressTimer);
-    pressTimer = setTimeout(() => {
-      heldLongEnough = true;
-      try { sel.showPicker(); } catch (_) {}
-    }, HOLD_MS);
-  });
-
-  sel.addEventListener('mouseup', () => {
-    clearTimeout(pressTimer);
-    if (!heldLongEnough) window.acqOpenTemplateSettings();
-  });
-
-  sel.addEventListener('mouseleave', () => {
-    if (!heldLongEnough) clearTimeout(pressTimer);
-  });
-})();
 
 window.acqDeleteTpl = async function(i, event) {
   event.stopPropagation();  // don't select the row
