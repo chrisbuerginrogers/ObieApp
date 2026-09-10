@@ -82,7 +82,18 @@
     <div class="log-hdr">
       <h2>v1.1.8-beta</h2>
       <span class="log-tag beta">Beta</span>
-      <span class="log-date">2026-07-28</span>
+      <span class="log-date">2026-09-10</span>
+    </div>
+
+    <div class="log-group">
+      <h3>Site-wide</h3>
+      <ul>
+        <li>Added a <strong>⟳ Refresh</strong> button to every tool's header. A stale
+            service-worker cache could previously keep serving old JS/CSS indefinitely — even across
+            a hard reload or browser restart — with no way to fix it short of clearing DevTools
+            storage by hand. Refresh unregisters the service worker, clears the cache, and reloads,
+            so anyone can self-serve an "it looks out of date" report.</li>
+      </ul>
     </div>
 
     <div class="log-group">
@@ -131,15 +142,38 @@
             <strong>HiZ on for the hammer</strong>.</li>
         <li>Downloading the FRF plot as a PNG (camera icon in the plot toolbar) now renders it on a
             white background instead of transparent, so it's readable when pasted elsewhere.</li>
-        <li>Opening Acquire now walks you through a short forced setup every time a Data Folder
-            connects: pick <strong>Type</strong>, <strong>Device</strong>, and a
-            <strong>Template</strong> (and a <strong>Node Stencil</strong>, shown only for
-            📡 Modal Analysis) before continuing. Node Stencil is now hidden entirely for
-            🔊 Radiation. The final step replaces the old plain "name your instrument" box with an
-            instrument picker (type a new name or pick an existing one) combined with Notes —
-            each test now adds its own dated, numbered entry (e.g. "(3) 8/31/26 19:54  Test 03")
-            to that instrument's <code>notes.txt</code>, with prior entries kept read-only
-            underneath instead of one entry being overwritten every time.</li>
+        <li>Removed the forced setup wizard added earlier in this beta. Connecting a Data Folder
+            (auto-restore or a fresh pick) now lands immediately in a live, unnamed "scratch" view —
+            calibrations at 1, cutoffs at 0.30 s, nothing running — so you can plug in and watch
+            signals before configuring anything. The toolbar's Template button is now a split
+            button: click its name to reopen the current template, or its ▾ caret for a dropdown of
+            every saved template; picking one opens Template &amp; Settings with that template
+            already applied. The 🎻 Instrument button and test-name indicator stay hidden until an
+            instrument is actually named (in the same dialog); doing so both commits the name and
+            starts acquisition automatically if nothing else is running.</li>
+        <li>Restructured the <strong>Template &amp; Settings</strong> dialog: Input device moved
+            into a new <strong>Notes</strong> / <strong>Template</strong> tab pair (Notes shown by
+            default) alongside Run Settings and Hit Detection, and the freed-up left column gained a
+            <strong>Photos</strong> section (Add Photos… / Camera) matching the standalone Notes
+            dialog's. The Node Stencil picker is now a <strong>Stencil:</strong> dropdown next to the
+            Template picker instead of a separate list.</li>
+        <li>Calibration rows are now labelled <strong>Channel 1 (L): Hammer cal.</strong> /
+            <strong>Channel 2 (R): Microphone cal.</strong> (or Accelerometer, for
+            📡 Modal Analysis) and swap position along with their labels when <strong>Swap
+            channels</strong> is toggled, so the row on top always matches whichever input the
+            hammer is actually wired to.</li>
+        <li>Moved <strong>LiveView</strong> to sit between the Template control and
+            <strong>▶ Start</strong> in the banner row, and <strong>✨ Ask Claude</strong> next to
+            Notes in the main toolbar. Increased the status row's font size for readability.</li>
+        <li>Moved the <strong>Undo / Clear / Start over</strong> buttons into their own row above the
+            Hammer FFT mini plot (renamed from "↩ Undo Hit" / "🗑 Clear" / "↺ Start over," emoji
+            dropped). Added a <strong>🔍 Zoom Toolbar</strong> toggle to the main plot's toolbar that
+            shows or hides Plotly's own built-in zoom/pan/box-select/autoscale/reset/camera controls.</li>
+        <li>Every disk write Acquire performs (hits, notes, photos, templates, stencils, run
+            renames) now retries with backoff before treating a locked file as a gone Data Folder —
+            fixes a bug where cloud-sync clients (Dropbox, OneDrive, Google Drive) briefly locking a
+            file during their own sync could get misread as "the folder was removed," forcing an
+            unnecessary re-pick after only a few measurements.</li>
       </ul>
     </div>
 

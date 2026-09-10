@@ -179,6 +179,14 @@
       your Data Folder and are loaded automatically on startup.
     </div>
 
+    <div class="callout">
+      <strong>Page looks out of date after a site update?</strong>
+      Every tool's header has a <strong>⟳ Refresh</strong> button. The browser can keep serving an
+      old cached copy of a tool's files behind the scenes even after a normal reload — click ⟳
+      Refresh to clear that cache and reload with the current version. Any unsaved work in progress
+      on the page is lost, so save first if you can.
+    </div>
+
     <h3>Supported file formats</h3>
     <table class="key-table">
       <thead><tr><th>Extension</th><th>Description</th></tr></thead>
@@ -433,59 +441,91 @@
     <h3>Hardware setup</h3>
     <ol class="steps">
       <li>Connect your USB audio interface (e.g. Focusrite Scarlett 2i2) before opening the page.</li>
-      <li>By default, plug the impact hammer into <strong>Input 1 (left)</strong> and the microphone into <strong>Input 2 (right)</strong>. Enable <em>Swap channels</em> in Template &amp; Settings if your hardware is wired the other way around.</li>
+      <li>By default, plug the impact hammer into <strong>Input 1 (left)</strong> and the microphone into <strong>Input 2 (right)</strong>. Enable <em>Swap channels</em> in Template &amp; Settings if your hardware is wired the other way around — the Calibration section's channel labels and row order swap with it, so whichever input the hammer is actually on is always listed first.</li>
       <li>Use Chrome or Edge — Safari and Firefox do not support the required audio APIs.</li>
     </ol>
 
-    <h3>Instrument and test name</h3>
+    <h3>Connecting a Data Folder — live view</h3>
     <p>
-      Click the <strong>🎻 Instrument</strong> button in the toolbar to name the violin or instrument
-      being measured. Acquire creates a folder named after the instrument inside your Data Folder, and
-      automatically numbers successive test runs (<code>Violin_01</code>, <code>Violin_02</code>, …).
-      The floppy-disk icon next to the test name lets you rename the current run — the folder on disk
-      is renamed to match.
+      Click <strong>📁 Data Folder</strong> and select the folder where results should be saved (or
+      let Acquire auto-restore the last one you used). It immediately drops you into a live,
+      unnamed "scratch" view — no instrument, no test name, calibrations reset to 1, cutoffs reset to
+      0.30 s, nothing running — so you can plug in and watch the Hammer/Mic/FFT plots respond right
+      away with nothing to configure first. Nothing is written to disk while you're in this state; the
+      toolbar's <strong>🎻 Instrument</strong> button and the test-name indicator next to it stay
+      hidden until you actually name an instrument.
+    </p>
+
+    <h3>Naming an instrument</h3>
+    <p>
+      Open <strong>Template &amp; Settings</strong> — click <strong>Template:</strong> in the banner
+      row — and type a name into the <strong>Instrument</strong> field at the top of the left column
+      (it autocompletes against instruments that already exist in your Data Folder). The dialog's
+      primary button (<strong>Use Template</strong> / <strong>Use Settings</strong> /
+      <strong>Update and Use Template</strong>) both commits that name and starts acquisition for you
+      if nothing is already running, so there's no separate Start click needed the first time. Acquire
+      creates a folder named after the instrument and automatically numbers successive test runs
+      inside it (<code>Violin_01</code>, <code>Violin_02</code>, …). Once an instrument is set, the
+      toolbar's <strong>🎻 Instrument</strong> button and the test-name indicator appear — click 🎻
+      any time afterwards to rename or switch instruments (it reopens the same dialog), and click the
+      test-name indicator to rename just the current run.
     </p>
     <div class="callout">
-      <strong>After loading a template</strong>
-      If you load a template but haven't yet named an instrument, Acquire shows a cover asking
-      you to set one before measuring. Without a loaded template you can measure freely in
-      unnamed (scratch) mode.
+      <strong>Leaving Instrument blank</strong>
+      The dialog won't let you apply settings with a blank Instrument name — it asks you to enter
+      one first. <strong>Create New Template</strong> is the exception: it only saves a template file
+      and never requires an instrument.
     </div>
 
-    <h3>First-time setup (Template &amp; Settings)</h3>
-    <p>Click <strong>Template:</strong> in the toolbar to open the <strong>Template &amp; Settings</strong> dialog and configure:</p>
+    <h3>Template &amp; Settings dialog</h3>
+    <p>
+      Click <strong>Template:</strong> in the banner row, or pick one from its dropdown (see
+      <a href="#acquire-templates" style="color:var(--accent)">Templates</a> below), to open the
+      dialog. It's laid out as a left column plus a tabbed area on the right:
+    </p>
+    <ul class="steps" style="list-style:disc;padding-left:20px;margin:0 0 14px">
+      <li><strong>Left column</strong> — the Instrument field (above) and a <strong>Photos</strong>
+          section for attaching images to the instrument (see
+          <a href="#acquire-photos" style="color:var(--accent)">Session Notes &amp; Photos</a>
+          below).</li>
+      <li><strong>Notes tab</strong> — shown by default when the dialog opens; a dated entry box for
+          this test (see <a href="#acquire-photos" style="color:var(--accent)">Session Notes &amp;
+          Photos</a> below).</li>
+      <li><strong>Template tab</strong> — Input device, Run Settings, Hit Detection (including Node
+          Stencil), Calibration, Audio Capture, and Plot Settings: everything that gets saved into a
+          template file.</li>
+    </ul>
     <table class="key-table">
-      <thead><tr><th>Setting</th><th>Notes</th></tr></thead>
+      <thead><tr><th>Setting (Template tab)</th><th>Notes</th></tr></thead>
       <tbody>
         <tr><td>Input device</td><td>Choose your audio interface from the dropdown — takes effect immediately. You can also click the <strong>Device:</strong> indicator in the status row at any time for a quick device picker without opening the full dialog.</td></tr>
         <tr><td>Ham trigger threshold</td><td>Voltage level (V) that triggers a hit. Lower values catch lighter taps; raise it to ignore ambient noise.</td></tr>
         <tr><td>Time before / after hit</td><td>Pre- and post-trigger capture window in seconds.</td></tr>
         <tr><td>Hammer / Mic time cutoff</td><td>Signal is zeroed after this time (0.001–5 s) — suppresses late reflections. Shown as a green line on the mini plots.</td></tr>
-        <tr><td>Hammer calibration (N/V)</td><td>Converts raw voltage to Newtons. Enter the value from your hammer's calibration sheet.</td></tr>
-        <tr><td>Mic calibration (Pa/V)</td><td>Converts raw voltage to Pascals. Enter the value from your microphone calibration sheet.</td></tr>
+        <tr><td>Channel 1 (L) / Channel 2 (R) calibration</td><td>Converts raw voltage to physical units — N/V for the hammer, Pa/V for the mic (or the equivalent for an accelerometer). The row labelled "Hammer cal." always names the channel the hammer is actually wired to, and the two rows swap order together with <em>Swap channels</em>.</td></tr>
         <tr><td>Hits per position</td><td>Number of good hits to average before the app considers a position complete.</td></tr>
         <tr><td>Number of positions</td><td>Total positions per prefix group (e.g. 12 gives H01–H12).</td></tr>
         <tr><td>Position prefix</td><td>Label prepended to position names. Enter a comma-separated list (e.g. <code>H,V</code>) to create multiple groups — <code>H,V</code> with 12 positions per group gives H01–H12 then V01–V12.</td></tr>
-        <tr><td>Swap channels</td><td>Moves the hammer trigger to the right input channel (Input 2). Use when the hammer is physically wired to Input 2.</td></tr>
+        <tr><td>Swap channels</td><td>Moves the hammer trigger to the right input channel (Input 2) and relabels/reorders the Calibration rows to match.</td></tr>
       </tbody>
     </table>
 
     <h4>Node Stencil (inside Template &amp; Settings)</h4>
     <p>
-      The Node Stencil list (left column) shows every stencil saved in your Data Folder's Templates
-      folder, plus a <strong>None</strong> option at the top. Clicking any item applies it immediately —
-      there's no separate Apply button — and saves it into that run's <code>template.json</code> right
-      away. Click <strong>None</strong> to remove a stencil from the current run.
+      The <strong>Stencil:</strong> dropdown sits next to the Template picker at the top of the
+      Template tab, listing every stencil saved in your Data Folder's Templates folder plus a
+      <strong>None</strong> option. Picking one applies it immediately — there's no separate Apply
+      button — and saves it into that run's <code>template.json</code> right away. Pick
+      <strong>None</strong> to remove a stencil from the current run. The <strong>Stencil
+      Builder</strong> link next to the dropdown opens Stencil Builder in a new tab.
     </p>
     <p>
       Once a stencil is applied, a small preview of its node layout appears under
-      <strong>Hit Detection</strong> (middle column), labelled with the stencil's name. This preview
-      keeps itself in sync: while the Template &amp; Settings dialog is open, Acquire re-checks the
-      stencil's file every couple of seconds, so edits saved from a Stencil Builder tab open alongside
-      it (same name, re-saved) appear automatically without re-selecting anything. Click the preview
-      image — or the <strong>Stencil Builder</strong> link in the paragraph above the list — to open
-      Stencil Builder in a new tab; clicking the preview opens Stencil Builder with that exact stencil
-      already loaded, ready to edit.
+      <strong>Hit Detection</strong>, labelled with the stencil's name. This preview keeps itself in
+      sync: while the Template &amp; Settings dialog is open, Acquire re-checks the stencil's file
+      every couple of seconds, so edits saved from a Stencil Builder tab open alongside it (same
+      name, re-saved) appear automatically without re-selecting anything. Click the preview image to
+      open Stencil Builder with that exact stencil already loaded, ready to edit.
     </p>
 
     <h4>Plot Settings (inside Template &amp; Settings)</h4>
@@ -506,13 +546,10 @@
 
     <h3>Checklist</h3>
     <p>
-      The right-hand info panel starts with an <strong>✨ Ask Claude</strong> button, followed by the
-      <strong>Checklist</strong> above Run Settings — click its header (or the ▾/▸ arrow) to show or
-      hide it; it's expanded by default, and advanced users who don't need the reminders can collapse
-      it out of the way. Ask Claude opens a new Claude.ai chat in another tab with a question started
-      for you, pointing Claude at ObieWebApp's documentation — finish typing your question and send it
-      (nothing is sent automatically). The Checklist is a step-by-step reminder for the full workflow,
-      grouped into two sections:
+      The right-hand info panel's <strong>Checklist</strong> sits above Run Settings — click its
+      header (or the ▾/▸ arrow) to show or hide it; it's expanded by default, and advanced users who
+      don't need the reminders can collapse it out of the way. It's a step-by-step reminder for the
+      full workflow, grouped into two sections:
     </p>
     <table class="key-table">
       <thead><tr><th>Group</th><th>Steps</th></tr></thead>
@@ -526,22 +563,27 @@
       reloads. The whole checklist clears automatically the next time you press
       <strong>▶ Start</strong> from idle or a completed run, ready for the next one.
     </p>
+    <p>
+      <strong>✨ Ask Claude</strong>, in the main toolbar next to Notes, opens a new Claude.ai chat in
+      another tab with a question started for you, pointing Claude at ObieWebApp's documentation —
+      finish typing your question and send it (nothing is sent automatically).
+    </p>
 
     <h3>Running a measurement</h3>
     <ol class="steps">
-      <li>Click <strong>📁 Data Folder</strong> and select the folder where results should be saved.</li>
-      <li>Name your instrument via the <strong>🎻 Instrument</strong> button.</li>
-      <li>Click <strong>▶ Start</strong>. The app begins listening for hammer hits.</li>
+      <li>Click <strong>📁 Data Folder</strong> and select the folder where results should be saved — Acquire lands in live view immediately (see above).</li>
+      <li>Open <strong>Template &amp; Settings</strong> and name your instrument (see Naming an instrument, above) — this also starts acquisition automatically.</li>
       <li>Strike the instrument. The three mini plots (Hammer FFT, Hammer time, Mic time) update
           after each hit. Check that the hammer pulse is clean — a double-hit shows two bumps in the
           Hammer time plot.</li>
       <li>After the required number of good hits the <em>Position complete</em> dialog appears.
           Choose <strong>Next Position →</strong> to advance (the mini plots and current FRF clear
           for a fresh start) or <strong>Repeat</strong> to re-do the current position.</li>
-      <li>Use <strong>↩ Undo Hit</strong> to remove a bad last hit, or <strong>🗑 Clear H01</strong>
-          to restart the current position. <strong>↺ Start over</strong> clears all positions.</li>
+      <li>Use the <strong>Undo</strong> / <strong>Clear</strong> / <strong>Start over</strong> row
+          above the Hammer FFT plot (left sidebar) to remove a bad last hit, restart just the current
+          position, or clear every position and start the whole run over.</li>
       <li>When all positions are complete, AvR/AvC averages are saved automatically (per prefix group, plus a combined set if you used more than one — see <a href="#what-gets-saved" style="color:var(--accent)">What gets saved</a> below) and a <em>Run complete</em> banner appears.</li>
-      <li>To start the next run on the same instrument, click <strong>▶ Start</strong> again — the test name increments automatically (e.g. <code>Violin_01</code> → <code>Violin_02</code>) and all positions reset.</li>
+      <li>To start the next run on the same instrument, click <strong>▶ Start</strong> in the banner again — the test name increments automatically (e.g. <code>Violin_01</code> → <code>Violin_02</code>) and all positions reset.</li>
     </ol>
 
     <div class="callout" id="what-gets-saved">
@@ -564,18 +606,20 @@
       coherence overlay (γ², scaled to the bottom third of the Y range). When you advance to the
       next position the plot clears so you start fresh — previous positions are saved on disk and
       can be loaded in Explore. Use the plot-toolbar controls to toggle log/linear X axis, rescale
-      Y, or adjust the dB range.
+      Y, adjust the dB range, or choose a color palette. The <strong>🔍 Zoom Toolbar</strong> button
+      on the right shows or hides Plotly's own zoom/pan/box-select/autoscale/reset/camera controls on
+      this plot.
     </p>
 
-    <h3>Templates</h3>
+    <h3 id="acquire-templates">Templates</h3>
     <p>
       A template stores your complete measurement setup — trigger settings, calibration factors,
       position count, and all plot axis limits. Templates live in
       <code>ObieAppSettings/Templates/</code> inside your Data Folder.
     </p>
     <ol class="steps">
-      <li>Click <strong>Template:</strong> in the toolbar to open the Template &amp; Settings dialog.</li>
-      <li>Click a template in the list — it applies immediately (fields update right away). An <strong>Undo</strong> button reverts an accidental click.</li>
+      <li>The banner's Template control is a split button: click <strong>Template: <em>name</em></strong> to reopen the current template's settings, or click the ▾ caret next to it for a dropdown of every saved template — picking one opens the dialog with that template's settings already applied.</li>
+      <li>Inside the dialog, picking a different template from its own list applies it immediately (fields update right away). Closing with <strong>Cancel</strong> reverts the banner and dialog back to whichever template was actually active when you opened it.</li>
       <li>The primary button at the bottom reads <strong>Use Template</strong> when your settings still match the applied template. Editing any field switches it to <strong>Update and Use Template</strong>, which saves your changes back into that template as well as applying them. With no template applied, it reads <strong>Use Settings</strong> and applies your changes to this run only.</li>
       <li>To save the current settings as a brand-new template, click <strong>Create New Template</strong>.</li>
       <li><strong>Reset Default Templates</strong> re-downloads the built-in templates ("HV 24 Obie Rig", "ScratchPad", "Scratchpad Obie 26") without touching your custom ones.</li>
@@ -595,28 +639,36 @@
       stream restarts automatically on the new device.
     </p>
 
-    <h3>Session Notes</h3>
+    <h3 id="acquire-photos">Session Notes &amp; Photos</h3>
     <p>
-      Click <strong>Notes</strong> (next to the Template button) to open the Notes panel and enter
-      free-text observations about the session. Notes save to <code>notes.txt</code> in the
-      instrument's folder and are shown in Explore when you hover that instrument's datasets.
-      The first time you open Notes for an instrument with no existing file, it's pre-filled with
-      a fill-in-the-blanks template (date/time, location, experiment, researchers, instrument info,
-      measurement info) to fill in or delete as needed.
+      Notes save to <code>notes.txt</code> in the instrument's folder and are shown in Explore when
+      you hover that instrument's datasets. There are two ways to edit them, both writing to the same
+      file:
     </p>
+    <ul class="steps" style="list-style:disc;padding-left:20px;margin:0 0 10px">
+      <li><strong>Notes</strong> in the main toolbar opens a quick modal with the whole notes file as
+          one free-form text box — edit it and click <strong>Save Notes</strong>.</li>
+      <li>The Template &amp; Settings dialog's <strong>Notes tab</strong> (shown by default) is scoped
+          to the current test: it seeds a new dated, numbered entry (e.g. "(3) 8/31/26 19:54
+          Test 03") pre-filled with the instrument name, for you to add your own observations to —
+          every prior entry is kept read-only underneath, so nothing you already wrote is ever
+          overwritten.</li>
+    </ul>
     <p>
-      Use <strong>🗑 Delete Notes &amp; Start Again</strong> (with a confirmation prompt) to clear the
-      notes and remove <code>notes.txt</code> from disk. <strong>📷 Add Photos…</strong> attaches one
-      or more image files to the instrument, and <strong>📸 Camera</strong> opens a live preview from
-      your computer's webcam with a <em>Snap</em> button to capture and save a photo directly —
-      both save into a <code>photos</code> folder alongside the notes. Saved photos are shown as
-      thumbnails; click one to open the full-size image in a new tab.
+      Both surfaces share the same <strong>Photos</strong> section: <strong>Add Photos…</strong>
+      attaches one or more image files, and <strong>Camera</strong> opens a live preview from your
+      computer's webcam with a <em>Snap</em> button to capture and save a photo directly — both save
+      into a <code>photos</code> folder alongside the notes. Saved photos are shown as thumbnails;
+      click one to open the full-size image in a new tab. In the standalone Notes modal, use
+      <strong>🗑 Delete Notes &amp; Start Again</strong> (with a confirmation prompt) to clear the
+      notes box and remove <code>notes.txt</code> from disk.
     </p>
 
     <h3>LiveView</h3>
     <p>
-      Click <strong>LiveView</strong> to open a full-screen view of the FRF plot — useful when
-      the laptop is placed at a distance from the instrument during measurement.
+      Click <strong>LiveView</strong>, between the Template control and <strong>▶ Start</strong> in
+      the banner row, to open a full-screen view of the FRF plot — useful when the laptop is placed
+      at a distance from the instrument during measurement.
     </p>
 
     <div class="callout">
