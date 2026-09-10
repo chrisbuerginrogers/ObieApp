@@ -182,23 +182,30 @@
         <div class="folder-overlay-sub" id="folder-overlay-sub"></div>
       </div>
 
-      <!-- Plot controls toolbar -->
-      <div class="plot-toolbar">
-        <button class="tb-btn" onclick="acqRescaleY()" title="Rescale Y to data range">↕Y</button>
-        <input  id="y-db-range" class="tb-inp" type="number" value="38" min="5" max="120"
-                style="width:3.2ch;font-size:9px;padding:0 2px;text-align:right"
-                title="Y dB range" onchange="acqSetYDbRange(this.value)">
-        <span class="tb-lbl">dB</span>
-        <button id="x-log-btn" class="tb-btn active" onclick="acqToggleXLog()" title="Toggle X axis log/linear">X=log</button>
-        <button class="tb-btn" onclick="acqColors()" title="Choose line color palette">Colors</button>
-        <label class="tb-chk" title="Show individual tap FRFs behind the average (↑/↓ adjusts opacity)">
-          <input type="checkbox" id="taps-chk" checked onchange="acqToggleTaps(this.checked)">
-          Show History
-        </label>
-        <div class="tb-flex"></div>
+      <!-- Hit action row: always visible, above the FRF plot -->
+      <div class="plot-toolbar plot-actions-row">
         <button id="delete-btn"    class="tb-btn" onclick="acqDeleteLastHit()" disabled title="Delete last hit">↩ Undo Hit</button>
         <button id="clear-btn"     class="tb-btn" onclick="acqClearPosition()"  disabled title="Clear current position">🗑 Clear</button>
         <button id="startover-btn" class="tb-btn" onclick="acqStartOver()" title="Clear ALL positions and start over" style="color:#c62828">↺ Start over</button>
+      </div>
+
+      <!-- Plot controls toolbar (Plotly zoom/display controls) — collapsible -->
+      <div class="plot-toolbar">
+        <div id="plot-controls-group" class="plot-controls-group">
+          <button class="tb-btn" onclick="acqRescaleY()" title="Rescale Y to data range">↕Y</button>
+          <input  id="y-db-range" class="tb-inp" type="number" value="38" min="5" max="120"
+                  style="width:3.2ch;font-size:9px;padding:0 2px;text-align:right"
+                  title="Y dB range" onchange="acqSetYDbRange(this.value)">
+          <span class="tb-lbl">dB</span>
+          <button id="x-log-btn" class="tb-btn active" onclick="acqToggleXLog()" title="Toggle X axis log/linear">X=log</button>
+          <button class="tb-btn" onclick="acqColors()" title="Choose line color palette">Colors</button>
+          <label class="tb-chk" title="Show individual tap FRFs behind the average (↑/↓ adjusts opacity)">
+            <input type="checkbox" id="taps-chk" checked onchange="acqToggleTaps(this.checked)">
+            Show History
+          </label>
+        </div>
+        <div class="tb-flex"></div>
+        <button id="plot-controls-toggle-btn" class="tb-btn" onclick="acqTogglePlotControls()" title="Show/hide plot zoom &amp; display controls (Y range, X=log, Colors, Show History)">🔧 Hide Controls</button>
       </div>
 
       <div id="acq-plot"></div>

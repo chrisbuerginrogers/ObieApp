@@ -279,6 +279,7 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
   padding: 2px 6px; min-height: 26px;
   background: var(--bg-deep); border-bottom: 1px solid var(--border);
 }
+.plot-controls-group { display: flex; align-items: center; gap: 2px; }
 
 #acq-plot { flex: 1; min-height: 0; width: 100%; }
 

@@ -606,6 +606,18 @@ window.acqRescaleY = function() {
   renderFRF();
 };
 
+// Shows/hides the plot-toolbar's Plotly view controls (Y rescale, dB range,
+// X=log/lin, Colors, Show History) — purely a display toggle, doesn't touch
+// any of their underlying state.
+window.acqTogglePlotControls = function() {
+  const group = document.getElementById('plot-controls-group');
+  const btn   = document.getElementById('plot-controls-toggle-btn');
+  if (!group) return;
+  const isOpen = group.style.display !== 'none';
+  group.style.display = isOpen ? 'none' : '';
+  if (btn) btn.textContent = isOpen ? '🔧 Show Controls' : '🔧 Hide Controls';
+};
+
 window.acqSetYDbRange = function(val) {
   _S.yDbRange = parseFloat(val) || 38;
   _patchPrefs({ db_spread: _S.yDbRange });
