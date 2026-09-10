@@ -556,7 +556,7 @@ function renderFRF() {
       gridcolor: '#c0c4cc', tickfont: { size: 10 },
     },
     autosize: true,
-  }, { ...PCFG, displayModeBar: true, displaylogo: false,
+  }, { ...PCFG, displayModeBar: _showModeBar, displaylogo: false,
        modeBarButtonsToRemove: ['sendDataToCloud', 'toImage'],
        modeBarButtonsToAdd: [_pngWhiteButton('acquire-frf')] });
   // Clear the guard via setTimeout so any deferred relayout events Plotly fires
@@ -606,16 +606,16 @@ window.acqRescaleY = function() {
   renderFRF();
 };
 
-// Shows/hides the plot-toolbar's Plotly view controls (Y rescale, dB range,
-// X=log/lin, Colors, Show History) — purely a display toggle, doesn't touch
-// any of their underlying state.
-window.acqTogglePlotControls = function() {
-  const group = document.getElementById('plot-controls-group');
-  const btn   = document.getElementById('plot-controls-toggle-btn');
-  if (!group) return;
-  const isOpen = group.style.display !== 'none';
-  group.style.display = isOpen ? 'none' : '';
-  if (btn) btn.textContent = isOpen ? '🔧 Show Controls' : '🔧 Hide Controls';
+// Shows/hides Plotly's own built-in mode bar (zoom/pan/box-select/lasso/
+// autoscale/reset-axes/camera icons) on the main FRF plot — see renderFRF's
+// Plotly.react call, which reads _showModeBar into its config.
+let _showModeBar = true;
+
+window.acqToggleModeBar = function() {
+  _showModeBar = !_showModeBar;
+  const btn = document.getElementById('modebar-toggle-btn');
+  if (btn) btn.classList.toggle('active', _showModeBar);
+  renderFRF();
 };
 
 window.acqSetYDbRange = function(val) {
@@ -799,7 +799,7 @@ function _updateEditBtns(s) {
   sd('delete-btn', !s || s.hit_n <= 0);
   sd('clear-btn',  !s || s.hit_n <= 0);
   const clrBtn = document.getElementById('clear-btn');
-  if (clrBtn) clrBtn.textContent = s?.label ? `🗑 Clear ${s.label}` : '🗑 Clear';
+  if (clrBtn) clrBtn.textContent = s?.label ? `Clear ${s.label}` : 'Clear';
 }
 
 
