@@ -50,6 +50,10 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 }
 .tb-r { display: flex; align-items: center; gap: 2px; flex-wrap: nowrap; min-height: 26px; }
 .tb-flex { flex: 1; }
+.toolbar-hit-ind {
+  font-size: 15px; font-weight: 700; color: #2e7d32;
+  white-space: nowrap; letter-spacing: 0.02em;
+}
 .tb-vsep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
 
 .tb-btn {

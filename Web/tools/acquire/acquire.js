@@ -292,6 +292,12 @@ window.onStateChange = function(jsonStr) {
   else if (s.state === 'complete')  { txt = `✓ Run complete — ${s.n_positions} positions measured`; cls = 'complete'; _resetForNextRun(); }
   if (bar) { bar.textContent = txt; bar.className = `acq-status-txt ${cls}`; }
 
+  const hitInd = document.getElementById('toolbar-hit-ind');
+  if (hitInd) {
+    const active = s.state === 'armed' || s.state === 'triggered' || s.state === 'position_complete';
+    hitInd.textContent = active ? `${s.label}-${s.hit_n}/${s.n_taps}` : '';
+  }
+
   _updateStopBtn();
   _updateEditBtns(s);
   _updateSoundcardDisplay();
@@ -609,17 +615,16 @@ window.acqRescaleY = function() {
 // Shows/hides Plotly's own built-in mode bar (zoom/pan/box-select/lasso/
 // autoscale/reset-axes/camera icons) on the main FRF plot — see renderFRF's
 // Plotly.react call, which reads _showModeBar into its config. Also shows/hides
-// the top toolbar and the right info panel (checklist + settings), so the same
-// button clears surrounding chrome to give the FRF plot more room while zooming.
+// the right info panel (checklist + settings), so the same button clears side
+// chrome to give the FRF plot more room. The top toolbar (Data Folder /
+// Instrument / Help / Tips / Notes) stays visible either way.
 let _showModeBar = true;
 
 window.acqToggleModeBar = function() {
   _showModeBar = !_showModeBar;
   const btn = document.getElementById('modebar-toggle-btn');
   if (btn) btn.classList.toggle('active', _showModeBar);
-  const toolbar   = document.querySelector('.acq-toolbar');
   const infoPanel = document.getElementById('acq-info-panel');
-  if (toolbar)   toolbar.style.display   = _showModeBar ? '' : 'none';
   if (infoPanel) infoPanel.style.display = _showModeBar ? '' : 'none';
   renderFRF();
 };
