@@ -233,10 +233,20 @@
         <tr><td>X=log / X=lin</td><td>Toggle the frequency axis.</td></tr>
         <tr><td>Colors</td><td>Choose the line color palette used for position traces.</td></tr>
         <tr><td>Show History</td><td>Show individual tap FRFs behind the position average, faded. Use ↑/↓ to adjust their opacity.</td></tr>
-        <tr><td>🔍 Zoom Toolbar</td><td>Show or hide Plotly's own zoom/pan/box-select/autoscale/reset/camera controls on the main FRF plot.</td></tr>
+        <tr><td>🔍 Tools</td><td>Show or hide Plotly's own zoom/pan/box-select/autoscale/reset/camera controls on the main FRF plot, and the right-hand checklist/settings panel.</td></tr>
         <tr><td>Undo</td><td>Delete the last accepted hit at the current position.</td></tr>
         <tr><td>Clear</td><td>Clear all hits for the current position and start it over.</td></tr>
         <tr><td>Start over</td><td>Clear every position in the current run.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Acquire keyboard shortcuts</h3>
+    <table class="key-table">
+      <thead><tr><th>Key</th><th>Effect</th></tr></thead>
+      <tbody>
+        <tr><td><code>Esc</code></td><td>Instantly clears all hits for the current position and starts it over — same as the Clear button, but with no confirmation dialog.</td></tr>
+        <tr><td><code>Space</code></td><td>When the Position Complete dialog is open, advances to the next position — same as clicking Next Position.</td></tr>
+        <tr><td><code>↑</code> / <code>↓</code></td><td>Adjust the opacity of history traces (previous positions, or individual taps when Show History is on).</td></tr>
       </tbody>
     </table>
 
