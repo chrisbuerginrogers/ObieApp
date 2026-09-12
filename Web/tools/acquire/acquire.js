@@ -1751,7 +1751,7 @@ window.acqOpenTemplateSettings = async function() {
     datalist.innerHTML = names.map(n => `<option value="${_escHtml(n)}">`).join('');
   }
   await _tplInstrumentPreviewNow();
-  acqSwitchTplTab('notes');
+  acqSwitchTplTab('template');
 
   // Photos (column A)
   _renderNotesPhotoList();
