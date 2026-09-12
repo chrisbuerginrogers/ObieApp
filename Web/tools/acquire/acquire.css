@@ -221,7 +221,7 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 }
 
 .plot-actions-row {
-  display: flex; flex-wrap: wrap; gap: 3px; flex-shrink: 0;
+  display: flex; flex-wrap: wrap; gap: 10px; flex-shrink: 0;
   padding: 3px 4px;
   background: var(--bg-deep); border-bottom: 1px solid var(--border);
 }
