@@ -3802,19 +3802,7 @@ function _initPlots() {
 window.onPyReady = function() {
   const prefs = _loadPrefs();
   _pushSettingsFromPrefs(prefs);  // calls pyApplySettings which initialises positions
-  // Auto-start: probe with getUserMedia first (establishes permission + real device IDs),
-  // release the test stream, then start acquisition with the saved specific device.
-  // If no audio device is available the probe throws and we leave the button at Start.
-  // Simulated mode is excluded — user must press Start explicitly.
-  if (_loadPrefs().deviceId !== '__simulated__') {
-    setTimeout(async () => {
-      try {
-        const tmp = await navigator.mediaDevices.getUserMedia({ audio: true });
-        tmp.getTracks().forEach(t => t.stop());
-        acqToggleAcquire();
-      } catch (_) {}
-    }, 100);
-  }
+  // Acquisition never auto-starts — the app always opens idle, at the Start button.
 };
 
 window.addEventListener('load', () => {
