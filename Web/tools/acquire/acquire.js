@@ -594,6 +594,14 @@ document.addEventListener('keydown', e => {
   if (document.activeElement?.tagName === 'INPUT' ||
       document.activeElement?.tagName === 'SELECT' ||
       document.activeElement?.tagName === 'TEXTAREA') return;
+  // Escape instantly clears the current position's data (no confirm) — but
+  // only when no modal is open, so it doesn't fight a modal's own close-on-Escape.
+  if (e.key === 'Escape') {
+    if (document.querySelector('.modal-overlay.open')) return;
+    e.preventDefault();
+    window.acqClearPosition();
+    return;
+  }
   if (e.key === 'ArrowUp') {
     e.preventDefault();
     if (_showTaps) _tapOpacity = Math.min(1.0, +(_tapOpacity + 0.05).toFixed(2));
