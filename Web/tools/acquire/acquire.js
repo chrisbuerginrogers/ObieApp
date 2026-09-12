@@ -313,6 +313,8 @@ window.onBannerUpdate = function(jsonStr) {
   const data = JSON.parse(jsonStr);
   const el   = document.getElementById('pos-banner');
   if (!el) return;
+  el.style.display = _testsHandle ? '' : 'none';
+  if (!_testsHandle) return;
   el.innerHTML = data.map((p, i) => {
     const dots = Array.from({length: p.n_taps}, (_, j) => j < p.hits ? '●' : '○').join('');
     let cls = 'pos-tab';
@@ -678,15 +680,18 @@ function _mirrorInstrumentName() {
   if (btnName) btnName.textContent = (name && name !== '—') ? name : 'Instrument';
 }
 
-// Hides the toolbar's 🎻 Instrument button and the test-name/save-status
-// indicator while no instrument is set up yet (default scratch/live-view
-// landing) — shown again once _refreshInstrumentFolder succeeds.
+// Hides the toolbar's 🎻 Instrument button, the test-name/save-status
+// indicator, and the position banner while no instrument is set up yet
+// (default scratch/live-view landing, nothing being saved to disk) — all
+// shown again once _refreshInstrumentFolder succeeds.
 function _updateInstrumentUiVisibility() {
   const has = !!_testsHandle;
   const instrBtn = document.getElementById('instrument-btn');
   const saveInd  = document.getElementById('save-status-ind');
+  const banner   = document.getElementById('pos-banner');
   if (instrBtn) instrBtn.style.display = has ? '' : 'none';
   if (saveInd)  saveInd.style.display  = has ? '' : 'none';
+  if (banner)   banner.style.display   = has ? '' : 'none';
 }
 
 window.acqApplyThreshold = function(val) {
