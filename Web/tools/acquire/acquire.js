@@ -2414,19 +2414,27 @@ async function _applyDataFolder(dirHandle) {
 
   // Land in a lightweight scratch/live-view state every time a folder resolves
   // (auto-restore or manual pick) — no instrument, no filename, not running.
-  // Calibrations/cutoffs are forced to their "live" defaults without touching
-  // any saved prefs on disk; the real saved settings are only ever read again
-  // once the user picks a template. _rawHandle stays null until then.
+  // Prefer the built-in "ScratchPad" template's own settings (a real,
+  // already-tuned quick-session template) over generic live defaults, so the
+  // startup state matches what picking that template from the dropdown would
+  // give you. Falls back to the old generic-defaults behavior if ScratchPad
+  // isn't present (e.g. templates failed to load). _rawHandle stays null
+  // until the user names an instrument.
   _rawHandle = _trfHandle = _testHandle = _testsHandle = null;
-  const liveViewPrefs = {
-    ...(savedPrefs || _loadPrefs()),
-    instrument: 'scratch',
-    ham_cal: 1.0, mic_cal: 1.0,
-    time_cutoff_s: 0.30, mic_time_cutoff_s: 0.30,
-  };
+  const _scratchTpl = _templates.find(t => t.name === 'ScratchPad');
+  const liveViewPrefs = (_scratchTpl && _scratchTpl.settings)
+    ? { ..._loadPrefs(), ..._scratchTpl.settings, instrument: 'scratch' }
+    : {
+        ...(savedPrefs || _loadPrefs()),
+        instrument: 'scratch',
+        ham_cal: 1.0, mic_cal: 1.0,
+        time_cutoff_s: 0.30, mic_time_cutoff_s: 0.30,
+      };
+  _resetAxisRanges(liveViewPrefs);
   _populatePrefsForm(liveViewPrefs, true);
   _pushSettingsFromPrefs(liveViewPrefs);
-  _clearTemplateName();
+  if (_scratchTpl) _setTemplateName(_scratchTpl.name);
+  else             _clearTemplateName();
   _setSaveStatus(null);
   const testDisp = document.getElementById('inp-test-banner');
   if (testDisp) testDisp.textContent = '—';
