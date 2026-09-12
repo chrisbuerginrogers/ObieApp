@@ -513,6 +513,10 @@ canvas.lv-canvas {
   text-align: right; max-width: 85px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+.info-not-saving {
+  padding: 10px 8px; font-size: 11px; font-style: italic;
+  color: var(--muted); text-align: center; line-height: 1.4;
+}
 
 .ask-claude-btn {
   background: var(--accent); border-color: var(--accent);

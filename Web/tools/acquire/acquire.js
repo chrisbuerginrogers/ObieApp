@@ -294,8 +294,13 @@ window.onStateChange = function(jsonStr) {
 
   const hitInd = document.getElementById('toolbar-hit-ind');
   if (hitInd) {
-    const active = s.state === 'armed' || s.state === 'triggered' || s.state === 'position_complete';
-    hitInd.textContent = active ? `${s.label}-${s.hit_n}/${s.n_taps}` : '';
+    if (s.state === 'armed' || s.state === 'triggered') {
+      hitInd.textContent = `Hit ${Math.min(s.hit_n + 1, s.n_taps)}`;
+    } else if (s.state === 'position_complete') {
+      hitInd.textContent = `Hit ${s.n_taps}`;
+    } else {
+      hitInd.textContent = '';
+    }
   }
 
   _updateStopBtn();
@@ -1408,6 +1413,10 @@ function _pushSettingsFromPrefs(prefs, skipRangeSync = false) {
 function _updateInfoPanel() {
   const el = document.getElementById('info-items');
   if (!el) return;
+  if (!_testsHandle) {
+    el.innerHTML = `<div class="info-not-saving">Not saving anything — choose a template to save</div>`;
+    return;
+  }
   const p = _loadPrefs();
   const rows = [
     ['Device',     p.deviceLabel || '—'],
