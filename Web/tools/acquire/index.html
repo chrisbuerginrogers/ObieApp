@@ -127,7 +127,7 @@
         <button id="clear-btn"     class="tb-btn tb-btn-tall" onclick="acqClearPosition()"  disabled title="Clear current position" style="display:none">🗑 Clear</button>
         <button id="startover-btn" class="tb-btn tb-btn-tall" onclick="acqStartOver()" title="Clear ALL positions and start over" style="color:#c62828">↺ Start over</button>
       </div>
-      <div class="plot-actions-hint">Esc — instantly clears the current position (no confirm)</div>
+      <div class="plot-actions-hint">ESC - clear position</div>
 
       <!-- FFT mini plot -->
       <div class="mini-section">
@@ -305,7 +305,7 @@
           <select id="tpl-modal-sel" class="tpl-modal-sel" onchange="acqSelectAndApplyTpl(parseInt(this.value,10))" title="Pick a saved template — the settings below update immediately" style="width:220px">
             <option value="-1">Template: None</option>
           </select>
-          <button class="io-recheck-btn" onclick="acqDeleteSelectedTemplate(event)" title="Delete the selected template">🗑</button>
+          <button id="tpl-delete-btn" class="io-recheck-btn" onclick="acqDeleteSelectedTemplate(event)" title="Delete the selected template">🗑</button>
           <div id="stencil-modal-picker" style="display:flex;gap:6px;align-items:center">
             <select id="stencil-modal-sel" onchange="acqSelectStencil(parseInt(this.value,10))" title="Pick a node stencil — None removes any stencil from this run" style="width:180px">
               <option value="-1">Stencil: None</option>
@@ -335,6 +335,7 @@
           <select id="prefs-device" onchange="acqApplyDeviceSelection()" title="Audio input device to record from — takes effect immediately"></select>
         </div>
 
+        <div id="tpl-run-settings-group">
         <div class="pref-section">Run Settings</div>
         <div class="pref-row">
           <label for="inp-taps" title="Hits per position">Hits/position</label>
@@ -347,6 +348,7 @@
         <div class="pref-row">
           <label for="inp-prefix" title="Position prefix — comma-separate for multiple groups (e.g. H,V)">Position prefix</label>
           <input id="inp-prefix" type="text" value="H" maxlength="3" style="max-width:60px" title="Prefix used to label each position (e.g. H01, H02, …). Comma-separate for multiple groups, e.g. H,V gives H01–H12 then V01–V12">
+        </div>
         </div>
 
         <div class="pref-section">Hit Detection</div>
