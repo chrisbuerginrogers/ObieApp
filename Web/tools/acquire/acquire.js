@@ -1881,6 +1881,22 @@ function _renderTplDropdown() {
   });
   const label = document.getElementById('tpl-name-btn-label');
   if (label) label.textContent = _currentTemplateName || 'Scratch';
+  _updateScratchPadLock();
+}
+
+// ScratchPad is a shared built-in template — grey out its Run Settings fields
+// (so they can be looked at but not casually edited) and hide the delete
+// button while it's the applied template. Any other template stays fully
+// editable/deletable.
+function _updateScratchPadLock() {
+  const isScratchPad = _currentTemplateName === 'ScratchPad';
+  const grp = document.getElementById('tpl-run-settings-group');
+  if (grp) {
+    grp.classList.toggle('tpl-locked', isScratchPad);
+    grp.querySelectorAll('input').forEach(el => { el.disabled = isScratchPad; });
+  }
+  const delBtn = document.getElementById('tpl-delete-btn');
+  if (delBtn) delBtn.style.display = isScratchPad ? 'none' : '';
 }
 
 // Deletes whichever template the modal's top dropdown currently shows.
