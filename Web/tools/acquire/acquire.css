@@ -226,6 +226,7 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
   background: var(--bg-deep); border-bottom: 1px solid var(--border);
 }
 .plot-actions-row .tb-btn { font-size: 10px; padding: 2px 5px; }
+.plot-actions-row .tb-btn-tall { font-size: 12px; padding: 10px 8px; line-height: 16px; }
 
 .mini-section {
   flex: 1; min-height: 0; display: flex; flex-direction: column;

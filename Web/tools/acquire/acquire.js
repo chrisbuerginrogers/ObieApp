@@ -818,7 +818,7 @@ function _updateEditBtns(s) {
   sd('delete-btn', !s || s.hit_n <= 0);
   sd('clear-btn',  !s || s.hit_n <= 0);
   const clrBtn = document.getElementById('clear-btn');
-  if (clrBtn) clrBtn.textContent = s?.label ? `Clear ${s.label}` : 'Clear';
+  if (clrBtn) clrBtn.textContent = s?.label ? `🗑 Clear ${s.label}` : '🗑 Clear';
 }
 
 
