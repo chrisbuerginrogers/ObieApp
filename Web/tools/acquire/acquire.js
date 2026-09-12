@@ -1057,9 +1057,9 @@ function _loadPrefs() {
   const defaults = {
     threshold: 0.05, pre_trig_s: 0.01, post_trig_s: 0.30,
     time_cutoff_s: 0.30, mic_time_cutoff_s: 0.30,
-    taps: 5, positions: 12, prefix: 'H',
+    taps: 10, positions: 1, prefix: 'H',
     mic_cal: 1.0, ham_cal: 1.0, swap_channels: false,
-    frf_x_min: 40, frf_x_max: 7000, frf_y_min: -10, frf_y_max: 30,
+    frf_x_min: 0, frf_x_max: 7000, frf_y_min: -10, frf_y_max: 30,
     deviceLabel: '', instrument: 'scratch', deviceId: '', line_width: 0.5,
     ham_x_min: 0, ham_x_max: 0.05, ham_y_min: -0.1, ham_y_max: 1,
     mic_x_min: 0, mic_x_max: 0.3,  mic_y_min: -1,   mic_y_max: 1,
@@ -1144,8 +1144,8 @@ function _buildPrefsFromForm() {
     post_trig_s:   parseFloat(g('inp-post'))        || 0.30,
     time_cutoff_s:     parseFloat(g('inp-time-cutoff'))     || 0.30,
     mic_time_cutoff_s: parseFloat(g('inp-mic-time-cutoff')) || 0.30,
-    taps:          parseInt(g('inp-taps'))          || 5,
-    positions:     parseInt(g('inp-positions'))     || 12,
+    taps:          parseInt(g('inp-taps'))          || 10,
+    positions:     parseInt(g('inp-positions'))     || 1,
     prefix:        g('inp-prefix')                  || 'H',
     mic_cal:       micCal,
     ham_cal:       hamCal,
@@ -1311,7 +1311,7 @@ window.acqTplExitCancel = function() {
 
 function _resetAxisRanges(prefs) {
   const p = prefs || {};
-  _S.xMin     = p.frf_x_min  ?? 40;    _S.xMax     = p.frf_x_max  ?? 7000;
+  _S.xMin     = p.frf_x_min  ?? 0;     _S.xMax     = p.frf_x_max  ?? 7000;
   _S.yMin     = p.frf_y_min  ?? -10;   _S.yMax     = p.frf_y_max  ?? 30;
   _hamXRange  = [p.ham_x_min ?? 0,    p.ham_x_max ?? 0.05];
   _hamYRange  = [p.ham_y_min ?? -0.1, p.ham_y_max ?? 1];
@@ -1350,7 +1350,7 @@ function _pushSettingsFromPrefs(prefs, skipRangeSync = false) {
   _preTrigS        = prefs.pre_trig_s        ?? 0.01;
   _lineWidth       = prefs.line_width        ?? 0.5;
   if (!skipRangeSync) {
-    _S.xMin        = prefs.frf_x_min        ?? 40;
+    _S.xMin        = prefs.frf_x_min        ?? 0;
     _S.xMax        = prefs.frf_x_max        ?? 7000;
     _S.yMin        = prefs.frf_y_min        ?? -10;
     _S.yMax        = prefs.frf_y_max        ?? 30;
@@ -1368,7 +1368,7 @@ function _pushSettingsFromPrefs(prefs, skipRangeSync = false) {
   renderFRF();
   if (!window.pyApplySettings) return;
   _appliedPrefix   = (prefs.prefix || 'H').trim();
-  _appliedPerGroup = Math.max(1, parseInt(prefs.positions) || 12);
+  _appliedPerGroup = Math.max(1, parseInt(prefs.positions) || 1);
   const sr = audioCtx?.sampleRate || 44100;
   window.pyApplySettings(
     prefs.threshold, prefs.pre_trig_s, prefs.post_trig_s,
@@ -1847,7 +1847,7 @@ function _renderTplDropdown() {
     sel.value = String(curIdx);
   });
   const label = document.getElementById('tpl-name-btn-label');
-  if (label) label.textContent = _currentTemplateName || 'None';
+  if (label) label.textContent = _currentTemplateName || 'Scratch';
 }
 
 // Deletes whichever template the modal's top dropdown currently shows.
@@ -3822,7 +3822,7 @@ window.addEventListener('load', () => {
   _hamTimeCutoffS = prefs.time_cutoff_s     ?? prefs.post_trig_s ?? 0.30;
   _micTimeCutoffS = prefs.mic_time_cutoff_s ?? prefs.time_cutoff_s ?? prefs.post_trig_s ?? 0.30;
   _lineWidth      = prefs.line_width        ?? 0.5;
-  _S.xMin         = prefs.frf_x_min ?? 40;
+  _S.xMin         = prefs.frf_x_min ?? 0;
   _S.xMax         = prefs.frf_x_max ?? 7000;
   _S.yMin         = prefs.frf_y_min ?? -10;
   _S.yMax         = prefs.frf_y_max ?? 30;

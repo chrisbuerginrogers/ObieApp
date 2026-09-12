@@ -80,7 +80,7 @@
     <div class="acq-run-meta">
       <div class="tpl-split">
         <button id="tpl-name-btn" class="tb-btn tpl-split-left" onclick="acqOpenTemplateSettings()" title="Open the current template's settings">
-          Template: <span id="tpl-name-btn-label">None</span>
+          Template: <span id="tpl-name-btn-label">Scratch</span>
         </button>
         <div class="tpl-split-right">
           <button class="tb-btn tpl-split-caret" tabindex="-1" aria-hidden="true">▾</button>
@@ -333,11 +333,11 @@
         <div class="pref-section">Run Settings</div>
         <div class="pref-row">
           <label for="inp-taps" title="Hits per position">Hits/position</label>
-          <input id="inp-taps" type="number" value="5" min="1" max="20" style="max-width:80px" title="Number of hammer taps to average at each position">
+          <input id="inp-taps" type="number" value="10" min="1" max="20" style="max-width:80px" title="Number of hammer taps to average at each position">
         </div>
         <div class="pref-row">
           <label for="inp-positions" title="Positions per prefix group">Positions</label>
-          <input id="inp-positions" type="number" value="12" min="1" max="40" style="max-width:80px" title="Positions per prefix group — with prefix H,V, 12 here gives 24 positions total (H01–H12, V01–V12)">
+          <input id="inp-positions" type="number" value="1" min="1" max="40" style="max-width:80px" title="Positions per prefix group — with prefix H,V, 12 here gives 24 positions total (H01–H12, V01–V12)">
         </div>
         <div class="pref-row">
           <label for="inp-prefix" title="Position prefix — comma-separate for multiple groups (e.g. H,V)">Position prefix</label>
@@ -436,7 +436,7 @@
         <div class="plot-range-title">FRF Graph</div>
         <div class="pref-row range-row">
           <label title="Horizontal zoom bounds of the main FRF plot">X axis range</label>
-          <input id="inp-frf-x-min" type="number" value="40" step="50" min="1" max="22000" class="range-inp" title="FRF x axis minimum (Hz)">
+          <input id="inp-frf-x-min" type="number" value="0" step="50" min="0" max="22000" class="range-inp" title="FRF x axis minimum (Hz)">
           <span class="range-dash">–</span>
           <input id="inp-frf-x-max" type="number" value="7000" step="500" min="100" max="22000" class="range-inp" title="FRF x axis maximum (Hz)">
           <span class="pref-unit">Hz</span>
