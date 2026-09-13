@@ -21,6 +21,7 @@ LabVIEW mapping
 
 import json
 import struct
+from datetime import datetime
 
 import numpy as np
 import js
@@ -29,6 +30,7 @@ from pyscript.ffi import create_proxy, to_js
 from wavfileio import load_wav_bytes
 from frf import FRFAccumulator, add_hit, compute_frf
 from trf_fileio import build_trf
+from avc_fileio import build_avc, build_avr
 
 
 # ── Loaded file state ─────────────────────────────────────────────────────────
@@ -51,11 +53,17 @@ _P = {
     'ham_cutoff': 0.002,   # Hammer Cutoff (s) — hammer zeroed past this post-trigger
     'mic_cutoff': 0.300,   # Microphone Cutoff (s) — mic zeroed past this post-trigger
     'first_mic':  True,    # First Channel == "Microphone" -> L=mic, R=hammer
+    'freq_min':   100.0,   # FRF plot band, recorded in Settings.json
+    'freq_max':   10000.0,
     'method':     'hv',    # 'hv' = Sqrt(H1*H2) (LabVIEW default) | 'h1'
 }
 
 # Hit list for the current window: list of (start_idx, trig_idx) into the full file.
 _hits = []
+
+# The cursor window the current _hits came from, recorded into Notes.txt so an
+# exported run says which slice of the source recording it represents.
+_window = (0.0, 0.0)
 
 _MAX_DISPLAY_PTS = 4000   # envelope windows for the overview plot (output is 2x this)
 
@@ -292,11 +300,12 @@ def load_file(data_js, filename_js):
 
 def analyze(t0_js, t1_js):
     """Detect hits in [t0, t1], group into positions, emit summary + FRF."""
-    global _hits
+    global _hits, _window
     if _ham is None:
         return
     try:
-        _hits = _find_hits(float(t0_js), float(t1_js))
+        _window = (float(t0_js), float(t1_js))
+        _hits = _find_hits(_window[0], _window[1])
 
         trig_times = [(_hits[i][1]) / _sr for i in range(len(_hits))]
         taps  = max(1, _P['taps'])
@@ -401,15 +410,87 @@ def _encode_wav_bytes(L, R, sr):
     return buf
 
 
-def export_files(test_name_js):
+def _emit_text(name, text):
+    """Send a UTF-8 text file to the test-folder root."""
+    js.window.onWrFile('root', name, to_js(bytearray(text.encode('utf-8'))))
+
+
+def _build_settings_json(instrument, test, n_pos):
+    """Run-settings snapshot, mirroring the Settings.json a desktop Acquire run
+    writes alongside Notes.txt (see Python/SampleData/Test violin/)."""
+    return json.dumps({
+        'data': {'base_dir': instrument},
+        'audio': {
+            'device_name': f'WAV Reader — {_filename}',
+            'format':      'int',
+            'sample_rate': _sr,
+            'chunk_size':  0,
+        },
+        'display': {
+            'display_seconds': _P['duration'],
+            'min_max_decay':   0.995,
+            'freq_min':        _P['freq_min'],
+            'freq_max':        _P['freq_max'],
+        },
+        'trigger': {
+            'threshold': _P['threshold'],
+            'pre_secs':  _P['offset'],
+            'post_secs': _P['duration'],
+        },
+        'run': {
+            'instrument':  instrument,
+            'folder':      test,
+            'designation': _P['set_type'],
+            'hits':        _P['taps'],
+            'positions':   n_pos,
+        },
+        'source': {
+            'translated_from': _filename,
+            'tool':            'WAV Reader',
+            'method':          'Sqrt(H1H2)' if _P['method'] == 'hv' else 'H1',
+            'ham_cutoff':      _P['ham_cutoff'],
+            'mic_cutoff':      _P['mic_cutoff'],
+            'window_start':    _window[0],
+            'window_end':      _window[1],
+        },
+    }, indent=2)
+
+
+def _build_notes_txt(instrument, test, n_pos, n_hits):
+    """Notes.txt in the same shape a desktop run writes, with the provenance
+    line the split run needs — these hits came out of an existing recording."""
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    return (
+        '================================================\n'
+        f'Date/Time:   {now}\n'
+        f'Instrument:  {instrument}\n'
+        f'Folder:      {test}\n'
+        f'Designation: {_P["set_type"]}\n'
+        f'Positions:   {n_pos}   Hits/pos: {_P["taps"]}\n'
+        f'Sample rate: {_sr} Hz\n'
+        f'Threshold:   {_P["threshold"]:.4g}   '
+        f'Pre: {_P["offset"]:g} s   Post: {_P["duration"]:g} s\n'
+        '\n'
+        f'Translated from {_filename} by WAV Reader.\n'
+        f'Section used: {_window[0]:.3f} s to {_window[1]:.3f} s   '
+        f'({n_hits} hits found)\n'
+    )
+
+
+def export_files(test_name_js, instrument_js):
     """Build every output file and hand them to JS one at a time.
 
     Layout matches Acquire, so the exported run drops straight into Explore /
     Modal Analysis:
+        Notes.txt                       provenance — which WAV this came from
+        Settings.json                   run-settings snapshot
+        <test> <designation>.avc        complex mean across positions
+        <test> <designation>.avr        magnitude mean across positions
         raw/<test> <label>_<nnn>.wav    one per tap, L=mic R=hammer, 16-bit
         TRF/<test> <label>.trf          one per position, fComplex=2.0 + coherence
     """
-    test = str(test_name_js).strip() or 'run'
+    test       = str(test_name_js).strip() or 'run'
+    instrument = str(instrument_js).strip() or test
     if not _hits:
         js.window.onWrExportDone(0, 0, 'No hits to export')
         return
@@ -417,6 +498,8 @@ def export_files(test_name_js):
     taps  = max(1, _P['taps'])
     n_pos = (len(_hits) + taps - 1) // taps
     n_wav = n_trf = 0
+    freq_ref = None
+    pos_H    = []          # one complex FRF per position, for the AvC/AvR means
 
     try:
         for pos in range(n_pos):
@@ -437,6 +520,9 @@ def export_files(test_name_js):
             freq, H, _H_dB, coh, n_used = _frf_of(indices)
             if freq is None:
                 continue
+            if freq_ref is None:
+                freq_ref = freq
+            pos_H.append(H)
             meta = {
                 'sample_rate': str(_sr),
                 'bit_depth':   '16',
@@ -452,6 +538,22 @@ def export_files(test_name_js):
                             coherence=coh.tolist(), meta=meta)
             js.window.onWrFile('TRF', f"{test} {label}.trf", to_js(bytearray(trf)))
             n_trf += 1
+
+        # ── Averages across positions ────────────────────────────────────────
+        # Same pair acquire_logic._emit_averages writes: AvC is the complex mean
+        # (phase-coherent), AvR the mean of the magnitudes. WAV Reader has a
+        # single prefix group (Set Type), so there is exactly one pair.
+        if pos_H and freq_ref is not None:
+            H_stack = np.array(pos_H)                    # (n_pos, n_freqs) complex
+            avc = build_avc(freq_ref, H_stack.mean(axis=0), n_averages=len(pos_H))
+            avr = build_avr(freq_ref, np.abs(H_stack).mean(axis=0), n_averages=len(pos_H))
+            grp = _P['set_type']
+            js.window.onWrFile('root', f"{test} {grp}.avc", to_js(bytearray(avc)))
+            js.window.onWrFile('root', f"{test} {grp}.avr", to_js(bytearray(avr)))
+
+        # ── Run metadata ─────────────────────────────────────────────────────
+        _emit_text('Settings.json', _build_settings_json(instrument, test, n_pos))
+        _emit_text('Notes.txt', _build_notes_txt(instrument, test, n_pos, len(_hits)))
 
         js.window.onWrExportDone(n_wav, n_trf, '')
     except Exception as exc:

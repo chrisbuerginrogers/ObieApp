@@ -97,6 +97,8 @@ function _pushParams() {
     ham_cutoff: p.hamCutoff,
     mic_cutoff: p.micCutoff,
     first_mic:  document.getElementById('first-ch-sel').value === 'mic',
+    freq_min:   p.xMin,
+    freq_max:   p.xMax,
     method:     document.getElementById('method-sel').value,
   }));
 }
@@ -809,11 +811,12 @@ window.wrDoExport = async function() {
     const instH = await _S.exportDir.getDirectoryHandle(instrument, { create: true });
     const testH = await instH.getDirectoryHandle(test, { create: true });
     _S.dirs = {
-      raw: await testH.getDirectoryHandle('raw', { create: true }),
-      TRF: await testH.getDirectoryHandle('TRF', { create: true }),
+      root: testH,          // Notes.txt, Settings.json, <test> H.avc / .avr
+      raw:  await testH.getDirectoryHandle('raw', { create: true }),
+      TRF:  await testH.getDirectoryHandle('TRF', { create: true }),
     };
     _S.pending = [];
-    window.pyWrExport(test);      // Python streams files back via onWrFile
+    window.pyWrExport(test, instrument);   // Python streams files back via onWrFile
   } catch (e) {
     btn.disabled = false;
     _flash('export-msg', `Export failed: ${e.message}`, true);
@@ -833,6 +836,7 @@ window.onWrExportDone = async function(nWav, nTrf, err) {
     return;
   }
   let written = 0;
+  let extras  = 0;   // Notes.txt, Settings.json, .avc, .avr — everything at the root
   try {
     for (const f of _S.pending) {
       const dir = _S.dirs[f.kind];
@@ -842,6 +846,7 @@ window.onWrExportDone = async function(nWav, nTrf, err) {
       await w.write(f.bytes);
       await w.close();
       written++;
+      if (f.kind === 'root') extras++;
     }
   } catch (e) {
     btn.disabled = false;
@@ -851,8 +856,11 @@ window.onWrExportDone = async function(nWav, nTrf, err) {
     _S.pending = [];
   }
   btn.disabled = false;
-  _flash('export-msg', `Wrote ${nWav} WAV + ${nTrf} TRF`);
-  _setStatus(`Exported ${nWav} WAV and ${nTrf} TRF file${nTrf === 1 ? '' : 's'} to "${_S.exportDir.name}".`);
+  // Everything is on disk — close the dialog and report in the status line,
+  // which stays visible after the modal has gone.
+  wrCloseExport();
+  _setStatus(`Exported ${nWav} WAV, ${nTrf} TRF and ${extras} run file${extras === 1 ? '' : 's'} `
+           + `(Notes.txt, Settings.json, AvC/AvR) to "${_S.exportDir.name}".`);
 };
 
 // ═════════════════════════════════════════════════════════════════════════════

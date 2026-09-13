@@ -257,6 +257,10 @@
       <tbody>
         <tr><td><code>&lt;instrument&gt;/&lt;test&gt;/raw/&lt;test&gt; H01_001.wav</code></td><td>One 16-bit stereo WAV per tap — left channel microphone, right channel hammer.</td></tr>
         <tr><td><code>&lt;instrument&gt;/&lt;test&gt;/TRF/&lt;test&gt; H01.trf</code></td><td>One TRF per position, averaged over that position's taps, written with <code>fComplex=2.0</code> so it carries complex FRF plus coherence.</td></tr>
+        <tr><td><code>&lt;instrument&gt;/&lt;test&gt;/&lt;test&gt; H.avc</code></td><td>Complex (phase-coherent) mean of the per-position FRFs.</td></tr>
+        <tr><td><code>&lt;instrument&gt;/&lt;test&gt;/&lt;test&gt; H.avr</code></td><td>Mean of the per-position magnitudes. Always at or above the AvC in magnitude.</td></tr>
+        <tr><td><code>&lt;instrument&gt;/&lt;test&gt;/Settings.json</code></td><td>Run-settings snapshot, same shape as a desktop Acquire run, plus a <code>source</code> block naming the WAV it came from.</td></tr>
+        <tr><td><code>&lt;instrument&gt;/&lt;test&gt;/Notes.txt</code></td><td>Run header plus &ldquo;Translated from &lt;file&gt;.wav by WAV Reader&rdquo; and the section of the recording used.</td></tr>
       </tbody>
     </table>
 

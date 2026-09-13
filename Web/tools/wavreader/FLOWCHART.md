@@ -334,6 +334,33 @@ opens directly in Explore and Modal Analysis:
 |---|---|
 | `<instrument>/<test>/raw/<test> H01_001.wav` | One 16-bit stereo WAV per tap, **L = mic, R = hammer**. Tap numbering restarts at `_001` for each position |
 | `<instrument>/<test>/TRF/<test> H01.trf` | One TRF per position, `fComplex=2.0` (re, im, γ² per bin) plus the `OBIE_META` block |
+| `<instrument>/<test>/<test> H.avc` | Complex mean of the per-position FRFs, via `avc_fileio.build_avc` |
+| `<instrument>/<test>/<test> H.avr` | Mean of the per-position **magnitudes**, via `build_avr` |
+| `<instrument>/<test>/Settings.json` | Run-settings snapshot, same schema as a desktop run |
+| `<instrument>/<test>/Notes.txt` | Provenance — which WAV this was translated from, and which slice |
+
+Files land in one of **three** `_S.dirs` buckets, keyed by the `kind` Python
+passes to `onWrFile`: `'raw'`, `'TRF'`, or `'root'` (the test folder itself —
+Notes, Settings and the AvC/AvR pair). Adding a fourth output location means
+adding a bucket in `wrDoExport` as well as a `kind` in `export_files`.
+
+AvC/AvR mirror `acquire_logic._emit_averages`: AvC is the phase-coherent
+complex mean, AvR the mean of the magnitudes. Because `|mean(H)| ≤ mean(|H|)`,
+AvR always sits at or above AvC in magnitude — a useful sanity check. Acquire
+writes one pair *per prefix group*; WAV Reader has a single group (Set Type),
+so there is exactly one pair.
+
+`Settings.json` follows the desktop schema (see
+`Python/SampleData/Test violin/Settings.json`) — `data` / `audio` / `display` /
+`trigger` / `run` — plus a WAV-Reader-only `source` block recording
+`translated_from`, the estimator used, the cutoffs and the cursor window. The
+`display.freq_min/freq_max` values come from the JS plot prefs, pushed into
+`_P` by `_pushParams` purely so this file can record them.
+
+On success the modal closes itself (`wrCloseExport()` from `onWrExportDone`)
+and the outcome is reported in the status line, which stays visible. On failure
+the modal **stays open** with the error in `.save-msg` so the user can retry
+without re-entering the names.
 
 `_encode_wav_bytes` is a deliberate copy of `acquire_logic._encode_wav_bytes`
 (the source module is a browser capture state machine and can't be imported

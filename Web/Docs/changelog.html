@@ -118,6 +118,13 @@
             Spectrum and the FRF, with coherence overlaid and a per-position selector. The status
             line flags when the hit count does not match the declared positions × taps, and the
             sidebar marks any position that came up short.</li>
+        <li>An exported run is now self-describing: alongside <code>raw/</code> and
+            <code>TRF/</code> it writes <code>Notes.txt</code> (&ldquo;Translated from
+            &lt;file&gt;.wav by WAV Reader&rdquo;, plus the section of the recording used),
+            <code>Settings.json</code> in the same shape a desktop run writes, and the
+            <code>.avc</code>/<code>.avr</code> pair — complex mean and magnitude mean across
+            positions, the same averages Acquire produces. The Export dialog now closes itself
+            once the files are on disk, reporting the result in the status line.</li>
       </ul>
     </div>
 

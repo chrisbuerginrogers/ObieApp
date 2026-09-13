@@ -4,3 +4,4 @@ packages = ["numpy", "scipy"]
 "https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/processing/frf.py"    = "./frf.py"
 "https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/fileio/trf_fileio.py" = "./trf_fileio.py"
 "https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/fileio/wavfileio.py"  = "./wavfileio.py"
+"https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/fileio/avc_fileio.py"  = "./avc_fileio.py"
