@@ -97,6 +97,31 @@
     </div>
 
     <div class="log-group">
+      <h3>WAV Reader <span style="font-weight:400;opacity:0.7">(new)</span></h3>
+      <ul>
+        <li>New experimental tool, converted from the LabVIEW <code>Main_WAV_Reader.vi</code>.
+            Takes one long two-channel recording (hammer + microphone) made in any audio app and
+            turns it into a complete test run after the fact — the offline counterpart to Acquire.
+            Two draggable cursors bracket the section to use, a draggable threshold line on the
+            hammer plot finds the taps, and the hits are grouped into positions × taps using the
+            same <code>H01</code>, <code>H02</code>… labels Acquire writes.</li>
+        <li><strong>Export</strong> writes the Acquire folder layout directly —
+            <code>&lt;instrument&gt;/&lt;test&gt;/raw/</code> with one 16-bit stereo WAV per tap
+            (left microphone, right hammer) and <code>/TRF/</code> with one TRF per position at
+            <code>fComplex=2.0</code>, carrying complex FRF plus coherence — so the result opens
+            straight in Explore and Modal Analysis.</li>
+        <li>FRF defaults to LabVIEW's <strong>Sqrt(H1·H2)</strong> estimator: the geometric mean of
+            the H1 and H2 magnitudes carried on H2's phase, falling back to H1 at bins where the
+            hammer spectrum vanishes and H2 is undefined. Plain <code>H1</code> is selectable from
+            the Method dropdown to match Acquire.</li>
+        <li>Panels mirror the original front panel: Complete Data Set, Hammer, Microphone, Hammer
+            Spectrum and the FRF, with coherence overlaid and a per-position selector. The status
+            line flags when the hit count does not match the declared positions × taps, and the
+            sidebar marks any position that came up short.</li>
+      </ul>
+    </div>
+
+    <div class="log-group">
       <h3>Spectrum Monitor <span style="font-weight:400;opacity:0.7">(new)</span></h3>
       <ul>
         <li>New beta tool: a live, single-channel microphone scope. Shows the raw waveform and a

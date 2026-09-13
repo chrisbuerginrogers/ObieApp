@@ -107,6 +107,7 @@
     <ul>
       <li><a href="#matlab">Export to MATLAB</a></li>
       <li><a href="#wavview">WAV Viewer</a></li>
+      <li><a href="#wavreader">WAV Reader</a></li>
       <li><a href="../tools/setup/">Standalone Setup</a> — running ObieWebApp offline or from a local server (self-documenting, opens its own guide)</li>
     </ul>
   </div>
@@ -193,6 +194,75 @@
     <div class="callout">
       <strong>WAV file format</strong>
       WAV files saved by Acquire are two-channel (stereo): by default channel 1 (left) is the hammer and channel 2 (right) is the microphone. When <em>Swap channels</em> is enabled in Acquire's Template &amp; Settings, the channels are reversed. The WAV Viewer reads the same setting automatically.
+    </div>
+  </section>
+
+  <!-- ── WAV Reader ─────────────────────────────────────────────────────── -->
+  <section class="tool-section" id="wavreader">
+    <div class="tool-header">
+      <span class="icon">✂️</span>
+      <h2>WAV Reader</h2>
+      <span class="tag">Experimental</span>
+    </div>
+
+    <a class="tool-link" href="../tools/wavreader/" target="_blank">Open WAV Reader →</a>
+
+    <p>Turns one long two-channel recording into a complete test run. Where <strong>Acquire</strong> captures hits live, WAV Reader works after the fact: you record the whole session in any audio app, then split it here into per-tap WAVs and per-position TRFs. It is a browser port of the LabVIEW <code>Main_WAV_Reader.vi</code>.</p>
+
+    <h3>Quick start</h3>
+    <ol class="steps">
+      <li>Click <strong>📂 Open WAV…</strong> and pick your recording. It must be two-channel — hammer and microphone.</li>
+      <li>Check <strong>First channel</strong> matches your file. The default, <em>Microphone</em>, means the left channel is the mic and the right is the hammer — the order Acquire writes.</li>
+      <li>Drag the two yellow cursors on <em>Complete Data Set</em> to bracket the section you want. Type into the <strong>Window</strong> boxes for exact values.</li>
+      <li>Set <strong>Threshold</strong> so every tap is found and nothing else is. Drag the purple line on the Hammer plot to adjust it visually, and watch the hit count in the status line.</li>
+      <li>Set <strong>Positions</strong> and <strong>Taps/Position</strong>. The status line tells you when the hit count does not match what you declared.</li>
+      <li>Click <strong>Export…</strong>, name the instrument and test, choose the destination folder, and export.</li>
+    </ol>
+
+    <div class="callout">
+      <strong>Getting the threshold right</strong>
+      The default of 0.2 comes from the LabVIEW panel and suits a strongly-driven hammer channel. Quieter recordings need a much lower value — check the hammer peak on the plot first. The sidebar flags any position that came up short of its declared tap count.
+    </div>
+
+    <h3>Parameters</h3>
+    <table class="key-table">
+      <thead><tr><th>Parameter</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td>Duration (s)</td><td>Length of each extracted segment. Also the minimum spacing between hits — a second crossing inside this window is ignored, which is what rejects double-bounces.</td></tr>
+        <tr><td>offset (s)</td><td>Pre-trigger lead-in kept before each threshold crossing.</td></tr>
+        <tr><td>Positions / Taps per Position</td><td>How the detected hits are grouped. Hits are assigned in time order: the first <em>Taps/Position</em> hits become position 1, and so on.</td></tr>
+        <tr><td>Set Type</td><td>Prefix for the position labels. <code>H</code> gives H01, H02, … matching Acquire.</td></tr>
+        <tr><td>Threshold</td><td>Level the hammer channel must cross to register a hit.</td></tr>
+        <tr><td>Hammer / Microphone cutoff</td><td>In <strong>Settings</strong>. Each channel is zeroed past its cutoff, measured from the trigger — the same treatment Acquire applies.</td></tr>
+        <tr><td>Method</td><td><code>Sqrt(H1·H2)</code> (the LabVIEW default) or plain <code>H1</code>. See below.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Plots</h3>
+    <table class="key-table">
+      <thead><tr><th>Plot</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>Complete Data Set</td><td>The whole recording, both channels. The yellow cursors and the shaded band show the selected window.</td></tr>
+        <tr><td>Hammer</td><td>The selected tap's impact pulse, zoomed to the live part. The purple dashed line is the threshold and can be dragged.</td></tr>
+        <tr><td>Microphone</td><td>The same tap's mic response, with its cutoff marked.</td></tr>
+        <tr><td>Hammer Spectrum</td><td>That pulse's spectrum, normalised to a 0 dB peak. A pulse that rolls off inside your band of interest will distort the FRF there.</td></tr>
+        <tr><td>FRF</td><td>Averaged over all hits, or over one position via the <em>Showing</em> selector. Coherence is overlaid along the bottom.</td></tr>
+      </tbody>
+    </table>
+
+    <h3>What Export writes</h3>
+    <p>Into the folder you choose, using exactly the layout Acquire produces, so the result opens directly in Explore and Modal Analysis:</p>
+    <table class="key-table">
+      <thead><tr><th>Path</th><th>Contents</th></tr></thead>
+      <tbody>
+        <tr><td><code>&lt;instrument&gt;/&lt;test&gt;/raw/&lt;test&gt; H01_001.wav</code></td><td>One 16-bit stereo WAV per tap — left channel microphone, right channel hammer.</td></tr>
+        <tr><td><code>&lt;instrument&gt;/&lt;test&gt;/TRF/&lt;test&gt; H01.trf</code></td><td>One TRF per position, averaged over that position's taps, written with <code>fComplex=2.0</code> so it carries complex FRF plus coherence.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>Sqrt(H1·H2)</strong>
+      The exported magnitude is the geometric mean of the H1 and H2 estimators, carried on H2's phase. H1 under-reads when the hammer channel is noisy and H2 over-reads when the mic channel is; the geometric mean sits between them. Where H2 is undefined — at the nulls of a short hammer pulse, where the input spectrum vanishes — that bin falls back to H1. Choose <code>H1</code> from the <strong>Method</strong> selector to match Acquire's estimator instead.
     </div>
   </section>
 

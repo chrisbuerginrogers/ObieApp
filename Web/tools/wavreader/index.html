@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="../../coi-serviceworker.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WAV Reader — ObieWebApp</title>
+
+  <link rel="stylesheet" href="../../css/theme.css">
+  <script src="../../version.js"></script>
+  <script>document.write('<link rel="stylesheet" href="./wavreader.css?v='+OBIE_VERSION+'">');</script>
+
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" crossorigin="anonymous"></script>
+
+  <!-- PyScript — version set by home-page toggle (localStorage: obiePyScriptVersion) -->
+  <script>(function(){var v=localStorage.getItem('obiePyScriptVersion')||'2026.3.1';document.write('<link rel="stylesheet" href="https://pyscript.net/releases/'+v+'/core.css">');document.write('<scr'+'ipt type="module" src="https://pyscript.net/releases/'+v+'/core.js"><\/scr'+'ipt>');})();</script>
+
+  <!-- Shared JS — order matters -->
+  <script src="../../js/plotly-theme.js"></script>
+  <script src="../../js/audio.js"></script>
+  <script src="../../js/obie-settings.js"></script>
+  <script src="../../js/browser-check.js"></script>
+  <script src="../../js/version-nav.js"></script>
+  <script>document.write('<scr'+'ipt src="./wavreader.js?v='+OBIE_VERSION+'" defer><\/scr'+'ipt>');</script>
+</head>
+<body>
+
+<div id="loading" class="loading-overlay">
+  <div class="spin"></div>
+  <div class="load-title">Loading PyScript + NumPy…</div>
+  <div class="load-sub">First load may take 15–30 s</div>
+</div>
+<script>
+  // Safety net: if Python never dismisses the overlay (e.g. Safari CORS failure),
+  // show an error message rather than spinning forever.
+  setTimeout(function() {
+    var el = document.getElementById('loading');
+    if (!el || el.classList.contains('gone')) return;
+    el.querySelector('.spin').style.display = 'none';
+    el.querySelector('.load-title').textContent = 'Failed to load';
+    el.querySelector('.load-sub').textContent =
+      'PyScript or a required resource could not be fetched. ' +
+      'This app requires Chrome or Edge — Safari is not supported.';
+  }, 90000);
+</script>
+
+<div class="wr-page">
+
+  <!-- ── Header ───────────────────────────────────────────────────────── -->
+  <header class="obie-header">
+    <a class="brand" href="../../index.html">
+      <div class="logo-icon">🎻</div>
+      <h1>ObieWebApp</h1>
+    </a>
+    <span class="crumb">· WAV Reader</span>
+    <div class="gap"></div>
+    <a class="btn" href="../../index.html" style="font-size:0.75rem;padding:3px 9px">← All tools</a>
+  </header>
+
+  <!-- ── Toolbar ──────────────────────────────────────────────────────── -->
+  <div class="wr-toolbar">
+
+    <!-- Row 1 — file, transport, actions -->
+    <div class="tb-r">
+      <label class="file-btn">
+        <span id="wav-btn-text">📂 Open WAV…</span>
+        <input type="file" id="wav-input" accept=".wav,audio/wav"
+               onchange="wrLoadWav(this)">
+      </label>
+      <span id="file-name-ind" class="folder-name-disp">no file loaded</span>
+
+      <div class="tb-vsep"></div>
+      <button id="play-btn" class="tb-btn" onclick="wrPlay()" disabled>▶ Play</button>
+      <button id="reset-btn" class="tb-btn" onclick="wrReset()" disabled>↺ Reset</button>
+
+      <div class="tb-vsep"></div>
+      <span class="tb-lbl">First channel:</span>
+      <select id="first-ch-sel" class="tb-sel" onchange="wrParamChanged()">
+        <option value="mic" selected>Microphone</option>
+        <option value="ham">Hammer</option>
+      </select>
+
+      <span class="tb-lbl">Method:</span>
+      <select id="method-sel" class="tb-sel" onchange="wrParamChanged()">
+        <option value="hv" selected>Sqrt(H1·H2)</option>
+        <option value="h1">H1</option>
+      </select>
+
+      <div class="tb-flex"></div>
+      <button class="tb-btn" onclick="wrPreferences()">Settings</button>
+      <button class="tb-btn" onclick="wrHelp()">Help</button>
+      <button class="tb-btn" onclick="wrTips()">Tips</button>
+      <button id="export-btn" class="tb-btn accent" onclick="wrExport()" disabled>Export…</button>
+    </div>
+
+    <!-- Row 2 — the LabVIEW "Params" cluster -->
+    <div class="tb-r">
+      <span class="tb-lbl">Duration (s)</span>
+      <input type="number" id="p-duration" class="tb-num" step="0.01" min="0.01"
+             value="0.3" onchange="wrParamChanged()">
+      <span class="tb-lbl">offset (s)</span>
+      <input type="number" id="p-offset" class="tb-num" step="0.001" min="0"
+             value="0.001" onchange="wrParamChanged()">
+      <span class="tb-lbl">freq res</span>
+      <span id="p-freqres" class="tb-readout" title="Set by Duration — the FFT bin spacing is 1/Duration">—</span>
+
+      <div class="tb-vsep"></div>
+      <span class="tb-lbl">Positions</span>
+      <input type="number" id="p-positions" class="tb-num" step="1" min="1"
+             value="12" onchange="wrParamChanged()">
+      <span class="tb-lbl">Taps/Position</span>
+      <input type="number" id="p-taps" class="tb-num" step="1" min="1"
+             value="4" onchange="wrParamChanged()">
+      <span class="tb-lbl">Set Type</span>
+      <input type="text" id="p-settype" class="tb-num" style="width:40px"
+             value="H" maxlength="4" onchange="wrParamChanged()">
+
+      <div class="tb-vsep"></div>
+      <span class="tb-lbl">Threshold</span>
+      <input type="number" id="p-threshold" class="tb-num" step="0.005" min="0.001"
+             value="0.2" onchange="wrParamChanged()">
+
+      <div class="tb-vsep"></div>
+      <span class="tb-lbl">Window</span>
+      <input type="number" id="p-cur0" class="tb-num" step="0.01" min="0"
+             value="0" onchange="wrCursorTyped()">
+      <span class="tb-lbl">→</span>
+      <input type="number" id="p-cur1" class="tb-num" step="0.01" min="0"
+             value="0" onchange="wrCursorTyped()">
+      <span class="tb-lbl">s</span>
+    </div>
+  </div>
+
+  <!-- ── Status row ───────────────────────────────────────────────────── -->
+  <div class="wr-status-row">
+    <span id="wr-status" class="wr-status-txt">
+      Open a two-channel WAV recording (hammer + microphone) to begin.
+    </span>
+  </div>
+
+  <!-- ── Body: hit sidebar + resizer + plots ──────────────────────────── -->
+  <div class="wr-body">
+
+    <aside class="wr-sidebar" id="wr-sidebar">
+      <div class="wr-sidebar-hdr">Positions &amp; taps</div>
+      <div class="wr-hit-list" id="wr-hit-list">
+        <div class="wr-no-hits">No file loaded</div>
+      </div>
+    </aside>
+
+    <div id="wr-resizer" class="wr-resizer"></div>
+
+    <div class="wr-main">
+
+      <!-- Complete Data Set — draggable cursors select the export window -->
+      <div class="wr-overview-wrap">
+        <div id="wr-overview-plot" class="wr-plot"></div>
+      </div>
+
+      <!-- Hammer time · Microphone time · Hammer spectrum -->
+      <div class="wr-detail-row">
+        <div class="wr-detail-wrap"><div id="wr-ham-plot"  class="wr-plot"></div></div>
+        <div class="wr-detail-wrap"><div id="wr-mic-plot"  class="wr-plot"></div></div>
+        <div class="wr-detail-wrap"><div id="wr-spec-plot" class="wr-plot"></div></div>
+      </div>
+
+      <!-- FRF -->
+      <div class="wr-frf-wrap">
+        <div class="plot-toolbar">
+          <span class="tb-lbl">Showing:</span>
+          <select id="frf-pos-sel" class="tb-sel" onchange="wrSelectPosition(this.value)">
+            <option value="-1">All hits</option>
+          </select>
+          <div class="tb-flex"></div>
+          <button class="tb-btn" onclick="wrRescaleY()">Rescale Y</button>
+          <button id="xlog-btn" class="tb-btn" onclick="wrToggleXLog()">X: Log</button>
+        </div>
+        <div id="wr-frf-plot" class="wr-plot"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── Settings modal ─────────────────────────────────────────────────── -->
+<div id="prefs-modal" class="modal-overlay" onclick="if(event.target===this)wrClosePrefs()">
+  <div class="modal-box" style="width:420px;max-height:82vh">
+    <div class="modal-header">
+      <span class="modal-title">WAV Reader Settings</span>
+      <button class="modal-close" onclick="wrClosePrefs()">×</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="pref-section">Hit detection</div>
+      <div class="pref-row">
+        <label for="s-threshold">Hammer threshold</label>
+        <input type="number" id="s-threshold" class="pref-num" step="0.005" min="0.001">
+      </div>
+      <div class="pref-hint">Drag the purple line on the Hammer plot to set this visually.</div>
+      <div class="pref-row">
+        <label for="s-duration">Duration</label>
+        <input type="number" id="s-duration" class="pref-num" step="0.01" min="0.01">
+        <span class="pref-unit">s</span>
+      </div>
+      <div class="pref-row">
+        <label for="s-offset">Pre-trigger offset</label>
+        <input type="number" id="s-offset" class="pref-num" step="0.001" min="0">
+        <span class="pref-unit">s</span>
+      </div>
+
+      <div class="pref-section">Time cutoffs</div>
+      <div class="pref-row">
+        <label for="s-hamcut">Hammer cutoff</label>
+        <input type="number" id="s-hamcut" class="pref-num" step="0.001" min="0.001">
+        <span class="pref-unit">s</span>
+      </div>
+      <div class="pref-row">
+        <label for="s-miccut">Microphone cutoff</label>
+        <input type="number" id="s-miccut" class="pref-num" step="0.01" min="0.001">
+        <span class="pref-unit">s</span>
+      </div>
+      <div class="pref-hint">Each channel is zeroed past its cutoff, measured from the trigger.</div>
+
+      <div class="pref-section">Set</div>
+      <div class="pref-row">
+        <label for="s-positions">Positions</label>
+        <input type="number" id="s-positions" class="pref-num" step="1" min="1">
+      </div>
+      <div class="pref-row">
+        <label for="s-taps">Taps/Position</label>
+        <input type="number" id="s-taps" class="pref-num" step="1" min="1">
+      </div>
+      <div class="pref-row">
+        <label for="s-settype">Set Type</label>
+        <input type="text" id="s-settype" class="pref-num" maxlength="4">
+      </div>
+      <div class="pref-hint">Label prefix for each position — H gives H01, H02, …</div>
+
+      <div class="pref-section">FRF plot</div>
+      <div class="pref-row">
+        <label for="s-xmin">Frequency min</label>
+        <input type="number" id="s-xmin" class="pref-num" step="10" min="1">
+        <span class="pref-unit">Hz</span>
+      </div>
+      <div class="pref-row">
+        <label for="s-xmax">Frequency max</label>
+        <input type="number" id="s-xmax" class="pref-num" step="100" min="10">
+        <span class="pref-unit">Hz</span>
+      </div>
+      <div class="pref-row">
+        <label for="s-dbrange">dB spread</label>
+        <input type="number" id="s-dbrange" class="pref-num" step="5" min="10">
+        <span class="pref-unit">dB</span>
+      </div>
+
+      <div class="save-row">
+        <button class="act-btn accent" onclick="wrSavePrefs()">Save</button>
+        <button class="act-btn" onclick="wrResetPrefs()">Reset to defaults</button>
+        <button class="act-btn" onclick="wrClosePrefs()">Cancel</button>
+        <span id="prefs-msg" class="save-msg"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Export modal ───────────────────────────────────────────────────── -->
+<div id="export-modal" class="modal-overlay" onclick="if(event.target===this)wrCloseExport()">
+  <div class="modal-box" style="width:440px">
+    <div class="modal-header">
+      <span class="modal-title">Export run</span>
+      <button class="modal-close" onclick="wrCloseExport()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="pref-row">
+        <label for="e-instrument">Instrument</label>
+        <input type="text" id="e-instrument" class="pref-num" style="width:200px">
+      </div>
+      <div class="pref-row">
+        <label for="e-test">Test name</label>
+        <input type="text" id="e-test" class="pref-num" style="width:200px">
+      </div>
+      <div class="pref-hint">
+        Writes &lt;instrument&gt;/&lt;test&gt;/raw/*.wav and /TRF/*.trf, the same
+        layout Acquire produces.
+      </div>
+
+      <div class="pref-row">
+        <label>Destination</label>
+        <button class="act-btn" onclick="wrPickFolder()">📁 Choose folder…</button>
+      </div>
+      <div class="pref-hint" id="e-folder-hint">No folder chosen</div>
+
+      <div id="e-summary" class="wr-export-summary"></div>
+
+      <div class="save-row">
+        <button id="e-go" class="act-btn accent" onclick="wrDoExport()">Export</button>
+        <button class="act-btn" onclick="wrCloseExport()">Cancel</button>
+        <span id="export-msg" class="save-msg"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="py" src="./main.py" config="./pyscript.toml" async></script>
+</body>
+</html>

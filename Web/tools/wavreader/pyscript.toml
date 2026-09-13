@@ -1,0 +1,6 @@
+packages = ["numpy", "scipy"]
+
+[files]
+"https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/processing/frf.py"    = "./frf.py"
+"https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/fileio/trf_fileio.py" = "./trf_fileio.py"
+"https://raw.githubusercontent.com/chrisbuerginrogers/ObieApp/main/Python/fileio/wavfileio.py"  = "./wavfileio.py"
