@@ -1302,7 +1302,7 @@ window.acqTplExitCreateTemplate = async function() {
   }
   const built = _buildPrefsFromForm();
   if (!built) return;
-  const name = prompt('Template name:', _currentTemplateName || '');
+  const name = prompt('Template name:', _currentTemplateName || 'New Test');
   if (!name?.trim()) return;
   const notes = (document.getElementById('notes-textarea')?.value || localStorage.getItem(_notesKey()) || '').trim();
   const tpl = {
@@ -1766,7 +1766,7 @@ window.acqOpenTemplateSettings = async function() {
   _updateTplPrimaryBtnLabel();
   _updateStencilSectionVisibility();
   const titleEl = document.getElementById('tpl-modal-title');
-  if (titleEl) titleEl.textContent = 'Template & Settings';
+  if (titleEl) titleEl.textContent = 'New Test';
 
   // Instrument (column A) + Notes (its own tab)
   const nameInp = document.getElementById('wiz-instrument-inp');
@@ -1778,23 +1778,9 @@ window.acqOpenTemplateSettings = async function() {
     datalist.innerHTML = names.map(n => `<option value="${_escHtml(n)}">`).join('');
   }
   await _tplInstrumentPreviewNow();
-  acqSwitchTplTab('template');
 
   // Photos (column A)
   _renderNotesPhotoList();
-};
-
-// Switches the grey Template-area card between its "Template" tab (picker
-// row + everything that gets saved into a template file) and "Notes" tab
-// (the instrument's notes, given the whole card's width to work with).
-window.acqSwitchTplTab = function(tab) {
-  const isTemplate = tab === 'template';
-  const tplTab   = document.getElementById('tpl-tab-template');
-  const notesTab = document.getElementById('tpl-tab-notes');
-  if (tplTab)   tplTab.style.display   = isTemplate ? '' : 'none';
-  if (notesTab) notesTab.style.display = isTemplate ? 'none' : '';
-  document.getElementById('tpl-tab-btn-template')?.classList.toggle('active', isTemplate);
-  document.getElementById('tpl-tab-btn-notes')?.classList.toggle('active', !isTemplate);
 };
 
 window.acqTogglePlotSettings = function() {
@@ -1870,8 +1856,8 @@ function _renderTemplateList() { _renderTplDropdown(); }
 // a "Template: None" pick that's a no-op (see acqSelectAndApplyTpl(-1))
 // snaps back to the real applied template.
 function _renderTplDropdown() {
-  const optsHtml = '<option value="-1">Template: None</option>' +
-    _templates.map((t, i) => `<option value="${i}">Template: ${_escHtml(t.name || 'Unnamed')}</option>`).join('');
+  const optsHtml = '<option value="-1">None</option>' +
+    _templates.map((t, i) => `<option value="${i}">${_escHtml(t.name || 'Unnamed')}</option>`).join('');
   const curIdx = _currentTemplateName ? _templates.findIndex(t => t.name === _currentTemplateName) : -1;
   ['tpl-dropdown-sel', 'tpl-modal-sel'].forEach(id => {
     const sel = document.getElementById(id);
@@ -1880,7 +1866,7 @@ function _renderTplDropdown() {
     sel.value = String(curIdx);
   });
   const label = document.getElementById('tpl-name-btn-label');
-  if (label) label.textContent = _currentTemplateName || 'Scratch';
+  if (label) label.textContent = _currentTemplateName || 'New Test';
   _updateScratchPadLock();
 }
 
@@ -1889,12 +1875,17 @@ function _renderTplDropdown() {
 // button while it's the applied template. Any other template stays fully
 // editable/deletable.
 function _updateScratchPadLock() {
-  const isScratchPad = _currentTemplateName === 'ScratchPad';
+  // Locked on ScratchPad itself, and in the unselected "New Test" default
+  // (which runs on ScratchPad's settings) whenever ScratchPad is available.
+  const isScratchPad = _currentTemplateName === 'ScratchPad' ||
+    (!_currentTemplateName && _templates.some(t => t.name === 'ScratchPad'));
   const grp = document.getElementById('tpl-run-settings-group');
   if (grp) {
     grp.classList.toggle('tpl-locked', isScratchPad);
     grp.querySelectorAll('input').forEach(el => { el.disabled = isScratchPad; });
   }
+  const hint = document.getElementById('tpl-scratch-hint');
+  if (hint) hint.style.display = isScratchPad ? '' : 'none';
   const delBtn = document.getElementById('tpl-delete-btn');
   if (delBtn) delBtn.style.display = isScratchPad ? 'none' : '';
 }
@@ -1913,8 +1904,13 @@ window.acqDeleteSelectedTemplate = async function(event) {
 // for "Template: None", e.g. to review current settings without picking one).
 window.acqPickTemplateFromDropdown = async function(val) {
   const i = parseInt(val, 10);
+  // Remember the pick by name — opening the modal reloads _templates from
+  // disk, so an index taken now may not line up afterwards.
+  const pickedName = (!isNaN(i) && i >= 0) ? _templates[i]?.name : null;
   await window.acqOpenTemplateSettings();
-  if (!isNaN(i) && i >= 0) acqSelectAndApplyTpl(i);
+  if (pickedName == null) return;
+  const j = _templates.findIndex(t => t.name === pickedName);
+  if (j >= 0) acqSelectAndApplyTpl(j);
 };
 
 window.acqDeleteTpl = async function(i, event) {
@@ -2463,8 +2459,9 @@ async function _applyDataFolder(dirHandle) {
   _resetAxisRanges(liveViewPrefs);
   _populatePrefsForm(liveViewPrefs, true);
   _pushSettingsFromPrefs(liveViewPrefs);
-  if (_scratchTpl) _setTemplateName(_scratchTpl.name);
-  else             _clearTemplateName();
+  // ScratchPad's settings are applied, but no template is "selected" — the
+  // toolbar label falls back to "New Test".
+  _clearTemplateName();
   _setSaveStatus(null);
   const testDisp = document.getElementById('inp-test-banner');
   if (testDisp) testDisp.textContent = '—';

@@ -591,3 +591,11 @@ input[type=color].cp-color-inp::-webkit-color-swatch { border: none; border-radi
   margin: 14px 0 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px;
 }
 .setup-section-hdr:first-child { margin-top: 0; }
+
+/* New Test dialog: always-visible scrollbars (macOS/Chrome hide overlay ones).
+   Only the ::-webkit-scrollbar rules are used — the standard scrollbar-color /
+   scrollbar-width properties would override them in modern Chrome. */
+#tpl-col-a, #tpl-col-b, #tpl-col-c { overflow-y: scroll; }
+#tpl-col-a::-webkit-scrollbar, #tpl-col-b::-webkit-scrollbar, #tpl-col-c::-webkit-scrollbar { width: 12px; -webkit-appearance: none; }
+#tpl-col-a::-webkit-scrollbar-track, #tpl-col-b::-webkit-scrollbar-track, #tpl-col-c::-webkit-scrollbar-track { background: #e4e4e4; border-radius: 6px; }
+#tpl-col-a::-webkit-scrollbar-thumb, #tpl-col-b::-webkit-scrollbar-thumb, #tpl-col-c::-webkit-scrollbar-thumb { background: #9a9a9a; border-radius: 6px; border: 2px solid #e4e4e4; }

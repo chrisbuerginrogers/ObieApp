@@ -84,12 +84,12 @@
     <div class="acq-run-meta">
       <div class="tpl-split">
         <button id="tpl-name-btn" class="tb-btn tpl-split-left" onclick="acqOpenTemplateSettings()" title="Open the current template's settings">
-          Template: <span id="tpl-name-btn-label">Scratch</span>
+          <span id="tpl-name-btn-label">New Test</span>
         </button>
         <div class="tpl-split-right">
           <button class="tb-btn tpl-split-caret" tabindex="-1" aria-hidden="true">▾</button>
           <select id="tpl-dropdown-sel" class="tpl-split-sel" onchange="acqPickTemplateFromDropdown(this.value)" title="Pick a saved template to set up a run">
-            <option value="-1" selected>Template: None</option>
+            <option value="-1" selected>None</option>
           </select>
         </div>
       </div>
@@ -227,9 +227,7 @@
         <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="4" onchange="acqAgendaToggle(this)"><span>Selected (in blue)</span></label>
         <div class="agenda-group-hdr">Software</div>
         <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="5" onchange="acqAgendaToggle(this)"><span>Data folder</span></label>
-        <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="6" onchange="acqAgendaToggle(this)"><span>Name instrument</span></label>
-        <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="7" onchange="acqAgendaToggle(this)"><span>Rename test (if you want)</span></label>
-        <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="8" onchange="acqAgendaToggle(this)"><span>Choose template</span></label>
+        <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="6" onchange="acqAgendaToggle(this)"><span>Select New Test</span></label>
         <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="9" onchange="acqAgendaToggle(this)"><span>Edit Notes</span></label>
         <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="10" onchange="acqAgendaToggle(this)"><span>Verify in LiveView</span></label>
         <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="11" onchange="acqAgendaToggle(this)"><span>Hit Run (if needed)</span></label>
@@ -252,16 +250,16 @@
 <div id="tpl-settings-modal" class="modal-overlay">
   <div id="tpl-settings-box" class="modal-box" style="width:min(96vw,980px);max-width:980px">
     <div class="modal-header">
-      <span id="tpl-modal-title" class="modal-title">Template &amp; Settings</span>
+      <span id="tpl-modal-title" class="modal-title">New Test</span>
       <button id="tpl-modal-close-btn" class="modal-close" onclick="acqTplExitCancel()" title="Close without saving changes">✕</button>
     </div>
     <div class="modal-body" style="display:flex;gap:8px;overflow:hidden;max-height:70vh">
 
-      <!-- ── Column A: Instrument + Photos ────────────────────────────────── -->
-      <div id="tpl-col-a" style="width:280px;flex-shrink:0;padding-right:10px;display:flex;flex-direction:column;overflow:hidden">
+      <!-- ── Column A: Instrument + Notes + Photos ────────────────────────── -->
+      <div id="tpl-col-a" style="width:320px;flex-shrink:0;padding-right:10px;display:flex;flex-direction:column;overflow-y:auto">
 
-        <div class="tpl-card tpl-tint-2">
-          <div class="setup-section-hdr">Instrument</div>
+        <div class="tpl-card tpl-tint-2" style="flex-shrink:0">
+          <div class="setup-section-hdr">Instrument Name</div>
           <input id="wiz-instrument-inp" type="text" placeholder="Type or pick an existing instrument"
                  list="wiz-instrument-datalist" style="width:100%;box-sizing:border-box"
                  oninput="_tplInstrumentPreview()"
@@ -270,7 +268,14 @@
           <p class="pref-hint" style="margin:6px 0 0">Creates the folder if it doesn't exist, then queues the next test number.</p>
         </div>
 
-        <div class="tpl-card tpl-tint-3" style="flex:1;min-height:0;display:flex;flex-direction:column;margin-bottom:0">
+        <div class="tpl-card tpl-tint-2" style="flex-shrink:0;display:flex;flex-direction:column">
+          <div class="setup-section-hdr">Instrument Notes</div>
+          <div id="wiz-notes-current-header" class="notes-entry-hdr"></div>
+          <textarea id="wiz-notes-body" rows="8" placeholder="Enter notes for this test…" style="margin-bottom:8px;flex-shrink:0"></textarea>
+          <div id="wiz-notes-history" class="notes-history" style="max-height:140px"></div>
+        </div>
+
+        <div class="tpl-card tpl-tint-3" style="flex-shrink:0;display:flex;flex-direction:column;margin-bottom:0">
           <div class="setup-section-hdr">Photos</div>
           <p style="font-size:10px;color:var(--muted);margin:0 0 6px;line-height:1.4;flex-shrink:0">
             Saved to a <code>photos</code> folder inside this instrument's folder.
@@ -283,7 +288,7 @@
             <button class="act-btn" onclick="acqOpenCamera()" title="Take a photo using your computer's camera">Camera</button>
           </div>
           <span id="tpl-photo-msg" class="save-msg" style="flex-shrink:0"></span>
-          <div id="tpl-photo-list" style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-wrap:wrap;align-content:flex-start;gap:6px;margin-top:4px" title="Photos already saved for this instrument"></div>
+          <div id="tpl-photo-list" style="min-height:60px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:6px;margin-top:4px" title="Photos already saved for this instrument"></div>
         </div>
       </div>
 
@@ -294,16 +299,11 @@
            instrument's notes (which don't). ── -->
       <div id="tpl-bc-wrap" class="tpl-card tpl-tint-template" style="display:flex;flex-direction:column;flex:1;min-width:0;overflow:hidden">
 
-        <div class="tpl-tabs">
-          <button id="tpl-tab-btn-notes" class="tpl-tab-btn" onclick="acqSwitchTplTab('notes')">Notes</button>
-          <button id="tpl-tab-btn-template" class="tpl-tab-btn active" onclick="acqSwitchTplTab('template')">Template</button>
-        </div>
-
-        <div id="tpl-tab-template" class="tpl-tab-content">
+        <div id="tpl-tab-template" class="tpl-tab-content" style="overflow:hidden">
 
         <div id="tpl-picker-row" style="display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:wrap;flex-shrink:0;padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid var(--border)">
           <select id="tpl-modal-sel" class="tpl-modal-sel" onchange="acqSelectAndApplyTpl(parseInt(this.value,10))" title="Pick a saved template — the settings below update immediately" style="width:220px">
-            <option value="-1">Template: None</option>
+            <option value="-1">None</option>
           </select>
           <button id="tpl-delete-btn" class="io-recheck-btn" onclick="acqDeleteSelectedTemplate(event)" title="Delete the selected template">🗑</button>
           <div id="stencil-modal-picker" style="display:flex;gap:6px;align-items:center">
@@ -337,6 +337,7 @@
 
         <div id="tpl-run-settings-group">
         <div class="pref-section">Run Settings</div>
+        <p id="tpl-scratch-hint" class="pref-hint" style="display:none;margin-left:0;font-style:italic">Scratchpad is just for quick tests. Select a template to edit these.</p>
         <div class="pref-row">
           <label for="inp-taps" title="Hits per position">Hits/position</label>
           <input id="inp-taps" type="number" value="10" min="1" max="20" style="max-width:80px" title="Number of hammer taps to average at each position">
@@ -509,12 +510,6 @@
         </div><!-- /tpl-col-b + tpl-col-c row -->
         </div><!-- /tpl-tab-template -->
 
-        <div id="tpl-tab-notes" class="tpl-tab-content" style="display:none">
-          <div class="setup-section-hdr" style="margin-top:0">Notes</div>
-          <div id="wiz-notes-current-header" class="notes-entry-hdr"></div>
-          <textarea id="wiz-notes-body" rows="8" placeholder="Enter notes for this test…" style="margin-bottom:8px;flex-shrink:0"></textarea>
-          <div id="wiz-notes-history" class="notes-history" style="flex:1;min-height:0;max-height:none"></div>
-        </div>
 
       </div><!-- /tpl-bc-wrap -->
 
