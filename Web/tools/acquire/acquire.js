@@ -56,6 +56,7 @@ let _hamTimeCutoffS = 0.30;  // green line on hammer plot (s after trigger)
 let _micTimeCutoffS = 0.30;  // green line on mic plot (s after trigger)
 let _preTrigS       = 0.01;  // pre-trigger duration — added to cutoff positions since t=0 is window start
 let _lineWidth    = 0.5;    // FRF trace width in px
+let _autoYRange = null;   // last auto-fitted FRF y range, kept so the axis stays put between positions
 let _S = {
   xLog: true, xMin: 100, xMax: 12000,
   yMin: null, yMax: null,
@@ -507,10 +508,15 @@ function renderFRF() {
   }
 
   // Y range — find the peak within the visible x window, round up to nearest 5 dB,
-  // anchor the top there and drop yDbRange below it.
+  // anchor the top there and drop yDbRange below it. The result is remembered
+  // (_autoYRange) and reused, so the axis doesn't jump when the plot is cleared
+  // for the next position or when later data peaks differently; ↕Y, a dB-range
+  // change or an autoscale double-click re-fits it.
   let yRange;
   if (_S.yMin != null && _S.yMax != null) {
     yRange = [_S.yMin, _S.yMax];
+  } else if (_autoYRange) {
+    yRange = _autoYRange;
   } else {
     let peak = -Infinity;
     for (const t of frfTraces) {
@@ -523,6 +529,7 @@ function renderFRF() {
     if (isFinite(peak)) {
       const top = Math.ceil(peak / 5) * 5;
       yRange = [top - _S.yDbRange, top];
+      _autoYRange = yRange;
     }
   }
 
@@ -555,8 +562,7 @@ function renderFRF() {
     paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
     margin: { l: 58, r: 20, t: 12, b: 50 },
     font: { size: 11, family: 'inherit' },
-    showlegend: frfTraces.length > 0,
-    legend: { font: { size: 9 }, x: 1, xanchor: 'right', y: 1 },
+    showlegend: false,
     xaxis: {
       type: _S.xLog ? 'log' : 'linear',
       title: { text: 'Frequency (Hz)', font: { size: 11 } },
@@ -623,7 +629,7 @@ document.addEventListener('keydown', e => {
 });
 
 window.acqRescaleY = function() {
-  _S.yMin = null; _S.yMax = null;
+  _S.yMin = null; _S.yMax = null; _autoYRange = null;
   renderFRF();
 };
 
@@ -648,6 +654,7 @@ window.acqToggleModeBar = function() {
 
 window.acqSetYDbRange = function(val) {
   _S.yDbRange = parseFloat(val) || 38;
+  _autoYRange = null;
   _patchPrefs({ db_spread: _S.yDbRange });
   if (_S.yMin == null) renderFRF();
 };
@@ -763,6 +770,7 @@ window.acqRescaleMic = function() {
 
 window.acqDeleteLastHit = function() {
   if (window.pyDeleteLastHit) window.pyDeleteLastHit();
+  _clearTrigPlots();  // hammer/mic/FFT plots showed the hit being undone
   if (_rawHandle && _lastSavedWav) {
     _rawHandle.removeEntry(_lastSavedWav).catch(() => {});
     _lastSavedWav = null;
@@ -811,6 +819,7 @@ window.acqStartOver = async function() {
 
 window.acqClearPosition = function() {
   if (window.pyClearPosition) window.pyClearPosition();
+  _clearTrigPlots();
 };
 
 function _updateStopBtn() {
@@ -3862,7 +3871,7 @@ function _initPlots() {
     if (e['yaxis.range[0]'] != null) {
       _S.yMin = e['yaxis.range[0]']; _S.yMax = e['yaxis.range[1]'];
     } else if (e['yaxis.autorange']) {
-      _S.yMin = null; _S.yMax = null;
+      _S.yMin = null; _S.yMax = null; _autoYRange = null;
     }
   });
 }
