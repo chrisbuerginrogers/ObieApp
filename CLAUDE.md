@@ -79,6 +79,7 @@ Every new web tool under `Web/tools/<tool-name>/` must follow the exact same str
   <script src="../../js/obie-settings.js"></script>
   <script src="../../js/browser-check.js"></script>       <!-- Chrome check -->
   <script src="../../js/version-nav.js"></script>         <!-- Beta purple theme + archived-page nav fix -->
+  <script src="../../js/obie-fontsize.js"></script>       <!-- A−/A+ text-size buttons (shared, all tools) -->
   <script src="./[tool-name].js" defer></script>
 </head>
 <body>
