@@ -9,7 +9,7 @@ import js
 from pyscript.ffi import to_js
 from frf import FRFAccumulator, add_hit, compute_frf
 from trf_fileio import build_trf
-from avc_fileio import build_avc, build_avr
+from avc_fileio import build_avc, build_avr, AT_MEAN, AT_RMS
 
 # ── Settings ──────────────────────────────────────────────────────────────────
 _sr             = 0
@@ -489,9 +489,10 @@ def advance_position():
 
 
 def _emit_averages():
-    """Compute AvC (complex mean) and AvR (magnitude mean) — one pair per prefix
-    group (e.g. H, V), plus one combined pair across all groups when there's more
-    than one prefix (e.g. HV for a H,V run)."""
+    """Compute AvC (complex mean), AvR (magnitude mean) and RMS (root-mean-square
+    of the magnitudes, saved as .rms in AvR layout) — one set per prefix group
+    (e.g. H, V), plus one combined set across all groups when there's more than
+    one prefix (e.g. HV for a H,V run)."""
     groups   = {}   # prefix → list of H1 (complex)
     freq_ref = None
     for i in range(_n_positions):
@@ -510,9 +511,14 @@ def _emit_averages():
     def _emit_one(label, H_list):
         H_stack   = np.array(H_list)   # (n_pos, n_freqs) complex
         avc_bytes = build_avc(freq_ref, H_stack.mean(axis=0), n_averages=len(H_list))
-        avr_bytes = build_avr(freq_ref, np.abs(H_stack).mean(axis=0), n_averages=len(H_list))
+        mag       = np.abs(H_stack)
+        avr_bytes = build_avr(freq_ref, mag.mean(axis=0), n_averages=len(H_list),
+                              averaging_type=AT_MEAN)
+        rms_bytes = build_avr(freq_ref, np.sqrt((mag ** 2).mean(axis=0)), n_averages=len(H_list),
+                              averaging_type=AT_RMS)
         js.window.onSaveAvC(to_js(bytearray(avc_bytes)), label)
         js.window.onSaveAvR(to_js(bytearray(avr_bytes)), label)
+        js.window.onSaveRms(to_js(bytearray(rms_bytes)), label)
 
     for pfx in _prefixes:
         H_list = groups.get(pfx)

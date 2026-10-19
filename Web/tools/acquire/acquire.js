@@ -440,6 +440,15 @@ window.onSaveAvR = async function(b64, groupLabel) {
   await _writeFile(h, `${name} ${groupLabel}.avr`, b64);
 };
 
+/** Save RMS (root-mean-square magnitude across positions, AvR layout) next to
+    the AvC/AvR — same grouping rules. */
+window.onSaveRms = async function(b64, groupLabel) {
+  const h    = _testHandle;
+  const name = _runName || 'run';
+  if (!h) return;
+  await _writeFile(h, `${name} ${groupLabel}.rms`, b64);
+};
+
 /** Manual download fallback */
 window.onDownload = function(bytes, filename) {
   if (!bytes) { alert('No data to export.'); return; }
