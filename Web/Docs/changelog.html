@@ -97,6 +97,17 @@
     </div>
 
     <div class="log-group">
+      <h3>Site-wide — text size</h3>
+      <ul>
+        <li>New <strong>A−</strong> / <strong>A+</strong> buttons in every page's header scale the
+            whole UI (90–175%) through the shared <code>js/obie-fontsize.js</code>. The choice is
+            stored once and shared by all tools; Macs default to 100% and Windows/Linux to 115%.
+            Implemented with CSS <code>zoom</code>, with full-height (<code>100vh</code>) page
+            layouts compensated so they still fit the window.</li>
+      </ul>
+    </div>
+
+    <div class="log-group">
       <h3>WAV Reader <span style="font-weight:400;opacity:0.7">(new)</span></h3>
       <ul>
         <li>New experimental tool, converted from the LabVIEW <code>Main_WAV_Reader.vi</code>.
@@ -140,6 +151,53 @@
             and change the input device from the blue <strong>Device:</strong> indicator, same as
             Acquire. Settings persist to this browser immediately and, with a Data Folder set, to
             <code>ObieAppSettings/spectrum.json</code> — no separate save button.</li>
+      </ul>
+    </div>
+
+    <div class="log-group">
+      <h3>Acquire — New Test dialog, notes, positions</h3>
+      <ul>
+        <li><strong>New Test dialog.</strong> Opens blank — Instrument shows <em>Choose an
+            instrument</em>, notes are empty, and the primary button is disabled until an instrument
+            is chosen. The hint under the field says whether a new instrument folder will be created
+            and what the new test will be called. The primary button now reads <strong>Run
+            Test</strong> / <strong>Update Template and Run Test</strong> (previously Use Template /
+            Update and Use Template / Use Settings).</li>
+        <li><strong>Continue Test.</strong> Reopening the dialog during a test in progress titles it
+            <strong>Current Test</strong>, keeps the instrument and the test's notes, and shows
+            <strong>Continue Test</strong>. Data taking pauses while the dialog is open (a hit
+            already being captured completes first).</li>
+        <li><strong>Template auto-select.</strong> Picking an existing instrument pre-selects the
+            template its last test used (from <code>template.json</code>), unless a template was
+            already picked or the form was edited.</li>
+        <li><strong>Notes and Photos are tabs</strong> under the Instrument field, giving Notes much
+            more room. The notes box now contains the whole <code>notes.txt</code> — the new entry
+            on top, earlier entries below — and everything in it is editable. The separate history
+            list is gone, and the main toolbar's Notes button is hidden.</li>
+        <li>The dialog no longer scrolls horizontally; the right-hand columns have minimum widths.</li>
+        <li><strong>Right-click a banner position</strong> that has data to clear it, or clear it and
+            all later positions (also deletes their saved WAV/TRF files after a confirmation).</li>
+        <li><strong>Undo</strong> and <strong>Esc</strong> now clear the Hammer, Mic and Hammer FFT
+            plots as well as the FRF plot.</li>
+      </ul>
+    </div>
+
+    <div class="log-group">
+      <h3>Acquire — averages and plots</h3>
+      <ul>
+        <li><strong>New <code>.rms</code> file</strong> alongside <code>.avr</code> and
+            <code>.avc</code> for each group: the RMS of the per-position magnitudes. Written in AvR
+            layout; the AvR header is now stamped "Mean" rather than "RMS" to match what it
+            contains.</li>
+        <li>The FRF Y axis, when auto-fitted, stays where the first data put it instead of jumping
+            to ~4 dB when the plot clears between positions. ↕Y, the dB span, or an autoscale
+            double-click re-fits it.</li>
+        <li>FRF plot toolbar: <strong>X=log</strong> hidden, controls spaced out for touch screens,
+            dB field widened to three digits; the plot's line-name legend is hidden.</li>
+        <li>The <strong>Checklist</strong> button now shows/hides only the right-hand column (Plotly's
+            zoom/pan toolbar is always visible) and remembers its state across reloads; the
+            in-panel collapse arrow was removed. The status row shows the input device before the
+            status text.</li>
       </ul>
     </div>
 

@@ -551,7 +551,7 @@ centroid = float(np.sum(f_band * H_band) / np.sum(H_band))</pre>
     </table>
 
     <!-- AvR / AvC -->
-    <h3 id="fmt-avr">4.2 AvR / AvC — Averaged Spectrum Format</h3>
+    <h3 id="fmt-avr">4.2 AvR / AvC / RMS — Averaged Spectrum Format</h3>
 
     <p>
       AvR files store a <em>real-valued</em> averaged spectrum; AvC files store a
@@ -561,6 +561,27 @@ centroid = float(np.sum(f_band * H_band) / np.sum(H_band))</pre>
     </p>
 
     $$\text{AvR: } N \times 8\text{ bytes} \qquad \text{AvC: } N \times 16\text{ bytes} \qquad N = \texttt{int(fLength)}$$
+
+    <p>
+      Acquire writes three averages across the \(P\) positions of a prefix group, each computed
+      from the per-position H1 FRFs \(H_p(f)\) (see Section 1):
+    </p>
+    <ul class="steps">
+      <li><strong>.avc</strong> — complex mean, \(\bar H(f) = \tfrac1P\sum_p H_p(f)\)
+          (AverageType <code>2</code>).</li>
+      <li><strong>.avr</strong> — mean of the magnitudes,
+          \(\tfrac1P\sum_p |H_p(f)|\) (AverageType <code>1</code>).</li>
+      <li><strong>.rms</strong> — root-mean-square of the magnitudes,
+          \(\sqrt{\tfrac1P\sum_p |H_p(f)|^2}\) (AverageType <code>0</code>). Stored in the AvR
+          layout (real data, <code>fComplex = 0</code>) with the extension <code>.rms</code>.</li>
+    </ul>
+    <p>
+      Averaging is over positions, not over individual hits: each \(H_p\) is already the H1
+      estimate from all the hits at that position. Note that RMS \(\ge\) the mean magnitude, with
+      equality only when every position has the same magnitude at that frequency. Earlier AvR files
+      from Acquire carry AverageType <code>0</code> although they hold the plain magnitude mean;
+      newer ones are stamped <code>1</code>.
+    </p>
 
     <table class="fmt-table">
       <thead>

@@ -187,11 +187,20 @@
       on the page is lost, so save first if you can.
     </div>
 
+    <h3>Text size</h3>
+    <p>
+      Every page's header has <strong>A−</strong> / <strong>A+</strong> buttons with the current size
+      (90–175%) between them. The choice applies to all ObieWebApp tools in that browser and is
+      remembered. Without a choice, Macs default to 100% and Windows/Linux PCs to 115%. Double-click
+      the percentage to return to the default for your computer.
+    </p>
+
     <h3>Supported file formats</h3>
     <table class="key-table">
       <thead><tr><th>Extension</th><th>Description</th></tr></thead>
       <tbody>
         <tr><td>.avr / .avc</td><td>Averaged FRF (real/imaginary columns) — main format for Explore and Convolve</td></tr>
+        <tr><td>.rms</td><td>RMS average across positions, written by Acquire in AvR layout (not yet listed by Explore)</td></tr>
         <tr><td>.trf / .trv</td><td>Transfer-function format — also supported by Explore and Convolve. Files saved by Acquire include coherence and run metadata.</td></tr>
         <tr><td>.csv</td><td>Two-column CSV (frequency, magnitude dB) — quick import for Convolve</td></tr>
         <tr><td>.mat</td><td>MATLAB FRF file (<code>yspec</code> format) — loaded by Explore and Convolve. Coherence is shown automatically when present.</td></tr>
@@ -434,7 +443,7 @@
     <p>
       Acquire turns your laptop and a USB audio interface into an impact-hammer FRF measurement
       system. It records hammer and microphone signals simultaneously, detects hits automatically,
-      averages multiple hits per position, and saves a TRF per position plus AvR/AvC averages at
+      averages multiple hits per position, and saves a TRF per position plus AvR, AvC and RMS averages at
       completion (see <a href="#what-gets-saved" style="color:var(--accent)">What gets saved</a> below).
     </p>
 
@@ -458,22 +467,40 @@
 
     <h3>Naming an instrument</h3>
     <p>
-      Open <strong>Template &amp; Settings</strong> — click <strong>Template:</strong> in the banner
-      row — and type a name into the <strong>Instrument</strong> field at the top of the left column
-      (it autocompletes against instruments that already exist in your Data Folder). The dialog's
-      primary button (<strong>Use Template</strong> / <strong>Use Settings</strong> /
-      <strong>Update and Use Template</strong>) both commits that name and starts acquisition for you
-      if nothing is already running, so there's no separate Start click needed the first time. Acquire
-      creates a folder named after the instrument and automatically numbers successive test runs
-      inside it (<code>Violin_01</code>, <code>Violin_02</code>, …). Once an instrument is set, the
-      toolbar's <strong>🎻 Instrument</strong> button and the test-name indicator appear — click 🎻
-      any time afterwards to rename or switch instruments (it reopens the same dialog), and click the
-      test-name indicator to rename just the current run.
+      Open <strong>Template &amp; Settings</strong> — click the test button (<strong>New Test</strong>,
+      or the template's name) in the banner row. For a new test the dialog is titled
+      <strong>New Test</strong> and opens with the <strong>Instrument</strong> field showing
+      <em>Choose an instrument</em>, empty notes, and the primary button greyed out. Type a name
+      (it autocompletes against instruments that already exist in your Data Folder) or pick an
+      existing one. The hint under the field then tells you what will happen — <em>Creates a folder
+      for a new instrument</em> or <em>Uses the existing instrument folder</em> — and what the new
+      test will be called (e.g. <code>Violin_03</code>). The notes box fills in at the same time.
+      When you pick an existing instrument, Acquire also pre-selects the template its last test
+      used (read from that test's <code>template.json</code>), unless you've already chosen a
+      template in this dialog or edited the settings; the template must still exist in your
+      Templates folder.
+    </p>
+    <p>
+      The primary button (<strong>Run Test</strong> / <strong>Update Template and Run Test</strong>)
+      both commits the name and starts acquisition for you if nothing is already running, so there's
+      no separate Start click needed the first time. Acquire creates a folder named after the
+      instrument and automatically numbers successive test runs inside it (<code>Violin_01</code>,
+      <code>Violin_02</code>, …). Once an instrument is set, the toolbar's <strong>🎻 Instrument</strong>
+      button and the test-name indicator appear — click 🎻 any time afterwards to rename or switch
+      instruments (it reopens the same dialog), and click the test-name indicator to rename just the
+      current run.
+    </p>
+    <p>
+      <strong>Reopening the dialog during a test.</strong> While a test is in progress (audio
+      running, or the test already has hits and isn't finished) the dialog is titled
+      <strong>Current Test</strong>, keeps the current instrument and shows that test's notes
+      unchanged, and the primary button reads <strong>Continue Test</strong>. <strong>Data taking
+      is paused while the dialog is open</strong> — a hit already being captured finishes first —
+      and resumes when you close it. Changing the instrument name turns it back into a new test.
     </p>
     <div class="callout">
       <strong>Leaving Instrument blank</strong>
-      The dialog won't let you apply settings with a blank Instrument name — it asks you to enter
-      one first. <strong>Create New Template</strong> is the exception: it only saves a template file
+      The primary button stays disabled until an Instrument name is entered. <strong>Create New Template</strong> is the exception: it only saves a template file
       and never requires an instrument.
     </div>
 
@@ -484,19 +511,17 @@
       dialog. It's laid out as a left column plus a tabbed area on the right:
     </p>
     <ul class="steps" style="list-style:disc;padding-left:20px;margin:0 0 14px">
-      <li><strong>Left column</strong> — the Instrument field (above) and a <strong>Photos</strong>
-          section for attaching images to the instrument (see
+      <li><strong>Left column</strong> — the Instrument field (above), with <strong>Notes</strong> and
+          <strong>Photos</strong> tabs underneath (see
           <a href="#acquire-photos" style="color:var(--accent)">Session Notes &amp; Photos</a>
-          below).</li>
-      <li><strong>Notes tab</strong> — shown by default when the dialog opens; a dated entry box for
-          this test (see <a href="#acquire-photos" style="color:var(--accent)">Session Notes &amp;
-          Photos</a> below).</li>
-      <li><strong>Template tab</strong> — Input device, Run Settings, Hit Detection (including Node
-          Stencil), Calibration, Audio Capture, and Plot Settings: everything that gets saved into a
-          template file.</li>
+          below). Notes is shown by default.</li>
+      <li><strong>Right columns (Template)</strong> — Input device, Run Settings, Hit Detection
+          (including Node Stencil), Calibration, Audio Capture, and Plot Settings: everything that
+          gets saved into a template file. The two columns have a minimum width and the dialog never
+          scrolls sideways; drag the dividers to resize.</li>
     </ul>
     <table class="key-table">
-      <thead><tr><th>Setting (Template tab)</th><th>Notes</th></tr></thead>
+      <thead><tr><th>Setting (Template columns)</th><th>Notes</th></tr></thead>
       <tbody>
         <tr><td>Input device</td><td>Choose your audio interface from the dropdown — takes effect immediately. You can also click the <strong>Device:</strong> indicator in the status row at any time for a quick device picker without opening the full dialog.</td></tr>
         <tr><td>Ham trigger threshold</td><td>Voltage level (V) that triggers a hit. Lower values catch lighter taps; raise it to ignore ambient noise.</td></tr>
@@ -546,10 +571,11 @@
 
     <h3>Checklist</h3>
     <p>
-      The right-hand info panel's <strong>Checklist</strong> sits above Run Settings — click its
-      header (or the ▾/▸ arrow) to show or hide it; it's expanded by default, and advanced users who
-      don't need the reminders can collapse it out of the way. It's a step-by-step reminder for the
-      full workflow, grouped into two sections:
+      The right-hand info panel's <strong>Checklist</strong> sits above Run Settings. The
+      <strong>Checklist</strong> button at the right end of the plot toolbar shows or hides that whole
+      right-hand column to give the FRF plot more room; Acquire remembers whether it was open or
+      closed and restores it next time. It's a step-by-step reminder for the full workflow, grouped
+      into two sections:
     </p>
     <table class="key-table">
       <thead><tr><th>Group</th><th>Steps</th></tr></thead>
@@ -564,7 +590,7 @@
       <strong>▶ Start</strong> from idle or a completed run, ready for the next one.
     </p>
     <p>
-      <strong>✨ Ask Claude</strong>, in the main toolbar next to Notes, opens a new Claude.ai chat in
+      <strong>✨ Ask Claude</strong>, in the main toolbar, opens a new Claude.ai chat in
       another tab with a question started for you, pointing Claude at ObieWebApp's documentation —
       finish typing your question and send it (nothing is sent automatically).
     </p>
@@ -581,8 +607,15 @@
           for a fresh start) or <strong>Repeat</strong> to re-do the current position.</li>
       <li>Use the <strong>Undo</strong> / <strong>Clear</strong> / <strong>Start over</strong> row
           above the Hammer FFT plot (left sidebar) to remove a bad last hit, restart just the current
-          position, or clear every position and start the whole run over.</li>
-      <li>When all positions are complete, AvR/AvC averages are saved automatically (per prefix group, plus a combined set if you used more than one — see <a href="#what-gets-saved" style="color:var(--accent)">What gets saved</a> below) and a <em>Run complete</em> banner appears.</li>
+          position, or clear every position and start the whole run over. <strong>Esc</strong> clears
+          the current position, like Clear. Undo and Clear also blank the Hammer, Mic and Hammer FFT
+          plots, not just the FRF.</li>
+      <li><strong>Right-click</strong> a position box in the banner that already has data to
+          <strong>Clear</strong> that position, or <strong>Clear it and all later positions</strong>.
+          After a confirmation, Acquire deletes the cleared positions' saved WAV and TRF files and
+          clears their data; the run then goes back to the first cleared position (finished runs
+          become resumable) so the next hits refill it. Boxes with no data have no menu.</li>
+      <li>When all positions are complete, AvR, AvC and RMS averages are saved automatically (per prefix group, plus a combined set if you used more than one — see <a href="#what-gets-saved" style="color:var(--accent)">What gets saved</a> below) and a <em>Run complete</em> banner appears.</li>
       <li>To start the next run on the same instrument, click <strong>▶ Start</strong> in the banner again — the test name increments automatically (e.g. <code>Violin_01</code> → <code>Violin_02</code>) and all positions reset.</li>
     </ol>
 
@@ -592,23 +625,34 @@
       resolved position label, e.g. <code>H03.trf</code> or <code>V07.trf</code>) and one
       <code>.wav</code> raw capture per hit inside a <code>raw/</code> sub-folder. TRF files
       include coherence and run metadata (sample rate, threshold, cutoffs, device name) readable
-      by Explore. At run completion, an <strong>.avr</strong> (magnitude average) and
-      <strong>.avc</strong> (complex average) file are written to the instrument folder root for
-      each prefix group, named <code>&lt;run&gt; &lt;group&gt;.avr/.avc</code> — e.g. an H,V run
-      named <code>test2_09</code> with 12 positions per group produces <code>test2_09 H.avr</code>
-      / <code>.avc</code>, <code>test2_09 V.avr</code> / <code>.avc</code>, and a combined
-      <code>test2_09 HV.avr</code> / <code>.avc</code> across all 24 positions.
+      by Explore. At run completion, three files are written to the instrument folder root for each
+      prefix group, named <code>&lt;run&gt; &lt;group&gt;.avr/.avc/.rms</code>: an <strong>.avr</strong>
+      (the plain average of the per-position magnitudes), an <strong>.avc</strong> (the complex
+      average), and an <strong>.rms</strong> (the root-mean-square of the per-position magnitudes,
+      √(mean of |H|²) — see the
+      <a href="./math.html#fmt-avr" style="color:var(--accent)">file-format reference</a>). The
+      <code>.rms</code> file uses the AvR layout. E.g. an H,V run named <code>test2_09</code> with 12
+      positions per group produces <code>test2_09 H.avr</code> / <code>.avc</code> / <code>.rms</code>,
+      the same for <code>V</code>, and a combined <code>test2_09 HV.avr</code> / <code>.avc</code> /
+      <code>.rms</code> across all 24 positions. (Explore does not list <code>.rms</code> files yet.)
     </div>
 
     <h3>Reviewing the FRF plot</h3>
     <p>
       The main plot shows the current position's FRF building up with each hit, along with a
-      coherence overlay (γ², scaled to the bottom third of the Y range). When you advance to the
+      coherence overlay (γ², scaled to the middle of the Y range). When you advance to the
       next position the plot clears so you start fresh — previous positions are saved on disk and
-      can be loaded in Explore. Use the plot-toolbar controls to toggle log/linear X axis, rescale
-      Y, adjust the dB range, or choose a color palette. The <strong>🔍 Zoom Toolbar</strong> button
-      on the right shows or hides Plotly's own zoom/pan/box-select/autoscale/reset/camera controls on
-      this plot.
+      can be loaded in Explore. The controls above the plot are <strong>↕Y</strong> (rescale Y to the
+      data), the <strong>dB</strong> span field (up to three digits), <strong>Colors</strong> (line
+      palette), <strong>Show History</strong>, and <strong>Checklist</strong> (see above). Plotly's
+      own zoom/pan/box-select/autoscale/camera controls are always shown on the plot, and the
+      line-name legend is hidden.
+    </p>
+    <p>
+      With no fixed Y limits set, the Y axis fits itself to your first data (top at the peak rounded
+      up to 5 dB) and then <strong>stays put</strong> — it doesn't jump when the plot clears for the
+      next position or when later data peaks differently. Press <strong>↕Y</strong>, change the dB
+      span, or double-click the plot to re-fit it.
     </p>
 
     <h3 id="acquire-templates">Templates</h3>
@@ -620,14 +664,15 @@
     <ol class="steps">
       <li>The banner's Template control is a split button: click <strong>Template: <em>name</em></strong> to reopen the current template's settings, or click the ▾ caret next to it for a dropdown of every saved template — picking one opens the dialog with that template's settings already applied.</li>
       <li>Inside the dialog, picking a different template from its own list applies it immediately (fields update right away). Closing with <strong>Cancel</strong> reverts the banner and dialog back to whichever template was actually active when you opened it.</li>
-      <li>The primary button at the bottom reads <strong>Use Template</strong> when your settings still match the applied template. Editing any field switches it to <strong>Update and Use Template</strong>, which saves your changes back into that template as well as applying them. With no template applied, it reads <strong>Use Settings</strong> and applies your changes to this run only.</li>
+      <li>The primary button at the bottom reads <strong>Run Test</strong> (or <strong>Continue Test</strong> when resuming a test in progress) when your settings still match the applied template. Editing any field switches it to <strong>Update Template and Run Test</strong> (<strong>… Continue Test</strong>), which saves your changes back into that template as well as applying them. With no template applied, it applies your changes to this run only.</li>
+      <li>Picking an existing instrument pre-selects the template its last test used (see Naming an instrument).</li>
       <li>To save the current settings as a brand-new template, click <strong>Create New Template</strong>.</li>
       <li><strong>Reset Default Templates</strong> re-downloads the built-in templates ("HV 24 Obie Rig", "ScratchPad", "Scratchpad Obie 26") without touching your custom ones.</li>
     </ol>
     <div class="callout">
       <strong>Primary button label tracks unsaved changes</strong>
       If you edit any setting (threshold, cutoffs, axis ranges, etc.) after loading a template, the
-      primary button switches to "Update and Use Template" so it's clear the current settings no
+      primary button switches to "Update Template and Run Test" so it's clear the current settings no
       longer match the saved template until you save them back into it.
     </div>
 
@@ -642,26 +687,20 @@
     <h3 id="acquire-photos">Session Notes &amp; Photos</h3>
     <p>
       Notes save to <code>notes.txt</code> in the instrument's folder and are shown in Explore when
-      you hover that instrument's datasets. There are two ways to edit them, both writing to the same
-      file:
+      you hover that instrument's datasets. They are edited in the Template &amp; Settings dialog's
+      <strong>Notes</strong> tab (shown by default), which now fills the left column's height for
+      more writing room. The box holds the <em>whole</em> notes file: the new test's dated, numbered
+      entry (e.g. "(3) 8/31/26 19:54   Test 03", pre-filled with the instrument name) sits on top and
+      every earlier entry follows below — all of it is editable, and exactly what's in the box is
+      written to <code>notes.txt</code> when you click Run Test or Continue Test. While a test is in
+      progress the box shows the file as it is, with no new entry added.
     </p>
-    <ul class="steps" style="list-style:disc;padding-left:20px;margin:0 0 10px">
-      <li><strong>Notes</strong> in the main toolbar opens a quick modal with the whole notes file as
-          one free-form text box — edit it and click <strong>Save Notes</strong>.</li>
-      <li>The Template &amp; Settings dialog's <strong>Notes tab</strong> (shown by default) is scoped
-          to the current test: it seeds a new dated, numbered entry (e.g. "(3) 8/31/26 19:54
-          Test 03") pre-filled with the instrument name, for you to add your own observations to —
-          every prior entry is kept read-only underneath, so nothing you already wrote is ever
-          overwritten.</li>
-    </ul>
     <p>
-      Both surfaces share the same <strong>Photos</strong> section: <strong>Add Photos…</strong>
+      The <strong>Photos</strong> tab, next to Notes: <strong>Add Photos…</strong>
       attaches one or more image files, and <strong>Camera</strong> opens a live preview from your
       computer's webcam with a <em>Snap</em> button to capture and save a photo directly — both save
       into a <code>photos</code> folder alongside the notes. Saved photos are shown as thumbnails;
-      click one to open the full-size image in a new tab. In the standalone Notes modal, use
-      <strong>🗑 Delete Notes &amp; Start Again</strong> (with a confirmation prompt) to clear the
-      notes box and remove <code>notes.txt</code> from disk.
+      click one to open the full-size image in a new tab.
     </p>
 
     <h3>LiveView</h3>
