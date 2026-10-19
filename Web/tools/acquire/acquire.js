@@ -50,6 +50,7 @@ let batchFill = 0;
 
 // ── UI state ──────────────────────────────────────────────────────────────────
 let appState      = 'idle';
+let _dialogPause  = false;  // Template & Settings dialog open → don't feed audio to Python
 let currentPos    = 0;
 let frfCache      = {};     // pos → { freq[], H1db[], coh[], nHits }
 let _hamTimeCutoffS = 0.30;  // green line on hammer plot (s after trigger)
@@ -309,6 +310,64 @@ window.onStateChange = function(jsonStr) {
   _updateSoundcardDisplay();
 };
 
+let _posLabels = [];
+let _posHits   = [];
+
+// Right-click a position box in the banner → clear it, or clear it and every
+// later position. Also removes that position's saved WAV/TRF files so stale
+// data isn't left in the test folder.
+window.acqPosMenu = function(ev, i) {
+  ev.preventDefault();
+  document.getElementById('pos-ctx-menu')?.remove();
+  if (!(_posHits[i] > 0)) return;   // nothing to clear here
+  const lbl = _posLabels[i] || `#${i + 1}`;
+  const menu = document.createElement('div');
+  menu.id = 'pos-ctx-menu';
+  menu.className = 'pos-ctx-menu';
+  menu.innerHTML =
+    `<button data-m="one">Clear ${_escHtml(lbl)}</button>` +
+    `<button data-m="rest">Clear ${_escHtml(lbl)} and all later positions</button>`;
+  document.body.appendChild(menu);
+  const w = menu.offsetWidth, h = menu.offsetHeight;
+  menu.style.left = Math.max(0, Math.min(ev.clientX, window.innerWidth  - w - 4)) + 'px';
+  menu.style.top  = Math.max(0, Math.min(ev.clientY, window.innerHeight - h - 4)) + 'px';
+  const close = () => { menu.remove(); document.removeEventListener('mousedown', outside, true); document.removeEventListener('keydown', onKey, true); };
+  const outside = e => { if (!menu.contains(e.target)) close(); };
+  const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  document.addEventListener('mousedown', outside, true);
+  document.addEventListener('keydown', onKey, true);
+  menu.addEventListener('click', e => {
+    const m = e.target?.dataset?.m;
+    if (!m) return;
+    close();
+    _clearPositions(i, m === 'rest' ? _posLabels.length - 1 : i);
+  });
+};
+
+async function _clearPositions(start, end) {
+  const labels = _posLabels.slice(start, end + 1);
+  const what = labels.length === 1 ? `position ${labels[0]}` : `positions ${labels[0]} – ${labels[labels.length - 1]}`;
+  if (!confirm(`Clear all data for ${what}?\n\nThis also deletes its saved WAV and TRF files from the Data Folder. This cannot be undone.`)) return;
+  const inst = _runName || 'run';
+  for (const lbl of labels) {
+    try {
+      if (_rawHandle) {
+        const prefix = `${inst} ${lbl}_`;
+        const doomed = [];
+        for await (const [name] of _rawHandle.entries()) {
+          if (name.startsWith(prefix) && name.toLowerCase().endsWith('.wav')) doomed.push(name);
+        }
+        for (const n of doomed) await _rawHandle.removeEntry(n).catch(() => {});
+      }
+      if (_trfHandle) await _trfHandle.removeEntry(`${inst} ${lbl}.trf`).catch(() => {});
+    } catch (_) { /* folder may be gone — in-memory clear below still applies */ }
+  }
+  for (let i = start; i <= end; i++) { delete frfCache[i]; delete tapCache[i]; }
+  window.pyClearPositions?.(start, end);
+  _clearTrigPlots();
+  renderFRF();
+}
+
 /** Position banner from Python */
 window.onBannerUpdate = function(jsonStr) {
   const data = JSON.parse(jsonStr);
@@ -316,13 +375,15 @@ window.onBannerUpdate = function(jsonStr) {
   if (!el) return;
   el.style.display = _testsHandle ? '' : 'none';
   if (!_testsHandle) return;
+  _posLabels = data.map(p => p.label);
+  _posHits   = data.map(p => p.hits);
   el.innerHTML = data.map((p, i) => {
     const dots = Array.from({length: p.n_taps}, (_, j) => j < p.hits ? '●' : '○').join('');
     let cls = 'pos-tab';
     if (p.current)                        cls += ' current';
     if (p.hits > 0 && p.hits < p.n_taps) cls += ' partial';
     if (p.hits >= p.n_taps)               cls += ' complete';
-    return `<div class="${cls}" onclick="window.pyJumpToPosition(${i})">
+    return `<div class="${cls}" onclick="window.pyJumpToPosition(${i})" oncontextmenu="acqPosMenu(event, ${i})" title="${p.hits > 0 ? 'Click to go to this position · right-click to clear it' : 'Click to go to this position'}">
       <span class="pos-label">${p.label}</span>
       <span class="pos-dots">${dots}</span>
     </div>`;
@@ -976,6 +1037,7 @@ window.acqSaveCustomPalette = function() {
 
 window.acqCloseTemplateSettings = function() {
   document.getElementById('tpl-settings-modal')?.classList.remove('open');
+  _dialogPause = false;
   _stopStencilPoll();
 };
 
@@ -1759,6 +1821,7 @@ let _tplNameOnOpen = '';
 window.acqOpenTemplateSettings = async function() {
   _tplNameOnOpen = _currentTemplateName;
   document.getElementById('tpl-settings-modal')?.classList.add('open');
+  _dialogPause = true;   // hold audio while the dialog is open (a hit already being captured finishes)
   _populatePrefsForm();
   _enumeratePrefsDevices();
   _selectedTpl = null;
@@ -1790,7 +1853,9 @@ window.acqOpenTemplateSettings = async function() {
 
   // Instrument (column A) + Notes (its own tab)
   const nameInp = document.getElementById('wiz-instrument-inp');
-  if (nameInp) nameInp.value = '';
+  _wizActiveTest = _tplActiveTestName();
+  _wizTplUserTouched = false;
+  if (nameInp) nameInp.value = _wizActiveTest ? _currentInstrumentName() : '';
   _wizSeededFor = null;
   const _nb = document.getElementById('wiz-notes-body');
   if (_nb) _nb.value = '';
@@ -1934,7 +1999,7 @@ window.acqPickTemplateFromDropdown = async function(val) {
   await window.acqOpenTemplateSettings();
   if (pickedName == null) return;
   const j = _templates.findIndex(t => t.name === pickedName);
-  if (j >= 0) acqSelectAndApplyTpl(j);
+  if (j >= 0) { _wizTplUserTouched = true; acqSelectAndApplyTpl(j); }
 };
 
 window.acqDeleteTpl = async function(i, event) {
@@ -1997,21 +2062,20 @@ function _tplFormDirty() {
 function _updateTplPrimaryBtnLabel() {
   const btn = document.getElementById('tpl-primary-btn');
   if (!btn) return;
-  const hasInstrument = !!(document.getElementById('wiz-instrument-inp')?.value || '').trim();
-  btn.disabled = !hasInstrument;
-  if (!hasInstrument) {
-    btn.textContent = _currentTemplateName && _tplFormDirty() ? 'Update Template and Run Test' : 'Run Test';
+  const name = (document.getElementById('wiz-instrument-inp')?.value || '').trim();
+  btn.disabled = !name;
+  // Same instrument as the test already in progress → this dialog is resuming
+  // it, not starting a new one.
+  const go = (_wizActiveTest && name === _currentInstrumentName()) ? 'Continue Test' : 'Run Test';
+  const dirty = !!(_currentTemplateName && _tplFormDirty());
+  btn.textContent = dirty ? `Update Template and ${go}` : go;
+  if (!name) {
     btn.title = 'Choose an instrument first';
-    return;
-  }
-  if (_currentTemplateName && _tplFormDirty()) {
-    btn.textContent = 'Update Template and Run Test';
+  } else if (dirty) {
     btn.title = `Save these changes back into "${_currentTemplateName}" and apply them to this run`;
   } else if (_currentTemplateName) {
-    btn.textContent = 'Run Test';
     btn.title = `Apply "${_currentTemplateName}" to this run — nothing is saved to the template file`;
   } else {
-    btn.textContent = 'Run Test';
     btn.title = 'Apply these settings to this run only — nothing is saved to a template';
   }
 }
@@ -2249,6 +2313,46 @@ window.acqTplColATab = function(which) {
 // The notes box holds the whole of notes.txt: the new entry's header + body
 // on top, earlier entries below, all editable. Seeded once per instrument
 // name; whatever is in the box when the test is run is written back verbatim.
+// Template used by an instrument's most recent test that recorded one
+// (template.json → "template"), or '' if none/unreadable. Read-only.
+async function _lastTemplateNameForInstrument(rootDirHandle, name) {
+  try {
+    const instrHandle = await rootDirHandle.getDirectoryHandle(name);
+    const tests = [];
+    for await (const [n, h] of instrHandle.entries()) {
+      const m = h.kind === 'directory' && n.match(/_(\d+)$/);
+      if (m) tests.push({ n, num: parseInt(m[1], 10) });
+    }
+    tests.sort((a, b) => b.num - a.num);
+    for (const t of tests) {
+      try {
+        const dir  = await instrHandle.getDirectoryHandle(t.n);
+        const file = await (await dir.getFileHandle('template.json')).getFile();
+        const tpl  = JSON.parse(await file.text()).template;
+        if (tpl) return String(tpl);
+      } catch (_) { /* no template.json in this test — try the previous one */ }
+    }
+  } catch (_) {}
+  return '';
+}
+
+// True once the user has picked a template themselves in this dialog; an
+// instrument pick then never overrides it.
+let _wizTplUserTouched = false;
+
+// Name of the test currently in progress ('' when none): an instrument is set
+// up and either audio is running or the test already has recorded hits and
+// hasn't been completed. The dialog then shows that test's notes instead of
+// opening blank like a brand-new test.
+let _wizActiveTest = '';
+function _tplActiveTestName() {
+  if (!_testsHandle || !_currentInstrumentName() || appState === 'complete') return '';
+  const running = appState !== 'idle';
+  const hasData = _posHits.some(h => h > 0);
+  if (!running && !hasData) return '';
+  return (document.getElementById('inp-test-banner')?.textContent || '').trim().replace(/^—$/, '') || _currentInstrumentName();
+}
+
 async function _tplInstrumentPreviewNow() {
   const name = (document.getElementById('wiz-instrument-inp')?.value || '').trim();
   const bodyEl = document.getElementById('wiz-notes-body');
@@ -2262,6 +2366,15 @@ async function _tplInstrumentPreviewNow() {
   }
   if (_wizSeededFor === name) return;
 
+  if (_wizActiveTest && name === _currentInstrumentName()) {
+    const notes = await _peekNotesText(_rootDirHandle, name);
+    if ((document.getElementById('wiz-instrument-inp')?.value || '').trim() !== name) return;
+    bodyEl.value = notes.trim() ? notes.trim() + '\n' : `Instrument name: ${name}\n`;
+    if (hintEl) hintEl.textContent = `Current test: ${_wizActiveTest}. Edit the instrument name to start a different test.`;
+    _wizSeededFor = name;
+    return;
+  }
+
   const [testName, notesText] = await Promise.all([
     _peekNextTestNumber(_rootDirHandle, name),
     _peekNotesText(_rootDirHandle, name),
@@ -2272,6 +2385,16 @@ async function _tplInstrumentPreviewNow() {
     const known = await _listInstrumentNames(_rootDirHandle);
     const lead = known.includes(name) ? 'Uses the existing instrument folder.' : 'Creates a folder for a new instrument.';
     hintEl.textContent = `${lead} The new test name will be ${testName}.`;
+  }
+  // Existing instrument → preselect the template its last test used, unless
+  // the user already picked one here or has unsaved edits in the form.
+  if (!_wizTplUserTouched && !_tplFormDirty()) {
+    const tplName = await _lastTemplateNameForInstrument(_rootDirHandle, name);
+    const j = tplName ? _templates.findIndex(t => t.name === tplName) : -1;
+    if (j >= 0 && tplName !== _currentTemplateName &&
+        (document.getElementById('wiz-instrument-inp')?.value || '').trim() === name) {
+      acqSelectAndApplyTpl(j);
+    }
   }
   const seed = `${_formatNotesHeader(entries.length + 1, testName)}\nInstrument name: ${name}\n`;
   const history = notesText.trim();
@@ -3523,7 +3646,7 @@ function _startSimulation(sr, swapChannels) {
     }
     _simSample += BATCH_SIZE;
     if (_simSample > _simNextHit + Math.round(sr * 0.5)) _simNextHit += hitSpacing;
-    if (window.pyProcessAudio) window.pyProcessAudio(L, R);
+    if (window.pyProcessAudio && !(_dialogPause && appState !== 'triggered')) window.pyProcessAudio(L, R);
   }, delay);
 }
 
@@ -3626,7 +3749,7 @@ async function _startAudio() {
         batchR.set(r.subarray(off, off + n), batchFill);
         batchFill += n; off += n;
         if (batchFill >= BATCH_SIZE) {
-          window.pyProcessAudio(batchL, batchR);
+          if (!(_dialogPause && appState !== 'triggered')) window.pyProcessAudio(batchL, batchR);
           batchFill = 0;
         }
       }

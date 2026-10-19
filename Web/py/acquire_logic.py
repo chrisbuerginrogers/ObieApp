@@ -197,6 +197,32 @@ def clear_position():
     _emit_state()
 
 
+def clear_positions(start_js, end_js):
+    """Clear every hit in positions start..end (inclusive). If the current
+    position is at or after `start` the run goes back to `start`, so the next
+    hits refill the cleared positions; a completed run becomes resumable."""
+    global _state, _cur_pos, _post_capture_lockout
+    start = max(0, int(start_js))
+    end   = min(int(end_js), _n_positions - 1)
+    if start > end:
+        return
+    for i in range(start, end + 1):
+        _pos_hits[i] = 0
+        st = _frf[i]
+        st["hits_ham"] = []
+        st["hits_mic"] = []
+        _recompute_frf(i)
+    if _cur_pos >= start:
+        _wav_L.clear()
+        _wav_R.clear()
+        _cur_pos = start
+    _post_capture_lockout = 0
+    if _state in ("complete", "position_complete"):
+        _state = "idle"
+    _emit_banner()
+    _emit_state()
+
+
 def reset_all():
     global _state
     _state = "idle"

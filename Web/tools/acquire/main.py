@@ -12,7 +12,7 @@ from acquire_logic import (
     init_positions,
     process_audio,
     delete_last_hit,
-    clear_position,
+    clear_position, clear_positions,
     jump_to_position,
     reset_all,
     export_wav,
@@ -159,6 +159,7 @@ js.window.pyProcessAudio     = create_proxy(process_audio)
 js.window.pyDeleteLastHit    = create_proxy(delete_last_hit)
 js.window.pyClearPosition    = create_proxy(clear_position)
 js.window.pyJumpToPosition   = create_proxy(jump_to_position)
+js.window.pyClearPositions   = create_proxy(clear_positions)
 js.window.pyResetAll         = create_proxy(reset_all)
 js.window.pyExportWAV        = create_proxy(export_wav)
 js.window.pyExportTRF        = create_proxy(export_trf)

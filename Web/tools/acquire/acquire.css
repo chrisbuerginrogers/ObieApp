@@ -193,6 +193,17 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 .pos-tab.current  .pos-label { color: #1a2a50; }
 .pos-tab.complete .pos-label { color: var(--green); }
 
+.pos-ctx-menu {
+  position: fixed; z-index: 900; display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.22); padding: 4px; min-width: 200px;
+}
+.pos-ctx-menu button {
+  background: none; border: none; text-align: left; font: inherit; font-size: 13px;
+  color: var(--text); padding: 8px 12px; border-radius: 4px; cursor: pointer;
+}
+.pos-ctx-menu button:hover { background: var(--bg-deep); }
+
 /* ── Status row ──────────────────────────────────────────────────────── */
 .acq-status-row {
   display: flex; align-items: center; gap: 8px;
