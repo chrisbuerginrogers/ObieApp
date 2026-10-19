@@ -6,3 +6,6 @@
 
 # Claude Code local config
 .claude/
+
+# LabVIEW VIs
+*.vi
