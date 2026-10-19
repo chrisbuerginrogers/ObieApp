@@ -7,6 +7,7 @@ Supported formats:
   .trf/.trv — binary Rational Acoustics / MtxVec transfer function
   .avc      — Stoppani/MtxVec complex-averaged FRF
   .avr      — Stoppani/MtxVec real-averaged data (e.g. coherence)
+  .rms      — RMS average across positions (AvR layout; written by Acquire)
   .tsv      — tab-separated (2-col real or 3-col complex)
   .csv      — two-column CSV (Frequency, Magnitude dB)
   .mat      — MATLAB FRF ('yspec' format only; time-domain skipped)
@@ -95,7 +96,7 @@ def load(filename, js_uint8array):
     if ext == 'avc':
         p = parse_avc(raw)
         return _av_standard(p, p['H_complex'])
-    if ext == 'avr':
+    if ext in ('avr', 'rms'):
         p = parse_avr(raw)
         return _av_standard(p, p['data'])
     if ext == 'csv':
@@ -104,13 +105,13 @@ def load(filename, js_uint8array):
         return _mat_standard(raw)
     label = f'.{ext}' if ext else '(no extension)'
     return {'freq': [], 'mag': [], 'n_rows': 0,
-            'warnings': [f'{label} is not a supported file type — use TRF, TRV, AvC, AvR, TSV, CSV, or MAT']}
+            'warnings': [f'{label} is not a supported file type — use TRF, TRV, AvC, AvR, RMS, TSV, CSV, or MAT']}
 
 
 def trace_label(filename):
     """Strip path and known extensions to get a clean trace label."""
     label = filename.rsplit('/', 1)[-1].rsplit('\\', 1)[-1]
-    for suffix in ('.trf', '.trv', '.avc', '.avr', '.tsv', '.mat'):
+    for suffix in ('.trf', '.trv', '.avc', '.avr', '.rms', '.tsv', '.mat'):
         if label.lower().endswith(suffix):
             return label[:-len(suffix)]
     return label
@@ -148,4 +149,4 @@ def on_clear(event):
     box = js.document.getElementById('hdr-box')
     if box:
         box.innerHTML = '<span class="muted">no file loaded</span>'
-    set_status('Drop TRF, AvC, AvR or TSV files here, or click to choose.', 'info')
+    set_status('Drop TRF, AvC, AvR, RMS or TSV files here, or click to choose.', 'info')

@@ -120,13 +120,13 @@ js.window.pyExploreConvolve = create_proxy(_convolve_explore)
 
 
 # ── AvC / AvR writer (called by JS to get binary bytes for group-average save) ─
-def _write_av_file(freqs_js, mags_js, n_averages, is_complex):
-    from avc_fileio import build_avr, AT_MEAN
+def _write_av_file(freqs_js, mags_js, n_averages, is_complex, rms=False):
+    from avc_fileio import build_avr, AT_MEAN, AT_RMS
     try:
         freqs  = np.array(freqs_js.to_py(), dtype=np.float64)
         mags   = np.array(mags_js.to_py(),  dtype=np.float64)
         linear = np.power(10.0, mags / 20.0)
-        raw    = build_avr(freqs, linear, n_averages=int(n_averages), averaging_type=AT_MEAN)
+        raw    = build_avr(freqs, linear, n_averages=int(n_averages), averaging_type=AT_RMS if rms else AT_MEAN)
         js.window.onExploreAvReady(to_js(bytearray(raw)))
     except Exception as exc:
         js.window.onExploreAvError(str(exc)[:120])

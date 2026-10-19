@@ -282,6 +282,27 @@
     return { freqs: refFreqs, mags: avgMags };
   }
 
+  // Root-mean-square across the visible datasets: sqrt(mean(|H|²)) of the
+  // linear magnitudes (same smoothing/interpolation as the displayed average),
+  // returned in dB. Used by "Save as RMS" in the group-average save dialog.
+  function _computeRmsTrace() {
+    const vis = _datasets.filter(d => d.visible);
+    if (!vis.length) return null;
+    const refFreqs = vis[0].freqs;
+    const n = refFreqs.length;
+    const sumsq = new Array(n).fill(0);
+    const counts = new Array(n).fill(0);
+    for (const d of vis) {
+      const mags = _smooth(d.freqs, d.mags, _S.smoothing);
+      for (let i = 0; i < n; i++) {
+        const m = _linterp(d.freqs, mags, refFreqs[i]);
+        if (isFinite(m)) { sumsq[i] += Math.pow(10, m / 10); counts[i]++; }
+      }
+    }
+    return { freqs: refFreqs,
+             mags: sumsq.map((s, i) => counts[i] ? 10 * Math.log10(s / counts[i]) : NaN) };
+  }
+
   // ── Band computation ───────────────────────────────────────────────────
   function _computeBands(freqs, mags, bands) {
     return bands.map(b => {
@@ -868,7 +889,7 @@
   window.expTips = () => window.open('../../Docs/shortcuts.html', '_blank');
 
   // ── Data Folder helpers ───────────────────────────────────────────────
-  const _SCAN_EXTS = new Set(['.trf','.trv','.avc','.avr','.csv','.mat']);
+  const _SCAN_EXTS = new Set(['.trf','.trv','.avc','.avr','.rms','.csv','.mat']);
 
   const _NON_INSTRUMENT_DIRS = new Set(['ObieAppSettings', 'Test_Samples', 'Group Averages']);
   async function _countTopDirs(dh) {
@@ -1062,6 +1083,7 @@
     const ftAll = $('ft-all')?.checked;
     const ftAvR = $('ft-avr')?.checked;
     const ftAvC = $('ft-avc')?.checked;
+    const ftRms = $('ft-rms')?.checked;
     const ftTrf = $('ft-trf')?.checked;
 
     const patterns = pattern ? pattern.split(',').map(p => p.trim()).filter(Boolean) : [];
@@ -1077,6 +1099,7 @@
       if (!ftAll) {
         const ok = (ftAvR && f.ext === '.avr') ||
                    (ftAvC && f.ext === '.avc') ||
+                   (ftRms && f.ext === '.rms') ||
                    (ftTrf && (f.ext === '.trf' || f.ext === '.trv'));
         if (!ok) return false;
       }
@@ -1136,11 +1159,11 @@
     ['search-pattern','search-kw1','search-kw2','search-kw3'].forEach(id => {
       const el = $(id); if (el) el.addEventListener('input', _runSearch);
     });
-    ['ft-avr','ft-avc','ft-trf','ft-all'].forEach(id => {
+    ['ft-avr','ft-avc','ft-rms','ft-trf','ft-all'].forEach(id => {
       const el = $(id); if (!el) return;
       el.addEventListener('change', e => {
         if (id === 'ft-all' && e.target.checked)
-          ['ft-avr','ft-avc','ft-trf'].forEach(o => { const x=$(o); if(x) x.checked=false; });
+          ['ft-avr','ft-avc','ft-rms','ft-trf'].forEach(o => { const x=$(o); if(x) x.checked=false; });
         else if (id !== 'ft-all' && e.target.checked) {
           const a=$('ft-all'); if(a) a.checked=false;
         }
@@ -1173,7 +1196,7 @@
   // ── File ops ──────────────────────────────────────────────────────────
 
   window.expBrowse = async function() {
-    const exts = ['.trf', '.trv', '.avc', '.avr', '.csv', '.mat'];
+    const exts = ['.trf', '.trv', '.avc', '.avr', '.rms', '.csv', '.mat'];
 
     // Prefer the File System Access picker so it can start in the Data Folder.
     if (window.showOpenFilePicker) {
@@ -1338,12 +1361,12 @@
     });
   }
 
-  function _buildAvFile(freqs, mags, nAverages) {
+  function _buildAvFile(freqs, mags, nAverages, rms = false) {
     return new Promise((resolve, reject) => {
       if (!window.pyExploreWriteAv) { reject(new Error('Python not ready')); return; }
       window.onExploreAvReady = bytes => resolve(new Uint8Array(bytes));
       window.onExploreAvError = msg  => reject(new Error(msg));
-      window.pyExploreWriteAv(Float64Array.from(freqs), Float64Array.from(mags), nAverages, false);
+      window.pyExploreWriteAv(Float64Array.from(freqs), Float64Array.from(mags), nAverages, false, rms);
     });
   }
 
@@ -1385,10 +1408,13 @@
       } catch(e) { alert('Save failed: ' + e.message); }
     } else {
       const nAverages = _datasets.filter(d => d.visible).length;
+      const isRms = format === 'rms';
+      const trace = isRms ? _computeRmsTrace() : _lastAvgTrace;
+      if (!trace) { alert('Nothing to average — no visible datasets.'); return; }
       let bytes;
-      try { bytes = await _buildAvFile(_lastAvgTrace.freqs, _lastAvgTrace.mags, nAverages); }
+      try { bytes = await _buildAvFile(trace.freqs, trace.mags, nAverages, isRms); }
       catch(e) { alert('Build failed: ' + e.message); return; }
-      const filename = safeName + '.avr';
+      const filename = safeName + (isRms ? '.rms' : '.avr');
       try {
         const fh = await gaDir.getFileHandle(filename, { create: true });
         const w  = await fh.createWritable();

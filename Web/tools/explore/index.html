@@ -197,6 +197,7 @@
         <label class="sf-chk"><input type="checkbox" id="ft-all" checked> All types</label>
         <label class="sf-chk"><input type="checkbox" id="ft-avr"> AvR</label>
         <label class="sf-chk"><input type="checkbox" id="ft-avc"> AvC</label>
+        <label class="sf-chk"><input type="checkbox" id="ft-rms"> RMS</label>
         <label class="sf-chk"><input type="checkbox" id="ft-trf"> TRF / TRV</label>
 
         <div class="sf-section" style="margin-top:12px">Keywords <span style="font-weight:400;text-transform:none;letter-spacing:0">(OR)</span></div>
@@ -442,7 +443,7 @@
 
 <!-- Group Average save modal -->
 <div id="avg-save-modal" class="modal-overlay">
-  <div class="modal-box" style="width:min(90vw,380px);height:auto">
+  <div class="modal-box" style="width:min(90vw,460px);height:auto">
     <div class="modal-header">
       <span>Save Group Average</span>
       <button class="modal-close" onclick="expCloseAvgSave()">✕</button>
@@ -455,6 +456,7 @@
       <div style="display:flex;gap:8px;justify-content:flex-end">
         <button class="act-btn" onclick="expCloseAvgSave()">Cancel</button>
         <button class="act-btn" onclick="expAvgSaveChoice('csv')">Save as CSV</button>
+        <button class="act-btn" onclick="expAvgSaveChoice('rms')" title="Root-mean-square of the visible datasets' magnitudes (saved in AvR layout as .rms)">Save as RMS</button>
         <button class="act-btn accent" onclick="expAvgSaveChoice('avr')">Save as AvR</button>
       </div>
     </div>

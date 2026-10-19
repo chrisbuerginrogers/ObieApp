@@ -3,3 +3,6 @@
 **/*.pyc
 **/*.pyo
 
+
+# Claude Code local config
+.claude/

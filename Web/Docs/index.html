@@ -173,7 +173,7 @@
 
     <div class="callout">
       <strong>Folder layout expected by the tools</strong>
-      Measurement files (AvR, AvC, TRF, CSV) can be anywhere inside the Data Folder.
+      Measurement files (AvR, AvC, RMS, TRF, CSV) can be anywhere inside the Data Folder.
       Acquire saves each run into a timestamped sub-folder. Settings files
       (templates, band presets, lists) are stored in <code>ObieAppSettings/</code> inside
       your Data Folder and are loaded automatically on startup.
@@ -200,7 +200,7 @@
       <thead><tr><th>Extension</th><th>Description</th></tr></thead>
       <tbody>
         <tr><td>.avr / .avc</td><td>Averaged FRF (real/imaginary columns) — main format for Explore and Convolve</td></tr>
-        <tr><td>.rms</td><td>RMS average across positions, written by Acquire in AvR layout (not yet listed by Explore)</td></tr>
+        <tr><td>.rms</td><td>RMS average across positions, written by Acquire (AvR layout) — loads in Explore like an .avr</td></tr>
         <tr><td>.trf / .trv</td><td>Transfer-function format — also supported by Explore and Convolve. Files saved by Acquire include coherence and run metadata.</td></tr>
         <tr><td>.csv</td><td>Two-column CSV (frequency, magnitude dB) — quick import for Convolve</td></tr>
         <tr><td>.mat</td><td>MATLAB FRF file (<code>yspec</code> format) — loaded by Explore and Convolve. Coherence is shown automatically when present.</td></tr>
@@ -230,7 +230,7 @@
     <h3>Loading files</h3>
     <p>Three ways to load FRF files:</p>
     <ol class="steps">
-      <li><strong>Browse</strong> — opens a file picker; select one or more FRF files directly. Accepts AvR, AvC, TRF, TRV, CSV, and MAT formats.</li>
+      <li><strong>Browse</strong> — opens a file picker; select one or more FRF files directly. Accepts AvR, AvC, RMS, TRF, TRV, CSV, and MAT formats.</li>
       <li><strong>Search</strong> — opens the Search modal. Type a filename pattern
           (comma-separated for OR logic), filter by file type, and load all matching files from
           your Data Folder with one click.</li>
@@ -303,8 +303,9 @@
     </p>
     <p>
       With one of those modes active, <strong>right-click the plot</strong> for a
-      <em>💾 Save to Group Averages…</em> option — name the average and save it as a CSV or an
-      AvR file into a <code>Group Averages</code> folder created at the root of your Data Folder.
+      <em>💾 Save to Group Averages…</em> option — name the average and save it as a CSV, an
+      AvR file, or an <strong>RMS</strong> file (the root-mean-square of the visible datasets'
+      magnitudes, in AvR layout with a <code>.rms</code> extension) into a <code>Group Averages</code> folder created at the root of your Data Folder.
     </p>
 
     <h4>Interpret</h4>
@@ -634,7 +635,7 @@
       <code>.rms</code> file uses the AvR layout. E.g. an H,V run named <code>test2_09</code> with 12
       positions per group produces <code>test2_09 H.avr</code> / <code>.avc</code> / <code>.rms</code>,
       the same for <code>V</code>, and a combined <code>test2_09 HV.avr</code> / <code>.avc</code> /
-      <code>.rms</code> across all 24 positions. (Explore does not list <code>.rms</code> files yet.)
+      <code>.rms</code> across all 24 positions. Explore opens <code>.rms</code> files like <code>.avr</code>, and its <strong>File Type</strong> filter has an RMS option.
     </div>
 
     <h3>Reviewing the FRF plot</h3>
