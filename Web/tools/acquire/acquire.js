@@ -569,7 +569,7 @@ function renderFRF() {
       gridcolor: '#c0c4cc', tickfont: { size: 10 },
     },
     autosize: true,
-  }, { ...PCFG, displayModeBar: _showModeBar, displaylogo: false,
+  }, { ...PCFG, displayModeBar: true, displaylogo: false,
        modeBarButtonsToRemove: ['sendDataToCloud', 'toImage'],
        modeBarButtonsToAdd: [_pngWhiteButton('acquire-frf')] });
   // Clear the guard via setTimeout so any deferred relayout events Plotly fires
@@ -627,20 +627,22 @@ window.acqRescaleY = function() {
   renderFRF();
 };
 
-// Shows/hides Plotly's own built-in mode bar (zoom/pan/box-select/lasso/
-// autoscale/reset-axes/camera icons) on the main FRF plot — see renderFRF's
-// Plotly.react call, which reads _showModeBar into its config. Also shows/hides
-// the right info panel (checklist + settings), so the same button clears side
-// chrome to give the FRF plot more room. The top toolbar (Data Folder /
-// Instrument / Help / Tips / Notes) stays visible either way.
-let _showModeBar = true;
+// Shows/hides the right info panel (checklist + settings) to give the FRF
+// plot more room. Plotly's own mode bar (zoom/pan/etc.) is always visible.
+// The top toolbar stays visible either way.
+let _showChecklist = true;
+try { _showChecklist = localStorage.getItem('obieAcquire_showChecklist') !== '0'; } catch (_) {}
+
+function _applyChecklistVisibility() {
+  document.getElementById('modebar-toggle-btn')?.classList.toggle('active', _showChecklist);
+  const infoPanel = document.getElementById('acq-info-panel');
+  if (infoPanel) infoPanel.style.display = _showChecklist ? '' : 'none';
+}
 
 window.acqToggleModeBar = function() {
-  _showModeBar = !_showModeBar;
-  const btn = document.getElementById('modebar-toggle-btn');
-  if (btn) btn.classList.toggle('active', _showModeBar);
-  const infoPanel = document.getElementById('acq-info-panel');
-  if (infoPanel) infoPanel.style.display = _showModeBar ? '' : 'none';
+  _showChecklist = !_showChecklist;
+  try { localStorage.setItem('obieAcquire_showChecklist', _showChecklist ? '1' : '0'); } catch (_) {}
+  _applyChecklistVisibility();
   renderFRF();
 };
 
@@ -1766,12 +1768,16 @@ window.acqOpenTemplateSettings = async function() {
   _updateTplPrimaryBtnLabel();
   _updateStencilSectionVisibility();
   const titleEl = document.getElementById('tpl-modal-title');
-  if (titleEl) titleEl.textContent = 'New Test';
+  if (titleEl) titleEl.textContent = _currentTemplateName ? 'Current Test' : 'New Test';
 
   // Instrument (column A) + Notes (its own tab)
   const nameInp = document.getElementById('wiz-instrument-inp');
-  if (nameInp) nameInp.value = _currentInstrumentName();
+  if (nameInp) nameInp.value = '';
   _wizSeededFor = null;
+  const _nb = document.getElementById('wiz-notes-body');
+  if (_nb) _nb.value = '';
+  _updateTplPrimaryBtnLabel();
+  window.acqTplColATab('notes');
   const datalist = document.getElementById('wiz-instrument-datalist');
   if (datalist && _rootDirHandle) {
     const names = await _listInstrumentNames(_rootDirHandle);
@@ -1946,7 +1952,7 @@ const _TPL_APPLY_FIELD_IDS = [
 
 // Snapshot the form fields against which "has the user changed anything
 // since the template was loaded" is judged, for the single primary exit
-// button's label ("Use Template" vs "Update and Use Template"). Reset
+// button's label ("Run Test" vs "Update Template and Run Test"). Reset
 // whenever the fields are known to match _currentTemplateName again: modal
 // open or a template being selected/applied.
 let _tplBaselineFields = null;
@@ -1973,14 +1979,21 @@ function _tplFormDirty() {
 function _updateTplPrimaryBtnLabel() {
   const btn = document.getElementById('tpl-primary-btn');
   if (!btn) return;
+  const hasInstrument = !!(document.getElementById('wiz-instrument-inp')?.value || '').trim();
+  btn.disabled = !hasInstrument;
+  if (!hasInstrument) {
+    btn.textContent = _currentTemplateName && _tplFormDirty() ? 'Update Template and Run Test' : 'Run Test';
+    btn.title = 'Choose an instrument first';
+    return;
+  }
   if (_currentTemplateName && _tplFormDirty()) {
-    btn.textContent = 'Update and Use Template';
+    btn.textContent = 'Update Template and Run Test';
     btn.title = `Save these changes back into "${_currentTemplateName}" and apply them to this run`;
   } else if (_currentTemplateName) {
-    btn.textContent = 'Use Template';
+    btn.textContent = 'Run Test';
     btn.title = `Apply "${_currentTemplateName}" to this run — nothing is saved to the template file`;
   } else {
-    btn.textContent = 'Use Settings';
+    btn.textContent = 'Run Test';
     btn.title = 'Apply these settings to this run only — nothing is saved to a template';
   }
 }
@@ -2042,7 +2055,7 @@ window.acqSelectAndApplyTpl = function(i) {
   }
   // Fields are populated above for review — nothing is applied to the live run
   // or written to disk yet. The user commits via one of the modal's exit
-  // buttons (Use Template / Update and Use Template / Create New Template).
+  // buttons (Run Test / Update Template and Run Test / Create New Template).
   frfCache = {}; tapCache = {};
   renderFRF(); _clearTrigPlots();
   window.pyResetAll?.();
@@ -2207,35 +2220,45 @@ window._tplInstrumentPreview = function() {
   _wizPreviewTimer = setTimeout(_tplInstrumentPreviewNow, 250);
 };
 
+window.acqTplColATab = function(which) {
+  ['notes', 'photos'].forEach(t => {
+    const pane = document.getElementById('tpl-atab-' + t);
+    if (pane) pane.style.display = t === which ? 'flex' : 'none';
+    document.getElementById('tpl-atab-btn-' + t)?.classList.toggle('active', t === which);
+  });
+};
+
+// The notes box holds the whole of notes.txt: the new entry's header + body
+// on top, earlier entries below, all editable. Seeded once per instrument
+// name; whatever is in the box when the test is run is written back verbatim.
 async function _tplInstrumentPreviewNow() {
   const name = (document.getElementById('wiz-instrument-inp')?.value || '').trim();
-  const headerEl   = document.getElementById('wiz-notes-current-header');
-  const historyEl  = document.getElementById('wiz-notes-history');
-  const bodyEl     = document.getElementById('wiz-notes-body');
-
-  if (!name || !_rootDirHandle) {
-    if (headerEl) headerEl.textContent = '';
-    if (historyEl) historyEl.innerHTML = '';
+  const bodyEl = document.getElementById('wiz-notes-body');
+  const hintEl = document.getElementById('wiz-instrument-hint');
+  _updateTplPrimaryBtnLabel();
+  if (!name || !_rootDirHandle || !bodyEl) {
+    if (bodyEl) bodyEl.value = '';
+    _wizSeededFor = null;
+    if (hintEl) hintEl.textContent = 'Type a new instrument name, or pick an existing one.';
     return;
   }
+  if (_wizSeededFor === name) return;
 
   const [testName, notesText] = await Promise.all([
     _peekNextTestNumber(_rootDirHandle, name),
     _peekNotesText(_rootDirHandle, name),
   ]);
+  if ((document.getElementById('wiz-instrument-inp')?.value || '').trim() !== name) return;  // typed on
   const entries = _parseNotesEntries(notesText);
-  if (headerEl) headerEl.textContent = _formatNotesHeader(entries.length + 1, testName);
-  if (historyEl) {
-    historyEl.innerHTML = entries.map(e => `
-      <div class="notes-history-entry">
-        ${e.header ? `<div class="notes-history-hdr">${_escHtml(e.header)}</div>` : ''}
-        <div class="notes-history-body">${_escHtml(e.body)}</div>
-      </div>`).join('');
+  if (hintEl) {
+    const known = await _listInstrumentNames(_rootDirHandle);
+    const lead = known.includes(name) ? 'Uses the existing instrument folder.' : 'Creates a folder for a new instrument.';
+    hintEl.textContent = `${lead} The new test name will be ${testName}.`;
   }
-  if (bodyEl && _wizSeededFor !== name) {
-    bodyEl.value = `Instrument name: ${name}\n`;
-    _wizSeededFor = name;
-  }
+  const seed = `${_formatNotesHeader(entries.length + 1, testName)}\nInstrument name: ${name}\n`;
+  const history = notesText.trim();
+  bodyEl.value = history ? `${seed}\n${history}\n` : seed;
+  _wizSeededFor = name;
 }
 
 // Toolbar's 🎻 Instrument button — reopens the Template & Settings modal
@@ -2248,19 +2271,17 @@ window.acqSetInstrument = function() {
 
 // Writes the instrument folder + notes.txt for the name currently in
 // #wiz-instrument-inp. Called from the Template & Settings modal's primary
-// exit paths (Use Template / Use Settings / Update and Use Template) — never
+// exit paths (Run Test / Update Template and Run Test) — never
 // from Create New Template, which only persists a template file.
 async function _commitInstrumentAndNotes(name) {
   const prev = _currentInstrumentName();
-  const header = document.getElementById('wiz-notes-current-header')?.textContent || '';
-  const body   = (document.getElementById('wiz-notes-body')?.value || '').trim();
-  const existingNotes = await _peekNotesText(_rootDirHandle, name);
-  const newEntry   = `${header}\n${body}`.trim();
-  const fullNotes  = existingNotes.trim() ? `${newEntry}\n\n${existingNotes.trim()}\n` : `${newEntry}\n`;
+  const edited = (document.getElementById('wiz-notes-body')?.value || '').trim();
+  const fullNotes = edited ? `${edited}\n` : '';
 
   await _refreshInstrumentFolder(name);
 
-  if (_testsHandle) {
+  // Never overwrite notes.txt from a box that was never loaded for this instrument.
+  if (_testsHandle && _wizSeededFor === name) {
     try {
       await _withWriteRetry(async () => {
         const fh = await _testsHandle.getFileHandle('notes.txt', { create: true });
@@ -3430,17 +3451,6 @@ function _resetAgenda() {
   });
 }
 
-// Show/hide the checklist — visible by default; not persisted across reloads,
-// same as the Plot Settings toggle.
-window.acqToggleChecklist = function() {
-  const body = document.getElementById('agenda-list');
-  const chevron = document.getElementById('checklist-chevron');
-  if (!body) return;
-  const isOpen = body.style.display !== 'none';
-  body.style.display = isOpen ? 'none' : '';
-  if (chevron) chevron.textContent = isOpen ? '▸' : '▾';
-};
-
 window.acqToggleAcquire = async function() {
   if (appState === 'idle' || appState === 'complete') {
     const p      = _loadPrefs();
@@ -3725,9 +3735,14 @@ function _initTplColumnResizer() {
     });
     document.addEventListener('mousemove', e => {
       if (!dragging) return;
-      const dx = e.clientX - startX;
-      leftCol.style.width = Math.max(160, startLeftW + dx) + 'px';
-      if (!rightIsFlex) rightCol.style.width = Math.max(160, startRightW - dx) + 'px';
+      let dx = e.clientX - startX;
+      // Right-hand columns never shrink below their minimums (B 260px, C 280px),
+      // so the modal never needs a horizontal scrollbar.
+      const rightMin = rightIsFlex ? 280 : 260;
+      dx = Math.min(dx, startRightW - rightMin);
+      dx = Math.max(dx, 160 - startLeftW);
+      leftCol.style.width = (startLeftW + dx) + 'px';
+      if (!rightIsFlex) rightCol.style.width = (startRightW - dx) + 'px';
     });
     document.addEventListener('mouseup', () => {
       if (!dragging) return;
@@ -3742,8 +3757,8 @@ function _initTplColumnResizer() {
   makeDraggable(rzBC, colB, colC, true);
 }
 
-// Keeps the primary exit button's label ("Use Template" / "Update and Use
-// Template") live as the user edits any tracked field by hand, not just
+// Keeps the primary exit button's label ("Run Test" / "Update Template and
+// Run Test") live as the user edits any tracked field by hand, not just
 // when a template is clicked — event delegation so it works for fields
 // added or re-rendered later without needing per-field wiring.
 function _initTplPrimaryBtnTracking() {
@@ -3882,6 +3897,7 @@ window.addEventListener('load', () => {
   try { _initPlots(); } catch (e) { console.warn('Plotly not available — plots disabled:', e); }
   _initResizer();
   _initTplColumnResizer();
+  _applyChecklistVisibility();
   _initTplPrimaryBtnTracking();
   _restoreAgendaUI();
   _updateStopBtn();

@@ -72,7 +72,7 @@
 
       <button class="tb-btn" onclick="acqHelp()">Help</button>
       <button class="tb-btn" onclick="acqTips()">Tips</button>
-      <button class="tb-btn" onclick="acqNotes()" title="Session notes for this instrument">Notes</button>
+      <button class="tb-btn" style="display:none" onclick="acqNotes()" title="Session notes for this instrument">Notes</button>
       <button class="tb-btn ask-claude-btn" onclick="acqAskClaude()"
               title="Opens a new Claude.ai chat with a question started, using ObieWebApp's documentation as context — finish typing your question and send it">
         ✨ Ask Claude
@@ -84,7 +84,7 @@
   <div class="acq-banner-row">
     <div class="acq-run-meta">
       <div class="tpl-split">
-        <button id="tpl-name-btn" class="tb-btn tpl-split-left" onclick="acqOpenTemplateSettings()" title="Open the current template's settings">
+        <button id="tpl-name-btn" class="tb-btn tpl-split-left" onclick="acqOpenTemplateSettings()" title="Open the current test settings">
           <span id="tpl-name-btn-label">New Test</span>
         </button>
         <div class="tpl-split-right">
@@ -111,9 +111,9 @@
 
   <!-- ── Status row ───────────────────────────────────────────────────────── -->
   <div class="acq-status-row">
+    <span id="soundcard-ind" onclick="acqOpenDevicePicker()" style="font-size:13px;color:#1565c0;font-weight:600;white-space:nowrap;margin-right:6px;cursor:pointer" title="Click to change input device"></span>
     <span id="status-bar" class="acq-status-txt">Idle — press Start to begin acquisition</span>
     <span id="acq-count" class="acq-count-txt"></span>
-    <span id="soundcard-ind" onclick="acqOpenDevicePicker()" style="font-size:13px;color:#1565c0;font-weight:600;white-space:nowrap;margin-left:6px;cursor:pointer" title="Click to change input device"></span>
   </div>
 
   <!-- ── Main body ────────────────────────────────────────────────────────── -->
@@ -199,17 +199,17 @@
       <div class="plot-toolbar">
         <button class="tb-btn" onclick="acqRescaleY()" title="Rescale Y to data range">↕Y</button>
         <input  id="y-db-range" class="tb-inp" type="number" value="38" min="5" max="120"
-                style="width:3.2ch;font-size:9px;padding:0 2px;text-align:right"
+                style="width:5ch;font-size:11px;padding:0 4px;text-align:right"
                 title="Y dB range" onchange="acqSetYDbRange(this.value)">
         <span class="tb-lbl">dB</span>
-        <button id="x-log-btn" class="tb-btn active" onclick="acqToggleXLog()" title="Toggle X axis log/linear">X=log</button>
+        <button id="x-log-btn" class="tb-btn active" style="display:none" onclick="acqToggleXLog()" title="Toggle X axis log/linear">X=log</button>
         <button class="tb-btn" onclick="acqColors()" title="Choose line color palette">Colors</button>
         <label class="tb-chk" title="Show individual tap FRFs behind the average (↑/↓ adjusts opacity)">
           <input type="checkbox" id="taps-chk" checked onchange="acqToggleTaps(this.checked)">
           Show History
         </label>
         <div class="tb-flex"></div>
-        <button id="modebar-toggle-btn" class="tb-btn active" onclick="acqToggleModeBar()" title="Show/hide the Plotly zoom/pan toolbar and the right checklist/settings panel">🔍 Tools</button>
+        <button id="modebar-toggle-btn" class="tb-btn active" onclick="acqToggleModeBar()" title="Show/hide the right checklist/settings column">Checklist</button>
       </div>
 
       <div id="acq-plot"></div>
@@ -217,9 +217,7 @@
 
     <!-- Right info panel: agenda checklist + current run settings -->
     <div id="acq-info-panel" class="acq-info-panel">
-      <div class="info-hdr info-hdr-toggle" onclick="acqToggleChecklist()" title="Show/hide checklist">
-        <span id="checklist-chevron">▾</span> Checklist
-      </div>
+      <div class="info-hdr">Checklist</div>
       <div id="agenda-list" class="agenda-list" title="Checklist resets when you hit Start on a new run">
         <div class="agenda-group-hdr">Soundcard</div>
         <label class="agenda-item"><input type="checkbox" class="agenda-chk" data-n="1" onchange="acqAgendaToggle(this)"><span>Powered on</span></label>
@@ -261,35 +259,39 @@
 
         <div class="tpl-card tpl-tint-2" style="flex-shrink:0">
           <div class="setup-section-hdr">Instrument Name</div>
-          <input id="wiz-instrument-inp" type="text" placeholder="Type or pick an existing instrument"
+          <input id="wiz-instrument-inp" type="text" placeholder="Choose an instrument"
                  list="wiz-instrument-datalist" style="width:100%;box-sizing:border-box"
-                 oninput="_tplInstrumentPreview()"
+                 oninput="_updateTplPrimaryBtnLabel();_tplInstrumentPreview()"
                  onkeydown="if(event.key==='Enter'){event.preventDefault();}">
           <datalist id="wiz-instrument-datalist"></datalist>
-          <p class="pref-hint" style="margin:6px 0 0">Creates the folder if it doesn't exist, then queues the next test number.</p>
+          <p id="wiz-instrument-hint" class="pref-hint" style="margin:6px 0 0">Type a new instrument name, or pick an existing one.</p>
         </div>
 
-        <div class="tpl-card tpl-tint-2" style="flex-shrink:0;display:flex;flex-direction:column">
-          <div class="setup-section-hdr">Instrument Notes</div>
-          <div id="wiz-notes-current-header" class="notes-entry-hdr"></div>
-          <textarea id="wiz-notes-body" rows="8" placeholder="Enter notes for this test…" style="margin-bottom:8px;flex-shrink:0"></textarea>
-          <div id="wiz-notes-history" class="notes-history" style="max-height:140px"></div>
-        </div>
-
-        <div class="tpl-card tpl-tint-3" style="flex-shrink:0;display:flex;flex-direction:column;margin-bottom:0">
-          <div class="setup-section-hdr">Photos</div>
-          <p style="font-size:10px;color:var(--muted);margin:0 0 6px;line-height:1.4;flex-shrink:0">
-            Saved to a <code>photos</code> folder inside this instrument's folder.
-          </p>
-          <div class="save-row" style="margin-bottom:4px;flex-shrink:0">
-            <label class="act-btn" style="cursor:pointer;margin:0" title="Add one or more photos to this instrument's photos folder">
-              Add Photos…
-              <input type="file" accept="image/*" multiple onchange="acqAddNotesPhotos(this)" style="display:none">
-            </label>
-            <button class="act-btn" onclick="acqOpenCamera()" title="Take a photo using your computer's camera">Camera</button>
+        <div class="tpl-card tpl-tint-3" style="flex:1;min-height:0;display:flex;flex-direction:column;margin-bottom:0">
+          <div class="tpl-tabs">
+            <button id="tpl-atab-btn-notes" class="tpl-tab-btn active" onclick="acqTplColATab('notes')" title="Instrument notes for every test">Notes</button>
+            <button id="tpl-atab-btn-photos" class="tpl-tab-btn" onclick="acqTplColATab('photos')" title="Photos saved with this instrument">Photos</button>
           </div>
-          <span id="tpl-photo-msg" class="save-msg" style="flex-shrink:0"></span>
-          <div id="tpl-photo-list" style="min-height:60px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:6px;margin-top:4px" title="Photos already saved for this instrument"></div>
+
+          <div id="tpl-atab-notes" class="tpl-tab-content">
+            <p class="pref-hint" style="margin:0 0 6px;flex-shrink:0">The new entry is at the top; earlier entries below can be edited too. Everything here is saved to notes.txt.</p>
+            <textarea id="wiz-notes-body" placeholder="Enter notes for this test…" style="flex:1;min-height:260px;resize:none"></textarea>
+          </div>
+
+          <div id="tpl-atab-photos" class="tpl-tab-content" style="display:none;overflow-y:auto">
+            <p style="font-size:10px;color:var(--muted);margin:0 0 6px;line-height:1.4;flex-shrink:0">
+              Saved to a <code>photos</code> folder inside this instrument's folder.
+            </p>
+            <div class="save-row" style="margin-bottom:4px;flex-shrink:0">
+              <label class="act-btn" style="cursor:pointer;margin:0" title="Add one or more photos to this instrument's photos folder">
+                Add Photos…
+                <input type="file" accept="image/*" multiple onchange="acqAddNotesPhotos(this)" style="display:none">
+              </label>
+              <button class="act-btn" onclick="acqOpenCamera()" title="Take a photo using your computer's camera">Camera</button>
+            </div>
+            <span id="tpl-photo-msg" class="save-msg" style="flex-shrink:0"></span>
+            <div id="tpl-photo-list" style="min-height:60px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:6px;margin-top:4px" title="Photos already saved for this instrument"></div>
+          </div>
         </div>
       </div>
 
@@ -393,7 +395,7 @@
       <div id="tpl-resizer-bc" class="acq-resizer tpl-col-resizer" title="Drag to resize columns"></div>
 
       <!-- ── Column C: Advanced settings ──────────────────────────────────── -->
-      <div id="tpl-col-c" style="flex:1;min-width:220px;overflow-y:auto">
+      <div id="tpl-col-c" style="flex:1;min-width:280px;overflow-y:auto">
         <div class="pref-section">Calibration</div>
         <div class="pref-row" id="row-ham-cal">
           <label for="inp-ham-cal" id="lbl-ham-cal" title="Hammer calibration factor">Channel 1 (L): Hammer cal.</label>
@@ -524,7 +526,7 @@
       <div style="flex:1"></div>
       <button class="act-btn" id="tpl-cancel-btn" onclick="acqTplExitCancel()" title="Close this dialog and discard any changes">Cancel</button>
       <button class="act-btn" id="tpl-create-btn" onclick="acqTplExitCreateTemplate()" title="Save these settings as a brand-new template">Create New Template</button>
-      <button id="tpl-primary-btn" class="act-btn accent" onclick="acqTplExitPrimary()" title="Apply these settings to this run">Use Template</button>
+      <button id="tpl-primary-btn" class="act-btn accent" onclick="acqTplExitPrimary()" title="Apply these settings to this run">Run Test</button>
     </div>
   </div>
 </div>
