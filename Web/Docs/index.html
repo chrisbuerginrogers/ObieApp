@@ -528,7 +528,7 @@
         <tr><td>Ham trigger threshold</td><td>Voltage level (V) that triggers a hit. Lower values catch lighter taps; raise it to ignore ambient noise.</td></tr>
         <tr><td>Time before / after hit</td><td>Pre- and post-trigger capture window in seconds.</td></tr>
         <tr><td>Hammer / Mic time cutoff</td><td>Signal is zeroed after this time (0.001–5 s) — suppresses late reflections. Shown as a green line on the mini plots.</td></tr>
-        <tr><td>Channel 1 (L) / Channel 2 (R) calibration</td><td>Converts raw voltage to physical units — N/V for the hammer, Pa/V for the mic (or the equivalent for an accelerometer). The row labelled "Hammer cal." always names the channel the hammer is actually wired to, and the two rows swap order together with <em>Swap channels</em>.</td></tr>
+        <tr><td>Ch1 (L) / Ch2 (R) calibration</td><td>Converts the raw input value (the normalized audio sample, −1 to +1, shown on the small hammer and mic plots) to physical units — N per full scale for the hammer, Pa per full scale for the mic (or the equivalent for an accelerometer). The row labelled "Hammer cal." always names the channel the hammer is actually wired to, and the two rows swap order together with <em>Swap channels</em>.</td></tr>
         <tr><td>Hits per position</td><td>Number of good hits to average before the app considers a position complete.</td></tr>
         <tr><td>Number of positions</td><td>Total positions per prefix group (e.g. 12 gives H01–H12).</td></tr>
         <tr><td>Position prefix</td><td>Label prepended to position names. Enter a comma-separated list (e.g. <code>H,V</code>) to create multiple groups — <code>H,V</code> with 12 positions per group gives H01–H12 then V01–V12.</td></tr>

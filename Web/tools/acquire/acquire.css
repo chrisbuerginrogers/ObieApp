@@ -349,6 +349,8 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
 #tpl-run-settings-group.tpl-locked { opacity: 0.45; pointer-events: none; }
 .pref-row input, .pref-row select { flex: 1; max-width: 160px; }
 .pref-unit { font-size: 10px; color: var(--muted); }
+/* Calibration rows: tighter label so the two-line unit ("N/full" / "scale") has room. */
+#row-ham-cal label, #row-mic-cal label { min-width: 0; width: 125px; flex-shrink: 0; }
 .pref-hint { font-size: 10px; color: var(--muted); font-style: italic; margin: -4px 0 8px 160px; }
 
 /* Plot Settings: one title per plot, then a single "X axis range" and

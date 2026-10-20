@@ -370,12 +370,15 @@ def _do_capture():
     else:
         ham_win, mic_win = L_win, R_win
 
+    # Mini plots show the raw (uncalibrated, |x| <= 1) signal; calibration is
+    # applied only to the saved/processed data below.
+    ham_raw, mic_raw = ham_win, mic_win
     ham_win = ham_win * _ham_cal
     mic_win = mic_win * _mic_cal
 
     t = np.linspace(0, _pre_trig_s + _post_trig_s, pre + post, endpoint=False)
-    js.window.onTriggered(to_js(t.tolist()), to_js(ham_win.tolist()),
-                          to_js(mic_win.tolist()), float(_threshold))
+    js.window.onTriggered(to_js(t.tolist()), to_js(ham_raw.tolist()),
+                          to_js(mic_raw.tolist()), float(_threshold))
 
     _wav_L.append(mic_win.copy())
     _wav_R.append(ham_win.copy())

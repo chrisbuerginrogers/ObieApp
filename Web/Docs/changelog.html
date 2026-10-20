@@ -198,6 +198,18 @@
             zoom/pan toolbar is always visible) and remembers its state across reloads; the
             in-panel collapse arrow was removed. The status row shows the input device before the
             status text.</li>
+        <li>All plots (FRF, hammer, mic, hammer FFT) now have a full box: the axis lines are
+            mirrored on the top and right edges.</li>
+        <li>The small <strong>hammer</strong> and <strong>mic</strong> plots now show the
+            <strong>raw</strong> input value (−1 to +1, never calibrated) and are labelled
+            "Raw value"; previously they showed the calibrated signal under a "V" label, so values
+            above 1 appeared whenever a calibration factor was not 1. The hammer threshold line is
+            now in the same units as the trigger. Saved WAV, TRF, AvC/AvR and RMS data are unchanged
+            (still calibrated).</li>
+        <li>Calibration units relabelled <strong>N/full scale</strong> and
+            <strong>Pa/full scale</strong> (the factor multiplies the normalized −1…+1 input, not
+            volts), and the rows are now "Ch1 (L)" / "Ch2 (R)" to save room. Live View titles are
+            unchanged.</li>
       </ul>
     </div>
 

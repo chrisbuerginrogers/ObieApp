@@ -126,8 +126,8 @@ const MINI_BASE = {
   paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
   margin: { l: 44, r: 8, t: 18, b: 28 },
   font: { size: 9, family: 'inherit' }, showlegend: false,
-  xaxis: { gridcolor: '#c9cdd5', tickfont: { size: 8 }, zeroline: false },
-  yaxis: { gridcolor: '#c9cdd5', tickfont: { size: 8 }, zeroline: false },
+  xaxis: { gridcolor: '#c9cdd5', tickfont: { size: 8 }, zeroline: false, showline: true, mirror: true, linecolor: '#888', linewidth: 1 },
+  yaxis: { gridcolor: '#c9cdd5', tickfont: { size: 8 }, zeroline: false, showline: true, mirror: true, linecolor: '#888', linewidth: 1 },
 };
 
 function miniLayout(title, xl, yl, xExtra, yExtra, shapes) {
@@ -188,7 +188,7 @@ function _drawTrigPlots(t, ham, mic, thrF) {
   _hamPlotUpdating = true;
   Plotly.react('plot-hammer',
     [{ x: t, y: ham, type: 'scatter', mode: 'lines', line: { color: '#c62828', width: 1 } }],
-    miniLayout('Hammer', 'Time (s)', 'V',
+    miniLayout('Hammer', 'Time (s)', 'Raw value',
       { range: _hamXRange },
       _hamYRange ? { range: _hamYRange } : { range: [-pkH*1.2, pkH*1.2] },
       hamShapes),
@@ -198,7 +198,7 @@ function _drawTrigPlots(t, ham, mic, thrF) {
   _micPlotUpdating = true;
   Plotly.react('plot-mic',
     [{ x: t, y: mic, type: 'scatter', mode: 'lines', line: { color: '#1565c0', width: 1 } }],
-    miniLayout(_responseLabel(), 'Time (s)', 'V',
+    miniLayout(_responseLabel(), 'Time (s)', 'Raw value',
       { range: _micXRange },
       _micYRange ? { range: _micYRange } : { range: [-pkM*1.2, pkM*1.2] },
       micShapes),
@@ -638,11 +638,13 @@ function renderFRF() {
       title: { text: 'Frequency (Hz)', font: { size: 11 } },
       range: xRange,
       gridcolor: '#c0c4cc', tickfont: { size: 10 },
+      showline: true, mirror: true, linecolor: '#888', linewidth: 1,
     },
     yaxis: {
       title: { text: 'Intensity (dB)', font: { size: 11 } },
       ...(yRange ? { range: yRange, autorange: false } : { autorange: true }),
       gridcolor: '#c0c4cc', tickfont: { size: 10 },
+      showline: true, mirror: true, linecolor: '#888', linewidth: 1,
     },
     autosize: true,
   }, { ...PCFG, displayModeBar: true, displaylogo: false,
@@ -1513,8 +1515,8 @@ function _updateInfoPanel() {
     ['Hits/pos',   p.taps],
     ['Prefix',     _appliedPrefix || 'H'],
     ['Positions',  (function(){ const g = _appliedPrefix.split(',').filter(s=>s.trim()).length; return g > 1 ? `${_appliedPerGroup} × ${g} = ${_appliedPerGroup * g}` : _appliedPerGroup; })()],
-    ['Ham cal',    `${p.ham_cal} N/V`],
-    ['Mic cal',    `${p.mic_cal} Pa/V`],
+    ['Ham cal',    `${p.ham_cal} N/full scale`],
+    ['Mic cal',    `${p.mic_cal} Pa/full scale`],
     ['Pre-trig',   `${p.pre_trig_s} s`],
     ['Post-trig',  `${p.post_trig_s} s`],
     ['Ham cutoff', `${p.time_cutoff_s} s`],
@@ -2979,15 +2981,15 @@ function _responseLabel() {
 // rather than the rows swapping which role's number they hold.
 window._updateCalLabels = function() {
   const swapped = document.getElementById('inp-swap-channels')?.checked ?? false;
-  const micName = _responseLabel();
+  const micName = _responseLabel() === 'Accelerometer' ? 'Accel' : 'Mic';
   const hamLbl = document.getElementById('lbl-ham-cal');
   if (hamLbl) {
-    hamLbl.textContent = swapped ? 'Channel 2 (R): Hammer cal.' : 'Channel 1 (L): Hammer cal.';
+    hamLbl.textContent = swapped ? 'Ch2 (R): Hammer cal.' : 'Ch1 (L): Hammer cal.';
   }
   const micLbl = document.getElementById('lbl-mic-cal');
   if (micLbl) {
-    micLbl.textContent = swapped ? `Channel 1 (L): ${micName} cal.` : `Channel 2 (R): ${micName} cal.`;
-    micLbl.title = `${micName} calibration factor`;
+    micLbl.textContent = swapped ? `Ch1 (L): ${micName} cal.` : `Ch2 (R): ${micName} cal.`;
+    micLbl.title = `${_responseLabel()} calibration factor`;
   }
   const hamRow = document.getElementById('row-ham-cal');
   const micRow = document.getElementById('row-mic-cal');
@@ -3007,11 +3009,6 @@ function _applyInputDeviceLabels() {
   if (lvEl) lvEl.textContent = `${label} — Channel L`;
   const frfEl = document.getElementById('lv-frf-title');
   if (frfEl) frfEl.textContent = `FRF (${label === 'Accelerometer' ? 'Accel' : 'Mic'} / Hammer)`;
-  // Redraw the mic mini-plot title in-place if Plotly is already initialised
-  const micDiv = document.getElementById('plot-mic');
-  if (micDiv?._fullLayout) {
-    Plotly.relayout('plot-mic', { 'yaxis.title.text': label });
-  }
 }
 
 window.acqSyncInputDevice = function() {
@@ -3919,8 +3916,8 @@ function _initTplPrimaryBtnTracking() {
 
 function _clearTrigPlots() {
   const empty = [{ x: [], y: [], type: 'scatter', mode: 'lines' }];
-  Plotly.react('plot-hammer', empty, miniLayout('Hammer',      'Time (s)', 'V', { range: _hamXRange }, { range: _hamYRange }), PCFG);
-  Plotly.react('plot-mic',    empty, miniLayout(_responseLabel(), 'Time (s)', 'V', { range: _micXRange }, { range: _micYRange }), PCFG);
+  Plotly.react('plot-hammer', empty, miniLayout('Hammer',      'Time (s)', 'Raw value', { range: _hamXRange }, { range: _hamYRange }), PCFG);
+  Plotly.react('plot-mic',    empty, miniLayout(_responseLabel(), 'Time (s)', 'Raw value', { range: _micXRange }, { range: _micYRange }), PCFG);
   Plotly.react('plot-fft',    empty, miniLayout('Hammer FFT',  'Hz',       'dB',
     { type: 'log', range: [Math.log10(Math.max(_fftXRange[0], 1)), Math.log10(_fftXRange[1])] },
     { range: _fftYRange }), PCFG);
@@ -3942,12 +3939,12 @@ function _initPlots() {
 
   Plotly.newPlot('plot-hammer',
     [{ ...empty, line: { color: hamColor, width: 1 } }],
-    miniLayout('Hammer', 'Time (s)', 'V', { range: _hamXRange }, { range: _hamYRange }),
+    miniLayout('Hammer', 'Time (s)', 'Raw value', { range: _hamXRange }, { range: _hamYRange }),
     PCFG);
 
   Plotly.newPlot('plot-mic',
     [{ ...empty, line: { color: micColor, width: 1 } }],
-    miniLayout(_responseLabel(), 'Time (s)', 'V', { range: _micXRange }, { range: _micYRange }),
+    miniLayout(_responseLabel(), 'Time (s)', 'Raw value', { range: _micXRange }, { range: _micYRange }),
     PCFG);
 
   // Persist user zoom/pan — capture both x and y changes on mini plots.
