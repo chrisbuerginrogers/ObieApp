@@ -144,6 +144,11 @@ const hDot = (y, c) => ({
   type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: y, y1: y,
   line: { color: c, width: 1.5, dash: 'dot' },
 });
+// Red reference line on the Hammer FFT (spectrum is normalised to its peak)
+const FFT_REF_SHAPES = [{
+  type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: -20, y1: -20,
+  line: { color: '#d32f2f', width: 1.5 },
+}];
 const vLine = (x, c, dash) => ({
   type: 'line', xref: 'x', yref: 'paper', x0: x, x1: x, y0: 0, y1: 1,
   line: { color: c, width: 2, dash: dash || 'solid' },
@@ -208,9 +213,20 @@ function _drawTrigPlots(t, ham, mic, thrF) {
 
 
 /** Hammer FFT — normalized to 0 dB peak within the display window */
+let _lastFftData = null;
 window.onHammerFFT = function(freq_js, db_js) {
-  const freqAll  = Array.from(freq_js).map(Number);
-  const dbAll    = Array.from(db_js).map(Number);
+  _lastFftData = {
+    freq: Array.from(freq_js).map(Number),
+    db:   Array.from(db_js).map(Number),
+  };
+  _drawHammerFFT();
+};
+
+/** Re-normalise to the peak of the current display band and redraw. */
+function _drawHammerFFT() {
+  if (!_lastFftData) return;
+  const freqAll  = _lastFftData.freq;
+  const dbAll    = _lastFftData.db;
   const fMax     = Math.min(_fftXRange[1], freqAll[freqAll.length - 1] || _fftXRange[1]);
   const fMin     = _fftXRange[0];
 
@@ -238,9 +254,9 @@ window.onHammerFFT = function(freq_js, db_js) {
     [{ x: freq, y: dbNorm, type: 'scatter', mode: 'lines', line: { color: '#7c4dbe', width: 1 } }],
     miniLayout('Hammer FFT', 'Hz', 'dB',
       { type: 'log', range: [Math.log10(Math.max(fMin, 1)), Math.log10(fMax)] },
-      { range: _fftYRange }),
+      { range: _fftYRange }, FFT_REF_SHAPES),
     PCFG);
-};
+}
 
 /** FRF updated for one position — cache and re-render main plot */
 window.onFRFUpdate = function(freq_js, H1db_js, coh_js, pos, nHits, label) {
@@ -1491,6 +1507,7 @@ function _pushSettingsFromPrefs(prefs, skipRangeSync = false) {
     prefs.swap_channels ?? false,
     prefs.mic_time_cutoff_s ?? prefs.time_cutoff_s ?? prefs.post_trig_s ?? 0.30
   );
+  _drawHammerFFT();  // display band may have changed — keep the peak at 0 dB
   // Redraw green lines immediately if a hit is already displayed
   if (_lastTrigData) {
     const { t, ham, mic, thr } = _lastTrigData;
@@ -3920,8 +3937,9 @@ function _clearTrigPlots() {
   Plotly.react('plot-mic',    empty, miniLayout(_responseLabel(), 'Time (s)', 'Raw value', { range: _micXRange }, { range: _micYRange }), PCFG);
   Plotly.react('plot-fft',    empty, miniLayout('Hammer FFT',  'Hz',       'dB',
     { type: 'log', range: [Math.log10(Math.max(_fftXRange[0], 1)), Math.log10(_fftXRange[1])] },
-    { range: _fftYRange }), PCFG);
+    { range: _fftYRange }, FFT_REF_SHAPES), PCFG);
   _lastTrigData = null;
+  _lastFftData = null;
 }
 
 function _initPlots() {
@@ -3934,7 +3952,7 @@ function _initPlots() {
     [{ ...empty, line: { color: fftColor, width: 1 } }],
     miniLayout('Hammer FFT', 'Hz', 'dB',
       { type: 'log', range: [Math.log10(Math.max(_fftXRange[0], 1)), Math.log10(_fftXRange[1])] },
-      { range: _fftYRange }),
+      { range: _fftYRange }, FFT_REF_SHAPES),
     PCFG);
 
   Plotly.newPlot('plot-hammer',
