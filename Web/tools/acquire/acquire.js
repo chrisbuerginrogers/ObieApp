@@ -140,6 +140,62 @@ function miniLayout(title, xl, yl, xExtra, yExtra, shapes) {
   };
 }
 
+/**
+ * Stepped tick values for a log frequency axis. Candidates are 1-9 x 10^k;
+ * walking left from the axis maximum (always kept), a candidate is kept only
+ * if it sits far enough from the previous label to stay readable at the
+ * current plot width and text size.
+ *
+ * The labels are drawn as annotations (the axis' own tick text is blanked):
+ * Plotly hides tick labels it thinks overlap, and under the page-wide CSS
+ * zoom it misjudges that and drops the right-hand ones, including the last.
+ */
+function logFreqTicks(lo, hi, widthPx, fontPx) {
+  const axLo = Math.log10(Math.max(lo, 1)), axHi = Math.log10(hi);
+  if (!(axHi > axLo) || !(widthPx > 0)) return null;
+  const cand = [];
+  for (let k = Math.floor(axLo); k <= Math.ceil(axHi); k++)
+    for (let m = 1; m <= 9; m++) {
+      const v = m * Math.pow(10, k), lv = Math.log10(v);
+      if (lv >= axLo - 1e-9 && lv < axHi - 1e-9) cand.push(v);
+    }
+  const px = v => (Math.log10(v) - axLo) / (axHi - axLo) * widthPx;
+  const gap = (String(Math.round(hi)).length + 1) * fontPx * 0.62 + 6;
+  const keep = [hi];
+  for (let i = cand.length - 1; i >= 0; i--)
+    if (px(keep[keep.length - 1]) - px(cand[i]) >= gap) keep.push(cand[i]);
+  keep.reverse();
+  // Every other 1-9 x 10^k step still gets a thin unlabelled gridline.
+  const minorVals = cand.filter(v => !keep.includes(v));
+  return {
+    tickmode: 'array', tickvals: keep, ticktext: keep.map(() => ''),
+    minor: { tickmode: 'array', tickvals: minorVals, showgrid: true, gridwidth: 0.5, gridcolor: '#d3d6dc', ticks: '' },
+    annotations: keep.map(v => ({
+      x: Math.log10(v), xref: 'x', y: 0, yref: 'paper', yanchor: 'top', yshift: -(fontPx * 0.5 + 2),
+      text: String(Math.round(v)), showarrow: false, font: { size: fontPx, color: '#444' },
+    })),
+  };
+}
+
+/** Re-step the log tick labels of a plot to its current width / text size. */
+function restepLogTicks(divId, fontPx) {
+  const d = document.getElementById(divId);
+  const ax = d && d._fullLayout && d._fullLayout.xaxis;
+  if (!ax || ax.type !== 'log' || !d._fullLayout._size) return;
+  const t = logFreqTicks(Math.pow(10, ax.range[0]), Math.pow(10, ax.range[1]), d._fullLayout._size.w, fontPx);
+  if (!t) return;
+  const same = ax.tickmode === 'array' && ax.tickvals && ax.tickvals.length === t.tickvals.length &&
+    ax.tickvals.every((v, i) => v === t.tickvals[i]) &&
+    (d._fullLayout.annotations || []).length === t.annotations.length &&
+    (ax.minor.tickvals || []).length === t.minor.tickvals.length;
+  if (same) return;
+  Plotly.relayout(divId, {
+    'xaxis.tickmode': 'array', 'xaxis.tickvals': t.tickvals, 'xaxis.ticktext': t.ticktext,
+    'xaxis.minor': t.minor,
+    annotations: t.annotations,
+  });
+}
+
 const hDot = (y, c) => ({
   type: 'line', xref: 'paper', yref: 'y', x0: 0, x1: 1, y0: y, y1: y,
   line: { color: c, width: 1.5, dash: 'dot' },
@@ -253,7 +309,7 @@ function _drawHammerFFT() {
   Plotly.react('plot-fft',
     [{ x: freq, y: dbNorm, type: 'scatter', mode: 'lines', line: { color: '#7c4dbe', width: 1 } }],
     miniLayout('Hammer FFT', 'Hz', 'dB',
-      { type: 'log', range: [Math.log10(Math.max(fMin, 1)), Math.log10(fMax)] },
+      { type: 'log', tickformat: ',d', exponentformat: 'none', range: [Math.log10(Math.max(fMin, 1)), Math.log10(fMax)] },
       { range: _fftYRange }, FFT_REF_SHAPES),
     PCFG);
 }
@@ -644,6 +700,9 @@ function renderFRF() {
     : [_S.xMin, _S.xMax];
 
   _yTrueAutorange = true;
+  const logTicks = _S.xLog
+    ? logFreqTicks(_S.xMin, _S.xMax, (document.getElementById('acq-plot')?.clientWidth || 0) - 78, 10)
+    : null;
   Plotly.react('acq-plot', traces, {
     paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
     margin: { l: 58, r: 20, t: 12, b: 50 },
@@ -653,6 +712,8 @@ function renderFRF() {
       type: _S.xLog ? 'log' : 'linear',
       title: { text: 'Frequency (Hz)', font: { size: 11 } },
       range: xRange,
+      ...(_S.xLog ? { tickformat: ',d', exponentformat: 'none' } : {}),
+      ...(logTicks ? { tickmode: logTicks.tickmode, tickvals: logTicks.tickvals, ticktext: logTicks.ticktext, minor: logTicks.minor } : {}),
       gridcolor: '#c0c4cc', tickfont: { size: 10 },
       showline: true, mirror: true, linecolor: '#888', linewidth: 1,
     },
@@ -662,6 +723,7 @@ function renderFRF() {
       gridcolor: '#c0c4cc', tickfont: { size: 10 },
       showline: true, mirror: true, linecolor: '#888', linewidth: 1,
     },
+    ...(logTicks ? { annotations: logTicks.annotations } : {}),
     autosize: true,
   }, { ...PCFG, displayModeBar: true, displaylogo: false,
        modeBarButtonsToRemove: ['sendDataToCloud', 'toImage'],
@@ -3608,16 +3670,28 @@ function _resetAgenda() {
 
 window.acqToggleAcquire = async function() {
   if (appState === 'idle' || appState === 'complete') {
+    // Pre-flight: a data folder to save into and an explicitly chosen input
+    // device. Ask for whichever is missing and don't start.
+    if (!_rootDirHandle) {
+      alert('Select a Data Folder before starting.\n\nChoose the folder to save this instrument\'s runs into.');
+      await window.acqSetDataFolder();
+      return;
+    }
     const p      = _loadPrefs();
     const label  = p.deviceLabel || '';
-    // Only warn pre-start when we already know the device name — if they chose
-    // "Default device" we don't know the label yet and will check post-open.
+    if (!p.deviceId) {
+      alert('Select an input device before starting.\n\nChoose your external measurement microphone / audio interface (not the computer\'s built-in mic).');
+      await window.acqOpenDevicePicker();
+      return;
+    }
+    // Built-in mics are caught by name here; anything else is checked post-open.
     if (label && _isBuiltInMic(label)) {
       alert(
         `"${label}" looks like a built-in microphone.\n\n` +
         `Impact hammer measurements need a directional external mic. ` +
-        `Choose a different device in Template & Settings, then press Start again.`
+        `Choose a different device in the picker that opens next, then press Start again.`
       );
+      await window.acqOpenDevicePicker();
       return;
     }
     _resetAgenda();
@@ -3735,8 +3809,9 @@ async function _startAudio() {
         alert(
           `"${actualLabel}" looks like a built-in microphone.\n\n` +
           `Impact hammer measurements need a directional external mic. ` +
-          `Choose a different device in Template & Settings, then press Start again.`
+          `Choose a different device in the picker that opens next, then press Start again.`
         );
+        window.acqOpenDevicePicker();
         return;
       }
     } catch (_) {}
@@ -3936,7 +4011,7 @@ function _clearTrigPlots() {
   Plotly.react('plot-hammer', empty, miniLayout('Hammer',      'Time (s)', 'Raw value', { range: _hamXRange }, { range: _hamYRange }), PCFG);
   Plotly.react('plot-mic',    empty, miniLayout(_responseLabel(), 'Time (s)', 'Raw value', { range: _micXRange }, { range: _micYRange }), PCFG);
   Plotly.react('plot-fft',    empty, miniLayout('Hammer FFT',  'Hz',       'dB',
-    { type: 'log', range: [Math.log10(Math.max(_fftXRange[0], 1)), Math.log10(_fftXRange[1])] },
+    { type: 'log', tickformat: ',d', exponentformat: 'none', range: [Math.log10(Math.max(_fftXRange[0], 1)), Math.log10(_fftXRange[1])] },
     { range: _fftYRange }, FFT_REF_SHAPES), PCFG);
   _lastTrigData = null;
   _lastFftData = null;
@@ -3951,7 +4026,7 @@ function _initPlots() {
   Plotly.newPlot('plot-fft',
     [{ ...empty, line: { color: fftColor, width: 1 } }],
     miniLayout('Hammer FFT', 'Hz', 'dB',
-      { type: 'log', range: [Math.log10(Math.max(_fftXRange[0], 1)), Math.log10(_fftXRange[1])] },
+      { type: 'log', tickformat: ',d', exponentformat: 'none', range: [Math.log10(Math.max(_fftXRange[0], 1)), Math.log10(_fftXRange[1])] },
       { range: _fftYRange }, FFT_REF_SHAPES),
     PCFG);
 
@@ -3966,6 +4041,8 @@ function _initPlots() {
     PCFG);
 
   // Persist user zoom/pan — capture both x and y changes on mini plots.
+  document.getElementById('plot-fft').on('plotly_afterplot', () => restepLogTicks('plot-fft', 8));
+  document.getElementById('acq-plot').on('plotly_afterplot', () => restepLogTicks('acq-plot', 10));
   document.getElementById('plot-hammer').on('plotly_relayout', e => {
     if (_hamPlotUpdating) return;  // ignore relayout events fired by our own Plotly.react calls
     if (e['yaxis.range[0]'] != null) _hamYRange = [e['yaxis.range[0]'], e['yaxis.range[1]']];
