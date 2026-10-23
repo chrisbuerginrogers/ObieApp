@@ -330,6 +330,7 @@
           <select id="inp-input-device" onchange="acqSyncInputDevice()" title="Input device type">
             <option value="microphone">🔊 Radiation</option>
             <option value="accelerometer">📡 Modal Analysis</option>
+            <option value="vibrometer">〰️ Vibrometer</option>
           </select>
         </div>
         <div class="io-row">
@@ -406,6 +407,16 @@
           <label for="inp-mic-cal" id="lbl-mic-cal" title="Microphone calibration factor">Ch2 (R): Mic cal.</label>
           <input id="inp-mic-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px" title="Microphone calibration factor (Pa per full scale)">
           <span class="pref-unit">Pa/full scale</span>
+        </div>
+        <div class="pref-row" id="row-accel-cal" style="display:none">
+          <label for="inp-accel-cal" id="lbl-accel-cal" title="Accelerometer calibration factor">Ch2 (R): Accel cal.</label>
+          <input id="inp-accel-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px" title="Accelerometer calibration factor (m/s² per full scale)">
+          <span class="pref-unit">m/s²/full scale</span>
+        </div>
+        <div class="pref-row" id="row-vib-cal" style="display:none">
+          <label for="inp-vib-cal" id="lbl-vib-cal" title="Vibrometer calibration factor">Ch2 (R): Vibrometer cal.</label>
+          <input id="inp-vib-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px" title="Vibrometer calibration factor (units per full scale)">
+          <span class="pref-unit">units/full scale</span>
         </div>
         <div class="pref-row">
           <label for="inp-swap-channels" title="Swap inputs (hammer on right channel)">Swap channels</label>

@@ -1180,6 +1180,15 @@ function _populatePrefsForm(overridePrefs, skipPlotSync) {
   set('inp-positions',   prefs.positions);
   set('inp-prefix',      prefs.prefix);
   set('inp-mic-cal',     prefs.mic_cal);
+  set('inp-accel-cal',   prefs.accel_cal);
+  set('inp-vib-cal',     prefs.vib_cal);
+  if (prefs.input_type) {
+    const typeSel = document.getElementById('inp-input-device');
+    if (typeSel) typeSel.value = prefs.input_type;
+    try { localStorage.setItem('obieAcquire_inputDevice', prefs.input_type); } catch (_) {}
+    _applyInputDeviceLabels();
+    _updateStencilSectionVisibility();
+  }
   set('inp-ham-cal',     prefs.ham_cal);
   const swapEl = document.getElementById('inp-swap-channels');
   if (swapEl) swapEl.checked = prefs.swap_channels ?? false;
@@ -1237,7 +1246,7 @@ function _callPyApplySettings() {
     p.threshold, p.pre_trig_s, p.post_trig_s,
     p.time_cutoff_s ?? p.post_trig_s ?? 0.30,
     p.taps, p.positions, p.prefix,
-    p.mic_cal, p.ham_cal, sr,
+    _responseCal(p), p.ham_cal, sr,
     p.swap_channels ?? false,
     p.mic_time_cutoff_s ?? p.time_cutoff_s ?? p.post_trig_s ?? 0.30,
     p.deviceLabel || ''
@@ -1249,7 +1258,7 @@ function _loadPrefs() {
     threshold: 0.05, pre_trig_s: 0.01, post_trig_s: 0.30,
     time_cutoff_s: 0.30, mic_time_cutoff_s: 0.30,
     taps: 10, positions: 1, prefix: 'H',
-    mic_cal: 1.0, ham_cal: 1.0, swap_channels: false,
+    mic_cal: 1.0, accel_cal: 1.0, vib_cal: 1.0, ham_cal: 1.0, swap_channels: false,
     frf_x_min: 0, frf_x_max: 7000, frf_y_min: -10, frf_y_max: 30,
     deviceLabel: '', instrument: 'scratch', deviceId: '', line_width: 0.5,
     ham_x_min: 0, ham_x_max: 0.05, ham_y_min: -0.1, ham_y_max: 1,
@@ -1325,7 +1334,11 @@ function _buildPrefsFromForm() {
   if (!isNaN(formFrfYMin) && !isNaN(formFrfYMax)) { _S.yMin = formFrfYMin; _S.yMax = formFrfYMax; }
   const micCal = parseFloat(g('inp-mic-cal'));
   const hamCal = parseFloat(g('inp-ham-cal'));
+  const accelCal = parseFloat(g('inp-accel-cal'));
+  const vibCal   = parseFloat(g('inp-vib-cal'));
   if (!isFinite(micCal) || micCal === 0) { alert('Mic calibration must be a non-zero number.'); return null; }
+  if (!isFinite(accelCal) || accelCal === 0) { alert('Accelerometer calibration must be a non-zero number.'); return null; }
+  if (!isFinite(vibCal) || vibCal === 0) { alert('Vibrometer calibration must be a non-zero number.'); return null; }
   if (!isFinite(hamCal) || hamCal === 0) { alert('Hammer calibration must be a non-zero number.'); return null; }
   const prefs = {
     threshold:     parseFloat(g('inp-threshold'))   || 0.05,
@@ -1339,6 +1352,9 @@ function _buildPrefsFromForm() {
     positions:     parseInt(g('inp-positions'))     || 1,
     prefix:        g('inp-prefix')                  || 'H',
     mic_cal:       micCal,
+    accel_cal:     accelCal,
+    vib_cal:       vibCal,
+    input_type:    _inputType(),
     ham_cal:       hamCal,
     swap_channels: document.getElementById('inp-swap-channels')?.checked ?? false,
     deviceLabel,
@@ -1565,7 +1581,7 @@ function _pushSettingsFromPrefs(prefs, skipRangeSync = false) {
     prefs.threshold, prefs.pre_trig_s, prefs.post_trig_s,
     prefs.time_cutoff_s ?? prefs.post_trig_s ?? 0.30,
     prefs.taps, prefs.positions, prefs.prefix,
-    prefs.mic_cal, prefs.ham_cal, sr,
+    _responseCal(prefs), prefs.ham_cal, sr,
     prefs.swap_channels ?? false,
     prefs.mic_time_cutoff_s ?? prefs.time_cutoff_s ?? prefs.post_trig_s ?? 0.30
   );
@@ -1595,7 +1611,7 @@ function _updateInfoPanel() {
     ['Prefix',     _appliedPrefix || 'H'],
     ['Positions',  (function(){ const g = _appliedPrefix.split(',').filter(s=>s.trim()).length; return g > 1 ? `${_appliedPerGroup} × ${g} = ${_appliedPerGroup * g}` : _appliedPerGroup; })()],
     ['Ham cal',    `${p.ham_cal} N/full scale`],
-    ['Mic cal',    `${p.mic_cal} Pa/full scale`],
+    _responseCalInfoRow(p),
     ['Pre-trig',   `${p.pre_trig_s} s`],
     ['Post-trig',  `${p.post_trig_s} s`],
     ['Ham cutoff', `${p.time_cutoff_s} s`],
@@ -2006,6 +2022,8 @@ function _lvFieldsToSettings(fields) {
     mic_time_cutoff_s: parseFloat(fields['Mic cutoff']       ?? '0.30'),
     ham_cal:           parseFloat(fields['Hammer Cal']       ?? '1'),
     mic_cal:           parseFloat(fields['Mic Cal']          ?? '1'),
+    accel_cal:         parseFloat(fields['Accel Cal']        ?? '1'),
+    vib_cal:           parseFloat(fields['Vibrometer Cal']   ?? '1'),
     prefix:            (fields['Set Names'] || 'H').trim(),
     soundcard:         (fields['Soundcard'] || '').trim(),
     swap_channels:     (fields['flip?'] || '').trim().toLowerCase() === 'true',
@@ -2184,6 +2202,8 @@ window.acqSelectAndApplyTpl = function(i) {
   if (s.positions   != null) set('inp-positions',  s.positions);
   if (s.prefix      != null) set('inp-prefix',     s.prefix);
   if (s.mic_cal     != null) set('inp-mic-cal',    s.mic_cal);
+  if (s.accel_cal   != null) set('inp-accel-cal',  s.accel_cal);
+  if (s.vib_cal     != null) set('inp-vib-cal',    s.vib_cal);
   if (s.ham_cal     != null) set('inp-ham-cal',    s.ham_cal);
   if (s.frf_x_min   != null) set('inp-frf-x-min',  s.frf_x_min);
   if (s.frf_x_max   != null) set('inp-frf-x-max',  s.frf_x_max);
@@ -2696,7 +2716,7 @@ async function _applyDataFolder(dirHandle) {
     : {
         ...(savedPrefs || _loadPrefs()),
         instrument: 'scratch',
-        ham_cal: 1.0, mic_cal: 1.0,
+        ham_cal: 1.0, mic_cal: 1.0, accel_cal: 1.0, vib_cal: 1.0,
         time_cutoff_s: 0.30, mic_time_cutoff_s: 0.30,
       };
   _resetAxisRanges(liveViewPrefs);
@@ -3048,34 +3068,62 @@ async function _saveStencilToRun() {
   }
 }
 
-function _responseLabel() {
-  return localStorage.getItem('obieAcquire_inputDevice') === 'accelerometer'
-    ? 'Accelerometer' : 'Microphone';
+// Signal type of the response channel: 'microphone' (Radiation),
+// 'accelerometer' (Modal Analysis) or 'vibrometer'.
+function _inputType() {
+  const v = localStorage.getItem('obieAcquire_inputDevice');
+  return v === 'accelerometer' || v === 'vibrometer' ? v : 'microphone';
+}
+
+const _INPUT_TYPES = {
+  microphone:    { label: 'Microphone',    short: 'Mic',        calKey: 'mic_cal',   rowId: 'row-mic-cal',   lblId: 'lbl-mic-cal',   unit: 'Pa/full scale' },
+  accelerometer: { label: 'Accelerometer', short: 'Accel',      calKey: 'accel_cal', rowId: 'row-accel-cal', lblId: 'lbl-accel-cal', unit: 'm/s²/full scale' },
+  vibrometer:    { label: 'Vibrometer',    short: 'Vibrometer', calKey: 'vib_cal',   rowId: 'row-vib-cal',   lblId: 'lbl-vib-cal',   unit: 'units/full scale' },
+};
+
+function _responseLabel() { return _INPUT_TYPES[_inputType()].label; }
+
+// The calibration factor for whichever sensor is on the response channel —
+// this is what Python's state machine applies as its single "mic" cal.
+function _responseCal(p) {
+  return p[_INPUT_TYPES[_inputType()].calKey] ?? 1.0;
+}
+
+function _responseCalInfoRow(p) {
+  const t = _INPUT_TYPES[_inputType()];
+  return [`${t.short} cal`, `${_responseCal(p)} ${t.unit}`];
 }
 
 // Calibration section: each row is pinned to a physical channel position
 // (top = Channel 1/L, bottom = Channel 2/R) — Swap Channels moves the
-// Hammer/Mic role (and that role's own calibration value, since it's the
+// Hammer/response role (and that role's own calibration value, since it's the
 // same <input> that travels with its row) between those two positions,
-// rather than the rows swapping which role's number they hold.
+// rather than the rows swapping which role's number they hold. Only the cal
+// row for the selected signal type is shown.
 window._updateCalLabels = function() {
   const swapped = document.getElementById('inp-swap-channels')?.checked ?? false;
-  const micName = _responseLabel() === 'Accelerometer' ? 'Accel' : 'Mic';
+  const active  = _inputType();
   const hamLbl = document.getElementById('lbl-ham-cal');
   if (hamLbl) {
     hamLbl.textContent = swapped ? 'Ch2 (R): Hammer cal.' : 'Ch1 (L): Hammer cal.';
   }
-  const micLbl = document.getElementById('lbl-mic-cal');
-  if (micLbl) {
-    micLbl.textContent = swapped ? `Ch1 (L): ${micName} cal.` : `Ch2 (R): ${micName} cal.`;
-    micLbl.title = `${_responseLabel()} calibration factor`;
-  }
   const hamRow = document.getElementById('row-ham-cal');
-  const micRow = document.getElementById('row-mic-cal');
+  const rows = [];
+  for (const [type, t] of Object.entries(_INPUT_TYPES)) {
+    const row = document.getElementById(t.rowId);
+    const lbl = document.getElementById(t.lblId);
+    if (!row) continue;
+    row.style.display = type === active ? '' : 'none';
+    if (lbl) {
+      lbl.textContent = `${swapped ? 'Ch1 (L)' : 'Ch2 (R)'}: ${t.short} cal.`;
+      lbl.title = `${t.label} calibration factor`;
+    }
+    rows.push(row);
+  }
   const parent = hamRow?.parentElement;
-  if (parent && hamRow && micRow) {
-    if (swapped) parent.insertBefore(micRow, hamRow);
-    else         parent.insertBefore(hamRow, micRow);
+  if (parent && hamRow && rows.length) {
+    if (swapped) rows.forEach(r => parent.insertBefore(r, hamRow));
+    else         parent.insertBefore(hamRow, rows[0]);
   }
 };
 
@@ -3087,7 +3135,7 @@ function _applyInputDeviceLabels() {
   const lvEl = document.getElementById('lv-mic-ch-title');
   if (lvEl) lvEl.textContent = `${label} — Channel L`;
   const frfEl = document.getElementById('lv-frf-title');
-  if (frfEl) frfEl.textContent = `FRF (${label === 'Accelerometer' ? 'Accel' : 'Mic'} / Hammer)`;
+  if (frfEl) frfEl.textContent = `FRF (${_INPUT_TYPES[_inputType()].short} / Hammer)`;
 }
 
 window.acqSyncInputDevice = function() {
@@ -3095,14 +3143,17 @@ window.acqSyncInputDevice = function() {
   localStorage.setItem('obieAcquire_inputDevice', val);
   _applyInputDeviceLabels();
   _updateStencilSectionVisibility();
+  _patchPrefs({ input_type: val });
+  _callPyApplySettings();   // the active sensor's cal factor changed
+  _updateInfoPanel();
 };
 
-// Node Stencil only applies to Modal Analysis (accelerometer) — Radiation runs
+// Node Stencil only applies to Modal Analysis (accelerometer / vibrometer) — Radiation runs
 // never use a stencil, so hide the section rather than leave it inert.
 function _updateStencilSectionVisibility() {
   const val = document.getElementById('inp-input-device')?.value || 'microphone';
   const section = document.getElementById('stencil-modal-picker');
-  if (section) section.style.display = (val === 'accelerometer') ? '' : 'none';
+  if (section) section.style.display = (val === 'accelerometer' || val === 'vibrometer') ? '' : 'none';
 }
 
 // ════════════════════════════════════════════════════════════════════════════
