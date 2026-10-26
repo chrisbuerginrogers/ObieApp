@@ -290,6 +290,38 @@
             constant sign convention, residual compensation, and per-node residue extraction).</li>
       </ul>
     </div>
+    <div class="log-group">
+      <h3>Acquire — calibration, H1 and raw WAVs</h3>
+      <ul>
+        <li><strong>Calibration now uses sensor sensitivities, like LabVIEW:</strong> hammer in
+            <strong>mV/N</strong>, microphone in <strong>mV/Pa</strong> (accelerometer mV/m/s²,
+            vibrometer mV/mm/s). LabVIEW values can be entered or imported unchanged. Previously
+            the same numbers were treated as "N / Pa per full scale", which made the FRF about
+            13 dB too high for typical sensors. Existing web templates written with the old
+            full-scale values must be re-entered (new value = 1000 ÷ old value).</li>
+        <li>New <strong>Full-scale voltage</strong> setting (V/full range, default 1; LabVIEW's
+            Voltage Cal). Calibrated value = sample × full-scale voltage × 1000 ÷ sensitivity.
+            Stored in <code>template.json</code> as <code>full_scale_v</code>.</li>
+        <li>New <strong>FRF estimator</strong> setting (H1, H2 or √(H1·H2)), saved in
+            <code>template.json</code> as <code>frf_estimator</code> and recorded in the TRF header.
+            It drives the live plot and the saved TRF/AvC/AvR together. Default H1; templates
+            without the key load as H1. Changing it mid-run only recomputes the position being
+            viewed, so finished positions keep the estimator they were saved with.</li>
+        <li><strong>Saved TRF, AvC and AvR files are now H1 by default</strong> (as LabVIEW saves). They were
+            H2, which equals H1 ÷ coherence and so read high wherever coherence was low (about
+            +1.5 dB on average, more at high frequency). With matching settings and the same hits
+            the result agrees with LabVIEW to within a few tenths of a dB. TRF/AvC files saved by
+            earlier versions are H2; multiply the magnitude by the stored coherence to convert.</li>
+        <li><strong>Hit WAVs are now raw:</strong> the soundcard samples exactly as captured
+            (channel 1 = L, channel 2 = R, no swap, no calibration) as 32-bit float. Previously the
+            calibration was applied and the result clipped to ±1 and saved as 16-bit, which
+            clipped real data. Apply the calibration and swap setting from the run's
+            <code>template.json</code>. Note the channel order differs from LabVIEW's raw WAVs
+            (L = mic, R = hammer).</li>
+        <li><strong>Bit depth</strong> is now a 16 / 24 dropdown, and the TRF header records the
+            selected value (it was always written as 16).</li>
+      </ul>
+    </div>
   </section>
 
   <section class="log-entry">

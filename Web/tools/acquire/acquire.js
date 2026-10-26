@@ -1191,6 +1191,7 @@ function _populatePrefsForm(overridePrefs, skipPlotSync) {
   }
   set('inp-ham-cal',     prefs.ham_cal);
   set('inp-full-scale-v', prefs.full_scale_v ?? 1.0);
+  set('inp-frf-estimator', prefs.frf_estimator ?? 'h1');
   const swapEl = document.getElementById('inp-swap-channels');
   if (swapEl) swapEl.checked = prefs.swap_channels ?? false;
   _updateCalLabels();
@@ -1251,7 +1252,9 @@ function _callPyApplySettings() {
     p.swap_channels ?? false,
     p.mic_time_cutoff_s ?? p.time_cutoff_s ?? p.post_trig_s ?? 0.30,
     p.deviceLabel || '',
-    p.full_scale_v ?? 1.0
+    p.full_scale_v ?? 1.0,
+    p.bit_depth ?? 24,
+    p.frf_estimator ?? 'h1'
   );
 }
 
@@ -1260,7 +1263,7 @@ function _loadPrefs() {
     threshold: 0.05, pre_trig_s: 0.01, post_trig_s: 0.30,
     time_cutoff_s: 0.30, mic_time_cutoff_s: 0.30,
     taps: 10, positions: 1, prefix: 'H',
-    mic_cal: 1.0, accel_cal: 1.0, vib_cal: 1.0, ham_cal: 1.0, full_scale_v: 1.0, swap_channels: false,
+    mic_cal: 1.0, accel_cal: 1.0, vib_cal: 1.0, ham_cal: 1.0, full_scale_v: 1.0, frf_estimator: 'h1', swap_channels: false,
     frf_x_min: 0, frf_x_max: 7000, frf_y_min: -10, frf_y_max: 30,
     deviceLabel: '', instrument: 'scratch', deviceId: '', line_width: 0.5,
     ham_x_min: 0, ham_x_max: 0.05, ham_y_min: -0.1, ham_y_max: 1,
@@ -1360,6 +1363,7 @@ function _buildPrefsFromForm() {
     input_type:    _inputType(),
     ham_cal:       hamCal,
     full_scale_v:  isFinite(fullScaleV) && fullScaleV > 0 ? fullScaleV : 1.0,
+    frf_estimator: g('inp-frf-estimator') || 'h1',
     swap_channels: document.getElementById('inp-swap-channels')?.checked ?? false,
     deviceLabel,
     instrument:    (document.getElementById('inp-instrument-banner')?.textContent || '').trim() || 'scratch',
@@ -1589,7 +1593,9 @@ function _pushSettingsFromPrefs(prefs, skipRangeSync = false) {
     prefs.swap_channels ?? false,
     prefs.mic_time_cutoff_s ?? prefs.time_cutoff_s ?? prefs.post_trig_s ?? 0.30,
     prefs.deviceLabel || '',
-    prefs.full_scale_v ?? 1.0
+    prefs.full_scale_v ?? 1.0,
+    prefs.bit_depth ?? 24,
+    prefs.frf_estimator ?? 'h1'
   );
   _drawHammerFFT();  // display band may have changed — keep the peak at 0 dB
   // Redraw green lines immediately if a hit is already displayed
@@ -1618,6 +1624,7 @@ function _updateInfoPanel() {
     ['Positions',  (function(){ const g = _appliedPrefix.split(',').filter(s=>s.trim()).length; return g > 1 ? `${_appliedPerGroup} × ${g} = ${_appliedPerGroup * g}` : _appliedPerGroup; })()],
     ['Ham cal',    `${p.ham_cal} mV/N`],
     ['Full scale', `${p.full_scale_v ?? 1} V`],
+    ['FRF',        {h1: 'H1', h2: 'H2', geo: '√(H1·H2)'}[p.frf_estimator ?? 'h1'] ?? 'H1'],
     _responseCalInfoRow(p),
     ['Pre-trig',   `${p.pre_trig_s} s`],
     ['Post-trig',  `${p.post_trig_s} s`],
@@ -2132,7 +2139,7 @@ window.acqDeleteTpl = async function(i, event) {
 // detect whether the form still matches the applied template (_tplFormDirty).
 const _TPL_APPLY_FIELD_IDS = [
   'inp-threshold', 'inp-pre', 'inp-post', 'inp-taps', 'inp-positions', 'inp-prefix',
-  'inp-mic-cal', 'inp-ham-cal', 'inp-full-scale-v', 'inp-line-width',
+  'inp-mic-cal', 'inp-ham-cal', 'inp-full-scale-v', 'inp-frf-estimator', 'inp-line-width',
   'inp-ham-x-min', 'inp-ham-x-max', 'inp-ham-y-min', 'inp-ham-y-max',
   'inp-mic-x-min', 'inp-mic-x-max', 'inp-mic-y-min', 'inp-mic-y-max',
   'inp-fft-x-min', 'inp-fft-x-max', 'inp-fft-y-min', 'inp-fft-y-max',
@@ -2214,6 +2221,7 @@ window.acqSelectAndApplyTpl = function(i) {
   if (s.vib_cal     != null) set('inp-vib-cal',    s.vib_cal);
   if (s.ham_cal     != null) set('inp-ham-cal',    s.ham_cal);
   if (s.full_scale_v != null) set('inp-full-scale-v', s.full_scale_v);
+  set('inp-frf-estimator', s.frf_estimator ?? 'h1');
   if (s.frf_x_min   != null) set('inp-frf-x-min',  s.frf_x_min);
   if (s.frf_x_max   != null) set('inp-frf-x-max',  s.frf_x_max);
   if (s.line_width  != null) set('inp-line-width',  s.line_width);

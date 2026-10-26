@@ -423,6 +423,14 @@
           <input id="inp-full-scale-v" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px" title="Volts at full range (soundcard input sensitivity; LabVIEW's Voltage Cal)">
           <span class="pref-unit">V/full range</span>
         </div>
+        <div class="pref-row" id="row-frf-estimator">
+          <label for="inp-frf-estimator" title="Estimator used for the live FRF and the saved TRF / AvC / AvR files">FRF estimator</label>
+          <select id="inp-frf-estimator" style="max-width:120px" title="H1 = S_fp/S_ff (LabVIEW's choice); H2 = S_pp/S_fp, which is H1/coherence; √(H1·H2) = H1/√coherence">
+            <option value="h1" selected>H1</option>
+            <option value="h2">H2</option>
+            <option value="geo">√(H1·H2)</option>
+          </select>
+        </div>
         <div class="pref-row">
           <label for="inp-swap-channels" title="Swap inputs (hammer on right channel)">Swap channels</label>
           <input id="inp-swap-channels" type="checkbox" title="Swap inputs so the hammer is read from the right channel" onchange="_updateCalLabels()">

@@ -7,7 +7,7 @@ import numpy as np
 from numpy.fft import rfft, rfftfreq
 import js
 from pyscript.ffi import to_js
-from frf import FRFAccumulator, add_hit, compute_frf
+from frf import FRFAccumulator, add_hit, compute_frf, p0
 from trf_fileio import build_trf
 from avc_fileio import build_avc, build_avr, AT_MEAN, AT_RMS
 
@@ -24,6 +24,8 @@ _n_per_prefix   = 12
 _prefixes       = ["H"]
 _mic_cal        = 1.0      # response-sensor sensitivity, mV per unit (mV/Pa, mV/m/s², ...)
 _ham_cal        = 1.0      # hammer sensitivity, mV/N (same convention as LabVIEW)
+_frf_estimator  = 'h1'     # 'h1' | 'h2' | 'geo' (√(H1·H2)) — saved FRF and live plot
+_bit_depth      = 24       # soundcard capture bit depth (TRF metadata only)
 _full_scale_v   = 1.0      # volts at full range (±1 sample)
 _swap_channels  = False   # True → hammer on right input, mic on left
 _last_ham_win   = None    # last hammer window stored for FFT re-rendering
@@ -63,11 +65,11 @@ _LIVE_EVERY   = 6
 def apply_settings(thr_js, pre_js, post_js, ham_time_cutoff_js,
                    taps_js, npos_js, prefix_js, mic_cal_js, ham_cal_js, sr_js,
                    swap_js=False, mic_time_cutoff_js=None, device_name_js='',
-                   full_scale_v_js=1.0):
+                   full_scale_v_js=1.0, bit_depth_js=24, frf_estimator_js='h1'):
     global _threshold, _pre_trig_s, _post_trig_s
     global _ham_time_cutoff_s, _mic_time_cutoff_s
     global _n_taps, _prefixes, _n_per_prefix, _mic_cal, _ham_cal, _sr, _swap_channels, _device_name
-    global _full_scale_v
+    global _full_scale_v, _bit_depth, _frf_estimator
     _threshold      = max(0.001, float(thr_js))
     _pre_trig_s        = max(0.001, float(pre_js))
     _post_trig_s       = max(0.05,  float(post_js))
@@ -78,6 +80,8 @@ def apply_settings(thr_js, pre_js, post_js, ham_time_cutoff_js,
     _prefixes       = parts or ["H"]
     _mic_cal        = float(mic_cal_js) if float(mic_cal_js) else 1.0
     _ham_cal        = float(ham_cal_js) if float(ham_cal_js) else 1.0
+    _frf_estimator  = str(frf_estimator_js) if str(frf_estimator_js) in ('h1', 'h2', 'geo') else 'h1'
+    _bit_depth      = int(bit_depth_js) if int(bit_depth_js) in (16, 24) else 24
     _full_scale_v   = float(full_scale_v_js) if float(full_scale_v_js) else 1.0
     _swap_channels  = bool(swap_js)
     _device_name    = str(device_name_js)
@@ -341,6 +345,27 @@ def _ring_tail(n):
             np.concatenate([_ring_R[tail:], _ring_R[:n-part]]))
 
 
+def _select_frf(acc):
+    """FRF from the accumulated spectra using the selected estimator.
+    Returns (H_complex, H_dB, coherence, freq).
+
+    The library's H1 = S_fp/S_ff uses S_fp = F·conj(P), so its phase is
+    conjugated relative to mic/hammer; conj() gives the standard P/F phase.
+    H2 = S_pp/S_fp already has that phase but its magnitude is |H1|/γ², so
+    it reads high wherever coherence is low. 'geo' is √(|H1|·|H2|) = |H1|/γ
+    with the common phase. LabVIEW saves H1, the default."""
+    freq, H1, H2, _, coh = compute_frf(acc)
+    H1c = np.conj(H1)
+    if _frf_estimator == 'h2':
+        H = H2
+    elif _frf_estimator == 'geo':
+        H = np.sqrt(np.abs(H1c) * np.abs(H2)) * np.exp(1j * np.angle(H2))
+    else:
+        H = H1c
+    H_dB = 20.0 * np.log10(np.maximum(np.abs(H), p0))
+    return H, H_dB, coh, freq
+
+
 def _h1_from_st(st):
     """Compute H1 FRF from stored raw hits, applying both time and freq cutoffs.
     Returns (H1_complex, freq_array) or (None, None) if no data."""
@@ -357,12 +382,7 @@ def _h1_from_st(st):
         if pre_n + mic_cut < len(m):
             m[pre_n + mic_cut:] = 0.0
         add_hit(acc, np.column_stack([h, m]))
-    # H1 = S_fp/S_ff from the library uses S_fp = F·conj(P), so its phase is
-    # conjugated relative to mic/hammer; conj() gives the standard P/F phase.
-    # (H2 = S_pp/S_fp also has the right phase but its magnitude is |H1|/γ²,
-    # which overstates the FRF wherever coherence is low — LabVIEW saves H1.)
-    freq, H1, _, H_dB, coh = compute_frf(acc)
-    return np.conj(H1), H_dB, coh, freq
+    return _select_frf(acc)
 
 
 def _do_capture():
@@ -449,7 +469,7 @@ def _emit_tap_frf(pos, hit_idx):
     if pre_n + mic_cut < len(mic):
         mic[pre_n + mic_cut:] = 0.0
     add_hit(acc, np.column_stack([ham, mic]))
-    freq, _, _, H_dB, _ = compute_frf(acc)
+    _, H_dB, _, freq = _select_frf(acc)
     js.window.onTapFRF(to_js(freq.tolist()), to_js(H_dB.tolist()), pos, hit_idx)
 
 
@@ -605,12 +625,13 @@ def _build_trf_bytes(st):
     n_hits = len(st.get('hits_ham', []))
     meta = {
         'sample_rate': str(_sr),
-        'bit_depth':   '16',
+        'bit_depth':   str(_bit_depth),
         'n_hits':      str(n_hits),
         'threshold':   f'{_threshold:.4g}',
         'ham_cutoff':  f'{_ham_time_cutoff_s:.3f} s',
         'mic_cutoff':  f'{_mic_time_cutoff_s:.3f} s',
         'device':      _device_name,
+        'frf_estimator': {'h1': 'H1', 'h2': 'H2', 'geo': 'sqrt(H1*H2)'}[_frf_estimator],
     }
     coh_list = coh.tolist() if coh is not None else None
     return to_js(bytearray(build_trf(freq.tolist(), H1.tolist(), coherence=coh_list, meta=meta)))
