@@ -36,6 +36,7 @@ configure('obieWebApp_acquire', {
         "prefix":            "H",
         "mic_cal":           1.0,
         "ham_cal":           1.0,
+        "full_scale_v":      1.0,
         "swap_channels":     False,
         "frf_x_min":         100,
         "frf_x_max":         12000,
@@ -67,6 +68,7 @@ def _save_run_settings(*_args):  # *_args absorbs the browser event passed by ad
         'prefix':            _get('inp-prefix')    or 'H',
         'mic_cal':           float(_get('inp-mic-cal')         or 1.0),
         'ham_cal':           float(_get('inp-ham-cal')         or 1.0),
+        'full_scale_v':      float(_get('inp-full-scale-v')    or 1.0),
         'swap_channels':     _checked('inp-swap-channels'),
         'frf_x_min':         float(_get('inp-frf-x-min')       or 100),
         'frf_x_max':         float(_get('inp-frf-x-max')       or 12000),
@@ -103,6 +105,7 @@ _set('inp-positions',       _r['positions'])
 _set('inp-prefix',          _r['prefix'])
 _set('inp-mic-cal',         _r['mic_cal'])
 _set('inp-ham-cal',         _r['ham_cal'])
+_set('inp-full-scale-v',    _r.get('full_scale_v', 1.0))
 _el_swap = js.document.getElementById('inp-swap-channels')
 if _el_swap is not None:
     _el_swap.checked = bool(_r.get('swap_channels', False))
@@ -123,6 +126,7 @@ _LV_FIELD_MAP = {
     'Set Names':        'inp-prefix',
     'Mic Cal':          'inp-mic-cal',
     'Hammer Cal':       'inp-ham-cal',
+    'Voltage Cal':      'inp-full-scale-v',
     'Soundcard':        'inp-soundcard',
 }
 

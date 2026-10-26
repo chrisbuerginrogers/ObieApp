@@ -400,23 +400,28 @@
         <div class="pref-section">Calibration</div>
         <div class="pref-row" id="row-ham-cal">
           <label for="inp-ham-cal" id="lbl-ham-cal" title="Hammer calibration factor">Ch1 (L): Hammer cal.</label>
-          <input id="inp-ham-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px" title="Hammer calibration factor (N per full scale)">
-          <span class="pref-unit">N/full scale</span>
+          <input id="inp-ham-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px" title="Hammer sensitivity in mV per N (as printed on the sensor)">
+          <span class="pref-unit">mV/N</span>
         </div>
         <div class="pref-row" id="row-mic-cal">
           <label for="inp-mic-cal" id="lbl-mic-cal" title="Microphone calibration factor">Ch2 (R): Mic cal.</label>
-          <input id="inp-mic-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px" title="Microphone calibration factor (Pa per full scale)">
-          <span class="pref-unit">Pa/full scale</span>
+          <input id="inp-mic-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px" title="Microphone sensitivity in mV per Pa">
+          <span class="pref-unit">mV/Pa</span>
         </div>
         <div class="pref-row" id="row-accel-cal" style="display:none">
           <label for="inp-accel-cal" id="lbl-accel-cal" title="Accelerometer calibration factor">Ch2 (R): Accel cal.</label>
-          <input id="inp-accel-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px" title="Accelerometer calibration factor (m/s² per full scale)">
-          <span class="pref-unit">m/s²/full scale</span>
+          <input id="inp-accel-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px" title="Accelerometer calibration factor (mV per m/s²)">
+          <span class="pref-unit">mV/m/s²</span>
         </div>
         <div class="pref-row" id="row-vib-cal" style="display:none">
           <label for="inp-vib-cal" id="lbl-vib-cal" title="Vibrometer calibration factor">Ch2 (R): Vibrometer cal.</label>
-          <input id="inp-vib-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px" title="Vibrometer calibration factor (units per full scale)">
-          <span class="pref-unit">units/full scale</span>
+          <input id="inp-vib-cal" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px" title="Vibrometer calibration factor (mV per mm/s)">
+          <span class="pref-unit">mV/mm/s</span>
+        </div>
+        <div class="pref-row" id="row-full-scale-v">
+          <label for="inp-full-scale-v" title="Input voltage that corresponds to a full-scale (±1) sample">Full-scale voltage</label>
+          <input id="inp-full-scale-v" type="number" value="1.0" step="0.001" min="0.0001" style="max-width:80px" title="Volts at full range (soundcard input sensitivity; LabVIEW's Voltage Cal)">
+          <span class="pref-unit">V/full range</span>
         </div>
         <div class="pref-row">
           <label for="inp-swap-channels" title="Swap inputs (hammer on right channel)">Swap channels</label>
@@ -431,7 +436,10 @@
         </div>
         <div class="pref-row">
           <label for="inp-bit-depth" title="Audio capture bit depth">Bit depth</label>
-          <input id="inp-bit-depth" type="number" value="24" step="1" min="8" max="32" style="max-width:80px" title="Audio capture bit depth">
+          <select id="inp-bit-depth" style="max-width:80px" title="Audio capture bit depth">
+            <option value="16">16</option>
+            <option value="24" selected>24</option>
+          </select>
           <span class="pref-unit">bit</span>
         </div>
 

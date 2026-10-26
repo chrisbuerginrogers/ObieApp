@@ -1190,6 +1190,7 @@ function _populatePrefsForm(overridePrefs, skipPlotSync) {
     _updateStencilSectionVisibility();
   }
   set('inp-ham-cal',     prefs.ham_cal);
+  set('inp-full-scale-v', prefs.full_scale_v ?? 1.0);
   const swapEl = document.getElementById('inp-swap-channels');
   if (swapEl) swapEl.checked = prefs.swap_channels ?? false;
   _updateCalLabels();
@@ -1223,7 +1224,7 @@ function _populatePrefsForm(overridePrefs, skipPlotSync) {
   if (frfYMaxEl) frfYMaxEl.value = (_S.yMax != null) ? _S.yMax : (prefs.frf_y_max != null ? prefs.frf_y_max : '');
   set('inp-db-spread',   prefs.db_spread  ?? 38);
   set('inp-db-offset',   prefs.db_offset  ?? 0);
-  set('inp-bit-depth',   prefs.bit_depth  ?? 24);
+  set('inp-bit-depth',   (prefs.bit_depth ?? 24) >= 20 ? 24 : 16);
   set('inp-sample-rate', prefs.sample_rate ?? 48000);
   // populate device selector
   _enumeratePrefsDevices();
@@ -1249,7 +1250,8 @@ function _callPyApplySettings() {
     _responseCal(p), p.ham_cal, sr,
     p.swap_channels ?? false,
     p.mic_time_cutoff_s ?? p.time_cutoff_s ?? p.post_trig_s ?? 0.30,
-    p.deviceLabel || ''
+    p.deviceLabel || '',
+    p.full_scale_v ?? 1.0
   );
 }
 
@@ -1258,7 +1260,7 @@ function _loadPrefs() {
     threshold: 0.05, pre_trig_s: 0.01, post_trig_s: 0.30,
     time_cutoff_s: 0.30, mic_time_cutoff_s: 0.30,
     taps: 10, positions: 1, prefix: 'H',
-    mic_cal: 1.0, accel_cal: 1.0, vib_cal: 1.0, ham_cal: 1.0, swap_channels: false,
+    mic_cal: 1.0, accel_cal: 1.0, vib_cal: 1.0, ham_cal: 1.0, full_scale_v: 1.0, swap_channels: false,
     frf_x_min: 0, frf_x_max: 7000, frf_y_min: -10, frf_y_max: 30,
     deviceLabel: '', instrument: 'scratch', deviceId: '', line_width: 0.5,
     ham_x_min: 0, ham_x_max: 0.05, ham_y_min: -0.1, ham_y_max: 1,
@@ -1334,6 +1336,7 @@ function _buildPrefsFromForm() {
   if (!isNaN(formFrfYMin) && !isNaN(formFrfYMax)) { _S.yMin = formFrfYMin; _S.yMax = formFrfYMax; }
   const micCal = parseFloat(g('inp-mic-cal'));
   const hamCal = parseFloat(g('inp-ham-cal'));
+  const fullScaleV = parseFloat(g('inp-full-scale-v'));
   const accelCal = parseFloat(g('inp-accel-cal'));
   const vibCal   = parseFloat(g('inp-vib-cal'));
   if (!isFinite(micCal) || micCal === 0) { alert('Mic calibration must be a non-zero number.'); return null; }
@@ -1356,6 +1359,7 @@ function _buildPrefsFromForm() {
     vib_cal:       vibCal,
     input_type:    _inputType(),
     ham_cal:       hamCal,
+    full_scale_v:  isFinite(fullScaleV) && fullScaleV > 0 ? fullScaleV : 1.0,
     swap_channels: document.getElementById('inp-swap-channels')?.checked ?? false,
     deviceLabel,
     instrument:    (document.getElementById('inp-instrument-banner')?.textContent || '').trim() || 'scratch',
@@ -1583,7 +1587,9 @@ function _pushSettingsFromPrefs(prefs, skipRangeSync = false) {
     prefs.taps, prefs.positions, prefs.prefix,
     _responseCal(prefs), prefs.ham_cal, sr,
     prefs.swap_channels ?? false,
-    prefs.mic_time_cutoff_s ?? prefs.time_cutoff_s ?? prefs.post_trig_s ?? 0.30
+    prefs.mic_time_cutoff_s ?? prefs.time_cutoff_s ?? prefs.post_trig_s ?? 0.30,
+    prefs.deviceLabel || '',
+    prefs.full_scale_v ?? 1.0
   );
   _drawHammerFFT();  // display band may have changed — keep the peak at 0 dB
   // Redraw green lines immediately if a hit is already displayed
@@ -1610,7 +1616,8 @@ function _updateInfoPanel() {
     ['Hits/pos',   p.taps],
     ['Prefix',     _appliedPrefix || 'H'],
     ['Positions',  (function(){ const g = _appliedPrefix.split(',').filter(s=>s.trim()).length; return g > 1 ? `${_appliedPerGroup} × ${g} = ${_appliedPerGroup * g}` : _appliedPerGroup; })()],
-    ['Ham cal',    `${p.ham_cal} N/full scale`],
+    ['Ham cal',    `${p.ham_cal} mV/N`],
+    ['Full scale', `${p.full_scale_v ?? 1} V`],
     _responseCalInfoRow(p),
     ['Pre-trig',   `${p.pre_trig_s} s`],
     ['Post-trig',  `${p.post_trig_s} s`],
@@ -2021,6 +2028,7 @@ function _lvFieldsToSettings(fields) {
     time_cutoff_s:     parseFloat(fields['Hammer cutoff']    ?? '0.30'),
     mic_time_cutoff_s: parseFloat(fields['Mic cutoff']       ?? '0.30'),
     ham_cal:           parseFloat(fields['Hammer Cal']       ?? '1'),
+    full_scale_v:      parseFloat(fields['Voltage Cal']      ?? '1'),
     mic_cal:           parseFloat(fields['Mic Cal']          ?? '1'),
     accel_cal:         parseFloat(fields['Accel Cal']        ?? '1'),
     vib_cal:           parseFloat(fields['Vibrometer Cal']   ?? '1'),
@@ -2124,7 +2132,7 @@ window.acqDeleteTpl = async function(i, event) {
 // detect whether the form still matches the applied template (_tplFormDirty).
 const _TPL_APPLY_FIELD_IDS = [
   'inp-threshold', 'inp-pre', 'inp-post', 'inp-taps', 'inp-positions', 'inp-prefix',
-  'inp-mic-cal', 'inp-ham-cal', 'inp-line-width',
+  'inp-mic-cal', 'inp-ham-cal', 'inp-full-scale-v', 'inp-line-width',
   'inp-ham-x-min', 'inp-ham-x-max', 'inp-ham-y-min', 'inp-ham-y-max',
   'inp-mic-x-min', 'inp-mic-x-max', 'inp-mic-y-min', 'inp-mic-y-max',
   'inp-fft-x-min', 'inp-fft-x-max', 'inp-fft-y-min', 'inp-fft-y-max',
@@ -2205,6 +2213,7 @@ window.acqSelectAndApplyTpl = function(i) {
   if (s.accel_cal   != null) set('inp-accel-cal',  s.accel_cal);
   if (s.vib_cal     != null) set('inp-vib-cal',    s.vib_cal);
   if (s.ham_cal     != null) set('inp-ham-cal',    s.ham_cal);
+  if (s.full_scale_v != null) set('inp-full-scale-v', s.full_scale_v);
   if (s.frf_x_min   != null) set('inp-frf-x-min',  s.frf_x_min);
   if (s.frf_x_max   != null) set('inp-frf-x-max',  s.frf_x_max);
   if (s.line_width  != null) set('inp-line-width',  s.line_width);
@@ -2226,7 +2235,7 @@ window.acqSelectAndApplyTpl = function(i) {
   if (frfYMaxEl) frfYMaxEl.value = s.frf_y_max != null ? s.frf_y_max : '';
   if (s.db_spread   != null) set('inp-db-spread',   s.db_spread);
   if (s.db_offset   != null) set('inp-db-offset',   s.db_offset);
-  if (s.bit_depth   != null) set('inp-bit-depth',   s.bit_depth);
+  if (s.bit_depth   != null) set('inp-bit-depth',   s.bit_depth >= 20 ? 24 : 16);
   if (s.sample_rate != null) set('inp-sample-rate', s.sample_rate);
   // device selection intentionally skipped — keep the current device on import
   _setTemplateName(t.name || '');
@@ -2716,7 +2725,7 @@ async function _applyDataFolder(dirHandle) {
     : {
         ...(savedPrefs || _loadPrefs()),
         instrument: 'scratch',
-        ham_cal: 1.0, mic_cal: 1.0, accel_cal: 1.0, vib_cal: 1.0,
+        ham_cal: 1.0, mic_cal: 1.0, accel_cal: 1.0, vib_cal: 1.0, full_scale_v: 1.0,
         time_cutoff_s: 0.30, mic_time_cutoff_s: 0.30,
       };
   _resetAxisRanges(liveViewPrefs);
@@ -3076,9 +3085,9 @@ function _inputType() {
 }
 
 const _INPUT_TYPES = {
-  microphone:    { label: 'Microphone',    short: 'Mic',        calKey: 'mic_cal',   rowId: 'row-mic-cal',   lblId: 'lbl-mic-cal',   unit: 'Pa/full scale' },
-  accelerometer: { label: 'Accelerometer', short: 'Accel',      calKey: 'accel_cal', rowId: 'row-accel-cal', lblId: 'lbl-accel-cal', unit: 'm/s²/full scale' },
-  vibrometer:    { label: 'Vibrometer',    short: 'Vibrometer', calKey: 'vib_cal',   rowId: 'row-vib-cal',   lblId: 'lbl-vib-cal',   unit: 'units/full scale' },
+  microphone:    { label: 'Microphone',    short: 'Mic',        calKey: 'mic_cal',   rowId: 'row-mic-cal',   lblId: 'lbl-mic-cal',   unit: 'mV/Pa' },
+  accelerometer: { label: 'Accelerometer', short: 'Accel',      calKey: 'accel_cal', rowId: 'row-accel-cal', lblId: 'lbl-accel-cal', unit: 'mV/m/s²' },
+  vibrometer:    { label: 'Vibrometer',    short: 'Vibrometer', calKey: 'vib_cal',   rowId: 'row-vib-cal',   lblId: 'lbl-vib-cal',   unit: 'mV/mm/s' },
 };
 
 function _responseLabel() { return _INPUT_TYPES[_inputType()].label; }

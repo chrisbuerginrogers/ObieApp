@@ -22,8 +22,9 @@ _n_taps         = 5
 _n_positions    = 12
 _n_per_prefix   = 12
 _prefixes       = ["H"]
-_mic_cal        = 1.0
-_ham_cal        = 1.0
+_mic_cal        = 1.0      # response-sensor sensitivity, mV per unit (mV/Pa, mV/m/s², ...)
+_ham_cal        = 1.0      # hammer sensitivity, mV/N (same convention as LabVIEW)
+_full_scale_v   = 1.0      # volts at full range (±1 sample)
 _swap_channels  = False   # True → hammer on right input, mic on left
 _last_ham_win   = None    # last hammer window stored for FFT re-rendering
 _device_name    = ''      # human-readable audio device label for TRF metadata
@@ -61,10 +62,12 @@ _LIVE_EVERY   = 6
 
 def apply_settings(thr_js, pre_js, post_js, ham_time_cutoff_js,
                    taps_js, npos_js, prefix_js, mic_cal_js, ham_cal_js, sr_js,
-                   swap_js=False, mic_time_cutoff_js=None, device_name_js=''):
+                   swap_js=False, mic_time_cutoff_js=None, device_name_js='',
+                   full_scale_v_js=1.0):
     global _threshold, _pre_trig_s, _post_trig_s
     global _ham_time_cutoff_s, _mic_time_cutoff_s
     global _n_taps, _prefixes, _n_per_prefix, _mic_cal, _ham_cal, _sr, _swap_channels, _device_name
+    global _full_scale_v
     _threshold      = max(0.001, float(thr_js))
     _pre_trig_s        = max(0.001, float(pre_js))
     _post_trig_s       = max(0.05,  float(post_js))
@@ -75,6 +78,7 @@ def apply_settings(thr_js, pre_js, post_js, ham_time_cutoff_js,
     _prefixes       = parts or ["H"]
     _mic_cal        = float(mic_cal_js) if float(mic_cal_js) else 1.0
     _ham_cal        = float(ham_cal_js) if float(ham_cal_js) else 1.0
+    _full_scale_v   = float(full_scale_v_js) if float(full_scale_v_js) else 1.0
     _swap_channels  = bool(swap_js)
     _device_name    = str(device_name_js)
     new_sr          = int(sr_js)
@@ -353,10 +357,12 @@ def _h1_from_st(st):
         if pre_n + mic_cut < len(m):
             m[pre_n + mic_cut:] = 0.0
         add_hit(acc, np.column_stack([h, m]))
-    # H2 = S_pp/S_fp = P/F = mic/hammer = standard FRF (correct phase for TRF export)
-    # H_dB is 20·log10|H1| from the library (same magnitude as H2)
-    freq, _, H2, H_dB, coh = compute_frf(acc)
-    return H2, H_dB, coh, freq
+    # H1 = S_fp/S_ff from the library uses S_fp = F·conj(P), so its phase is
+    # conjugated relative to mic/hammer; conj() gives the standard P/F phase.
+    # (H2 = S_pp/S_fp also has the right phase but its magnitude is |H1|/γ²,
+    # which overstates the FRF wherever coherence is low — LabVIEW saves H1.)
+    freq, H1, _, H_dB, coh = compute_frf(acc)
+    return np.conj(H1), H_dB, coh, freq
 
 
 def _do_capture():
@@ -370,22 +376,25 @@ def _do_capture():
     else:
         ham_win, mic_win = L_win, R_win
 
-    # Mini plots show the raw (uncalibrated, |x| <= 1) signal; calibration is
-    # applied only to the saved/processed data below.
+    # Mini plots and the saved WAV carry the raw (uncalibrated, |x| <= 1) signal
+    # exactly as it came from the soundcard (channel 1 = L, channel 2 = R, no
+    # swap); calibration and channel swap are applied only to the processed
+    # data below, using the settings stored in template.json.
     ham_raw, mic_raw = ham_win, mic_win
-    ham_win = ham_win * _ham_cal
-    mic_win = mic_win * _mic_cal
+    # Volts = sample · full-scale V; units = volts · 1000 / (mV per unit).
+    ham_win = ham_win * (_full_scale_v * 1000.0 / _ham_cal)
+    mic_win = mic_win * (_full_scale_v * 1000.0 / _mic_cal)
 
     t = np.linspace(0, _pre_trig_s + _post_trig_s, pre + post, endpoint=False)
     js.window.onTriggered(to_js(t.tolist()), to_js(ham_raw.tolist()),
                           to_js(mic_raw.tolist()), float(_threshold))
 
-    _wav_L.append(mic_win.copy())
-    _wav_R.append(ham_win.copy())
+    _wav_L.append(L_win.copy())
+    _wav_R.append(R_win.copy())
     _pos_hits[_cur_pos] += 1
     _post_capture_lockout = int(0.5 * _sr)   # 500 ms dead-time before next trigger
 
-    js.window.onSaveHit(_encode_wav_bytes(mic_win, ham_win, _sr), _cur_pos, _pos_hits[_cur_pos], _pos_label(_cur_pos))
+    js.window.onSaveHit(_encode_wav_bytes(L_win, R_win, _sr), _cur_pos, _pos_hits[_cur_pos], _pos_label(_cur_pos))
 
     _add_to_frf(_cur_pos, ham_win, mic_win)
     _emit_banner()
@@ -608,18 +617,18 @@ def _build_trf_bytes(st):
 
 
 def _encode_wav_bytes(L, R, sr):
-    L = np.clip(L, -1.0, 1.0)
-    R = np.clip(R, -1.0, 1.0)
-    n = len(L); nch = 2; bps = 2; db = n * nch * bps
+    """Stereo 32-bit IEEE-float WAV (format 3) — holds any soundcard bit depth
+    losslessly, with no clipping or requantisation."""
+    n = len(L); nch = 2; bps = 4; db = n * nch * bps
     buf = bytearray(44 + db)
     def _s(o, v):   buf[o:o+len(v)] = v.encode()
     def _u32(o, v): struct.pack_into("<I", buf, o, v)
     def _u16(o, v): struct.pack_into("<H", buf, o, v)
     _s(0, "RIFF"); _u32(4, 36+db); _s(8, "WAVE"); _s(12, "fmt "); _u32(16, 16)
-    _u16(20, 1); _u16(22, nch); _u32(24, sr); _u32(28, sr*nch*bps)
-    _u16(32, nch*bps); _u16(34, 16); _s(36, "data"); _u32(40, db)
-    iv = np.empty(n * 2, dtype=np.int16)
-    iv[0::2] = (L * 0x7FFF).astype(np.int16)
-    iv[1::2] = (R * 0x7FFF).astype(np.int16)
+    _u16(20, 3); _u16(22, nch); _u32(24, sr); _u32(28, sr*nch*bps)
+    _u16(32, nch*bps); _u16(34, 32); _s(36, "data"); _u32(40, db)
+    iv = np.empty(n * 2, dtype=np.float32)
+    iv[0::2] = L
+    iv[1::2] = R
     buf[44:] = iv.tobytes()
     return to_js(bytearray(buf))
