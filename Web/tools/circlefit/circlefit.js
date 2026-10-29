@@ -167,7 +167,10 @@ async function _loadAllTRFs(run) {
     if (fh.kind !== 'file') continue;
     const lc = fname.toLowerCase();
     if (!lc.endsWith('.trf') && !lc.endsWith('.trv')) continue;
-    const m = fname.match(/_(\d+)\.[^.]+$/);
+    // Trailing digits before the extension — matches both the old
+    // "prefix_001.trf" style and the current "Demo_7 H11.trf" style
+    // (commit 4825810). Same rule as Modal Analysis.
+    const m = fname.match(/(\d+)\.[^.]+$/);
     if (!m) continue;
     const pos = parseInt(m[1], 10) - 1;
     files.push({ fname, fh, pos });

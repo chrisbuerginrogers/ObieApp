@@ -824,7 +824,9 @@ async function _pollTRF() {
   try {
     for await (const entry of _watchHandle.values()) {
       if (entry.kind !== 'file') continue;
-      const m = entry.name.match(/_(\d+)\.trf$/i);
+      // Trailing digits before .trf — old "H_011.trf" and current "H11.trf"
+      // (commit 4825810) styles. Same rule as Modal Analysis.
+      const m = entry.name.match(/(\d+)\.trf$/i);
       if (m) byPos.set(parseInt(m[1], 10), entry);
     }
   } catch (_) { return; }
