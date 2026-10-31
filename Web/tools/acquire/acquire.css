@@ -396,14 +396,14 @@ input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; marg
 .save-msg  { font-size: 11px; color: var(--green); font-style: italic; }
 
 /* ── Notes modal ─────────────────────────────────────────────────────── */
-#notes-textarea, #wiz-notes-body {
+#notes-textarea, #wiz-notes-body, #default-notes-textarea {
   width: 100%; box-sizing: border-box;
   font-family: inherit; font-size: 12px; line-height: 1.5;
   border: 1px solid var(--border); border-radius: 4px;
   padding: 8px; resize: vertical; min-height: 200px;
   background: #fafafa; color: var(--text);
 }
-#notes-textarea:focus, #wiz-notes-body:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
+#notes-textarea:focus, #wiz-notes-body:focus, #default-notes-textarea:focus { outline: 1px solid var(--accent); border-color: var(--accent); }
 #wiz-notes-body { min-height: 60px; margin-top: 2px; }
 
 /* ── Instrument + Notes (column A of the Template & Settings modal) ─── */

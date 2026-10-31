@@ -1216,6 +1216,7 @@ function _populatePrefsForm(overridePrefs, skipPlotSync) {
     try { localStorage.setItem('obieAcquire_inputDevice', prefs.input_type); } catch (_) {}
     _applyInputDeviceLabels();
     _updateStencilSectionVisibility();
+    _wizRefreshDefaultNotes();   // a template can change the input type
   }
   set('inp-ham-cal',     prefs.ham_cal);
   set('inp-full-scale-v', prefs.full_scale_v ?? 1.0);
@@ -2014,6 +2015,9 @@ window.acqOpenTemplateSettings = async function() {
   _wizTplUserTouched = false;
   if (nameInp) nameInp.value = _wizActiveTest ? _currentInstrumentName() : '';
   _wizSeededFor = null;
+  _wizAppliedDefault = '';
+  _wizReusedEntry = false;
+  _wizRefreshDefaultNotes();   // labels the Edit default notes button
   const _nb = document.getElementById('wiz-notes-body');
   if (_nb) _nb.value = '';
   _updateTplPrimaryBtnLabel();
@@ -2407,6 +2411,92 @@ async function _listInstrumentNames(rootDirHandle) {
   return names;
 }
 
+// ── Default notes (one file per input type) ──────────────────────────────
+// Text that starts every new test's notes, kept in ObieWebSettings/ so it
+// follows the Data Folder. Which one is used follows the Input Type selector.
+const _DEFAULT_NOTES = {
+  microphone:    { file: 'DefaultNotes_Radiation.txt',    label: 'Radiation' },
+  accelerometer: { file: 'DefaultNotes_Accelerance.txt',  label: 'Accelerance' },
+  vibrometer:    { file: 'DefaultNotes_Vibrometer.txt',   label: 'Vibrometer' },
+};
+function _defaultNotesType() {
+  const v = document.getElementById('inp-input-device')?.value || 'microphone';
+  return _DEFAULT_NOTES[v] ? v : 'microphone';
+}
+async function _readDefaultNotes(type) {
+  if (!_settingsHandle) return '';
+  try {
+    const f = await (await _settingsHandle.getFileHandle(_DEFAULT_NOTES[type].file)).getFile();
+    return (await f.text()).trim();
+  } catch (_) { return ''; }   // no file yet — nothing to add
+}
+
+// Default text last placed in the New Test notes box, so a change of input
+// type can swap it for the new type's text without touching the user's edits.
+let _wizAppliedDefault = '';
+let _wizReusedEntry = false;   // box holds an existing entry for a still-empty test, not a fresh seed
+
+async function _wizRefreshDefaultNotes() {
+  const type = _defaultNotesType();
+  const btn = document.getElementById('default-notes-btn');
+  if (btn) btn.textContent = `✎ Edit default notes (${_DEFAULT_NOTES[type].label})`;
+  const bodyEl = document.getElementById('wiz-notes-body');
+  const name = (document.getElementById('wiz-instrument-inp')?.value || '').trim();
+  // Only a freshly seeded new-test box — never notes of a test already in progress
+  if (!bodyEl || _wizSeededFor == null || _wizActiveTest || _wizReusedEntry || _wizSeededFor !== name) return;
+  const next = await _readDefaultNotes(type);
+  const old = _wizAppliedDefault;
+  if (next === old) return;
+  const v = bodyEl.value;
+  if (old) {
+    if (!v.includes(old)) return;              // user edited that text — leave it alone
+    bodyEl.value = v.replace(old, next);
+  } else {
+    const line = `Instrument name: ${name}\n`;
+    const at = v.indexOf(line);
+    if (at < 0) return;
+    const end = at + line.length;
+    bodyEl.value = v.slice(0, end) + `\n${next}\n` + v.slice(end);
+  }
+  _wizAppliedDefault = next;
+}
+
+window.acqEditDefaultNotes = async function() {
+  if (!_settingsHandle) { alert('Set a Data Folder first.'); return; }
+  const type = _defaultNotesType();
+  document.getElementById('default-notes-title').textContent = `Default Notes — ${_DEFAULT_NOTES[type].label}`;
+  document.getElementById('default-notes-hint').innerHTML =
+    `Starts the notes of every new <b>${_DEFAULT_NOTES[type].label}</b> test. Saved as ` +
+    `<code>${_DEFAULT_NOTES[type].file}</code> in your settings folder. Switching input type uses that type's own default.`;
+  document.getElementById('default-notes-textarea').value = await _readDefaultNotes(type);
+  document.getElementById('default-notes-msg').textContent = '';
+  document.getElementById('default-notes-modal')?.classList.add('open');
+};
+
+window.acqCloseDefaultNotes = function() {
+  document.getElementById('default-notes-modal')?.classList.remove('open');
+};
+
+window.acqSaveDefaultNotes = async function() {
+  const type = _defaultNotesType();
+  const text = (document.getElementById('default-notes-textarea')?.value || '').trim();
+  const st = document.getElementById('default-notes-msg');
+  try {
+    await _withWriteRetry(async () => {
+      const fh = await _settingsHandle.getFileHandle(_DEFAULT_NOTES[type].file, { create: true });
+      const w = await fh.createWritable();
+      await w.write(text ? text + '\n' : '');
+      await w.close();
+    });
+  } catch (e) {
+    if (_isFolderGoneError(e)) _handleFolderGone();
+    if (st) st.textContent = '⚠ Could not save';
+    return;
+  }
+  if (st) { st.textContent = '✓ Saved'; setTimeout(() => st.textContent = '', 2500); }
+  _wizRefreshDefaultNotes();   // show it in the New Test notes box straight away
+};
+
 // Read-only peek at an instrument's notes.txt for the live preview — returns
 // '' if the instrument or file doesn't exist yet (brand-new instrument).
 async function _peekNotesText(rootDirHandle, name) {
@@ -2560,7 +2650,23 @@ async function _tplInstrumentPreviewNow() {
       acqSelectAndApplyTpl(j);
     }
   }
-  const seed = `${_formatNotesHeader(entries.length + 1, testName)}\nInstrument name: ${name}\n`;
+  // The next test reuses the last folder when it never recorded anything. If the newest
+  // entry is already for that test, carry on with it rather than adding a duplicate.
+  const nextNum = (testName.match(/_(\d+)$/) || [])[1];
+  const topNum  = (entries[0]?.header.match(/Test\s+(\d+)\s*$/) || [])[1];
+  _wizReusedEntry = !!nextNum && !!topNum && parseInt(nextNum) === parseInt(topNum);
+  if (_wizReusedEntry) {
+    bodyEl.value = notesText.trim() + '\n';
+    _wizAppliedDefault = '';
+    if (hintEl) hintEl.textContent += ' Test ' + nextNum + ' has no data yet, so its existing notes entry is kept.';
+    _wizSeededFor = name;
+    return;
+  }
+  const defaultText = await _readDefaultNotes(_defaultNotesType());
+  if ((document.getElementById('wiz-instrument-inp')?.value || '').trim() !== name) return;  // typed on
+  _wizAppliedDefault = defaultText;
+  const seed = `${_formatNotesHeader(entries.length + 1, testName)}\nInstrument name: ${name}\n` +
+               (defaultText ? `\n${defaultText}\n` : '');
   const history = notesText.trim();
   bodyEl.value = history ? `${seed}\n${history}\n` : seed;
   _wizSeededFor = name;
@@ -3207,6 +3313,7 @@ window.acqSyncInputDevice = function() {
   _applyInputDeviceLabels();
   _updateStencilSectionVisibility();
   _patchPrefs({ input_type: val });
+  _wizRefreshDefaultNotes();
   _callPyApplySettings();   // the active sensor's cal factor changed
   _updateInfoPanel();
 };

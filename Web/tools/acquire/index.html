@@ -281,6 +281,10 @@
 
           <div id="tpl-atab-notes" class="tpl-tab-content">
             <p class="pref-hint" style="margin:0 0 6px;flex-shrink:0">The new entry is at the top; earlier entries below can be edited too. Everything here is saved to notes.txt.</p>
+            <div style="margin:0 0 6px;flex-shrink:0">
+              <button id="default-notes-btn" class="act-btn" onclick="acqEditDefaultNotes()"
+                      title="Edit the text that starts every new test's notes for this input type">✎ Edit default notes</button>
+            </div>
             <textarea id="wiz-notes-body" placeholder="Enter notes for this test…" style="flex:1;min-height:260px;resize:none"></textarea>
           </div>
 
@@ -568,6 +572,24 @@
 <!-- ═══════════════════════════════════════════════════════════════════════
      Notes modal
      ═══════════════════════════════════════════════════════════════════════ -->
+<div id="default-notes-modal" class="modal-overlay">
+  <div class="modal-box" style="width:min(92vw,520px)">
+    <div class="modal-header">
+      <span id="default-notes-title" class="modal-title">Default Notes</span>
+      <button class="modal-close" onclick="acqCloseDefaultNotes()">✕</button>
+    </div>
+    <div class="modal-body">
+      <p id="default-notes-hint" style="font-size:11px;color:var(--muted);margin-bottom:8px"></p>
+      <textarea id="default-notes-textarea" rows="12" placeholder="Text to start every new test's notes with…"></textarea>
+      <div class="save-row" style="margin-top:10px">
+        <button class="act-btn accent" onclick="acqSaveDefaultNotes()">Save</button>
+        <button class="act-btn" onclick="acqCloseDefaultNotes()">Cancel</button>
+        <span id="default-notes-msg" class="save-msg"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="notes-modal" class="modal-overlay">
   <div class="modal-box" style="width:min(92vw,520px)">
     <div class="modal-header">
