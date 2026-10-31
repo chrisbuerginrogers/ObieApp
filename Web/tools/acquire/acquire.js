@@ -75,6 +75,11 @@ let _fftXRange  = [200, 10000];
 
 let _yTrueAutorange = false;      // true while Plotly.react is running (suppress re-entrant relayout)
 let _hamPlotUpdating = false;     // true while Plotly.react is updating plot-hammer (suppress spurious relayout)
+// Mini-plot axes the user has autoscaled (double-click) — drawn from the data's extent
+// rather than a fixed range, and so kept that way as new hits arrive.
+// (Hammer/mic y use _hamYRange/_micYRange = null for the same purpose.)
+let _miniAuto = { hamX: false, micX: false, fftX: false, fftY: false };
+let _fftPlotUpdating = false;     // true while Plotly.react is updating plot-fft (suppress spurious relayout)
 let _micPlotUpdating = false;     // true while Plotly.react is updating plot-mic (suppress spurious relayout)
 let _blockFRFUpdates = false;     // true after new-run Start — suppresses Python's history replay until first real hit
 
@@ -230,27 +235,30 @@ window.onTriggered = function(t_js, ham_js, mic_js, thr) {
 };
 
 function _drawTrigPlots(t, ham, mic, thrF) {
+  const tExtent = t.length ? [t[0], t[t.length - 1]] : null;
+  const hamX = (_miniAuto.hamX && tExtent) ? tExtent : _hamXRange;
+  const micX = (_miniAuto.micX && tExtent) ? tExtent : _micXRange;
   // Y autoscale uses only data within the visible x range
-  const hamVis = ham.filter((_, i) => t[i] >= _hamXRange[0] && t[i] <= _hamXRange[1]);
-  const micVis = mic.filter((_, i) => t[i] >= _micXRange[0] && t[i] <= _micXRange[1]);
+  const hamVis = ham.filter((_, i) => t[i] >= hamX[0] && t[i] <= hamX[1]);
+  const micVis = mic.filter((_, i) => t[i] >= micX[0] && t[i] <= micX[1]);
   const pkH = Math.max(0.05, ...hamVis.map(Math.abs));
   const pkM = Math.max(0.05, ...micVis.map(Math.abs));
 
   // Cutoff lines only drawn when the cutoff falls within the visible x range
   const hamShapes = [hDot(thrF, '#7c2bc8')];
   const hamCutX = _preTrigS + _hamTimeCutoffS;
-  if (hamCutX >= _hamXRange[0] && hamCutX <= _hamXRange[1])
+  if (hamCutX >= hamX[0] && hamCutX <= hamX[1])
     hamShapes.push(vLine(hamCutX, '#2e7d32'));
   const micShapes = [];
   const micCutX = _preTrigS + _micTimeCutoffS;
-  if (micCutX >= _micXRange[0] && micCutX <= _micXRange[1])
+  if (micCutX >= micX[0] && micCutX <= micX[1])
     micShapes.push(vLine(micCutX, '#2e7d32'));
 
   _hamPlotUpdating = true;
   Plotly.react('plot-hammer',
     [{ x: t, y: ham, type: 'scatter', mode: 'lines', line: { color: '#c62828', width: 1 } }],
     miniLayout('Hammer', 'Time (s)', 'Raw value',
-      { range: _hamXRange },
+      { range: hamX },
       _hamYRange ? { range: _hamYRange } : { range: [-pkH*1.2, pkH*1.2] },
       hamShapes),
     PCFG);
@@ -260,7 +268,7 @@ function _drawTrigPlots(t, ham, mic, thrF) {
   Plotly.react('plot-mic',
     [{ x: t, y: mic, type: 'scatter', mode: 'lines', line: { color: '#1565c0', width: 1 } }],
     miniLayout(_responseLabel(), 'Time (s)', 'Raw value',
-      { range: _micXRange },
+      { range: micX },
       _micYRange ? { range: _micYRange } : { range: [-pkM*1.2, pkM*1.2] },
       micShapes),
     PCFG);
@@ -283,8 +291,10 @@ function _drawHammerFFT() {
   if (!_lastFftData) return;
   const freqAll  = _lastFftData.freq;
   const dbAll    = _lastFftData.db;
-  const fMax     = Math.min(_fftXRange[1], freqAll[freqAll.length - 1] || _fftXRange[1]);
-  const fMin     = _fftXRange[0];
+  const lastF    = freqAll[freqAll.length - 1];
+  const xr       = _miniAuto.fftX ? [freqAll.find(f => f > 0) ?? _fftXRange[0], lastF || _fftXRange[1]] : _fftXRange;
+  const fMax     = Math.min(xr[1], lastF || xr[1]);
+  const fMin     = xr[0];
 
   // Build arrays, skip DC bin (freq=0 breaks log axis)
   const freq = [], db = [];
@@ -306,12 +316,14 @@ function _drawHammerFFT() {
 
   const dbNorm = db.map(v => isFinite(v) ? v - peak : null);
 
+  _fftPlotUpdating = true;
   Plotly.react('plot-fft',
     [{ x: freq, y: dbNorm, type: 'scatter', mode: 'lines', line: { color: '#7c4dbe', width: 1 } }],
     miniLayout('Hammer FFT', 'Hz', 'dB',
       { type: 'log', tickformat: ',d', exponentformat: 'none', range: [Math.log10(Math.max(fMin, 1)), Math.log10(fMax)] },
-      { range: _fftYRange }, FFT_REF_SHAPES),
+      _miniAuto.fftY ? { autorange: true } : { range: _fftYRange }, FFT_REF_SHAPES),
     PCFG);
+  setTimeout(() => { _fftPlotUpdating = false; }, 0);
 }
 
 /** FRF updated for one position — cache and re-render main plot */
@@ -366,12 +378,14 @@ window.onStateChange = function(jsonStr) {
   else if (s.state === 'complete')  { txt = `✓ Run complete — ${s.n_positions} positions measured`; cls = 'complete'; _resetForNextRun(); }
   if (bar) { bar.textContent = txt; bar.className = `acq-status-txt ${cls}`; }
 
+  document.querySelector('.acq-plot-wrap')?.classList.toggle('test-done', s.state === 'complete');
+
   const hitInd = document.getElementById('toolbar-hit-ind');
   if (hitInd) {
     if (s.state === 'armed' || s.state === 'triggered') {
-      hitInd.textContent = `Hit ${Math.min(s.hit_n + 1, s.n_taps)}`;
+      hitInd.textContent = `${s.label} · Hit ${Math.min(s.hit_n + 1, s.n_taps)}`;
     } else if (s.state === 'position_complete') {
-      hitInd.textContent = `Hit ${s.n_taps}`;
+      hitInd.textContent = `${s.label} · Hit ${s.n_taps}`;
     } else {
       hitInd.textContent = '';
     }
@@ -712,6 +726,7 @@ function renderFRF() {
       type: _S.xLog ? 'log' : 'linear',
       title: { text: 'Frequency (Hz)', font: { size: 11 } },
       range: xRange,
+      hoverformat: '.2f',
       ...(_S.xLog ? { tickformat: ',d', exponentformat: 'none' } : {}),
       ...(logTicks ? { tickmode: logTicks.tickmode, tickvals: logTicks.tickvals, ticktext: logTicks.ticktext, minor: logTicks.minor } : {}),
       gridcolor: '#c0c4cc', tickfont: { size: 10 },
@@ -719,6 +734,7 @@ function renderFRF() {
     },
     yaxis: {
       title: { text: 'Intensity (dB)', font: { size: 11 } },
+      hoverformat: '.2f',
       ...(yRange ? { range: yRange, autorange: false } : { autorange: true }),
       gridcolor: '#c0c4cc', tickfont: { size: 10 },
       showline: true, mirror: true, linecolor: '#888', linewidth: 1,
@@ -967,15 +983,38 @@ window.acqStartOver = async function() {
   acqToggleAcquire();
 };
 
+// Test finished: put Acquire back in its freshly-loaded state — no template
+// ("New Test"), empty plots, hits cleared, audio released, checklist reset.
+// Saved files are untouched; the instrument/Data Folder stay connected.
+window.acqCloseTest = async function() {
+  document.querySelector('.acq-plot-wrap')?.classList.remove('test-done');
+  if (audioCtx || _simInterval) await _stopAudio();
+  frfCache = {};
+  tapCache = {};
+  _lastFftData = null;
+  _resetAxisRanges(_loadPrefs());   // forget any session zoom
+  renderFRF();
+  _clearTrigPlots();
+  window.pyResetAll?.();
+  _resetAgenda();
+  _clearTemplateName();
+};
+
 window.acqClearPosition = function() {
   if (window.pyClearPosition) window.pyClearPosition();
   _clearTrigPlots();
 };
 
+function _setDialogPause(v) {
+  _dialogPause = v;
+  _updateStopBtn();
+}
+
 function _updateStopBtn() {
   const btn = document.getElementById('acq-start-btn');
   if (!btn) return;
-  if (appState === 'idle' || appState === 'complete') {
+  if (appState === 'idle' || appState === 'complete' || _dialogPause) {
+    // A dialog (New Test / Device / LiveView) holds audio, so show the toggled-off state
     btn.textContent = '▶ Start';
     btn.className   = 'tb-btn start';
   } else {
@@ -1117,7 +1156,7 @@ window.acqSaveCustomPalette = function() {
 
 window.acqCloseTemplateSettings = function() {
   document.getElementById('tpl-settings-modal')?.classList.remove('open');
-  _dialogPause = false;
+  _setDialogPause(false);
   _stopStencilPoll();
 };
 
@@ -1155,21 +1194,10 @@ function _populatePrefsForm(overridePrefs, skipPlotSync) {
     if (el && val != null) el.value = val;
   };
   const prefs = overridePrefs || _loadPrefs();
-  // Sync _S.xMin/_S.xMax from the plot's actual displayed range so the form shows
-  // the current zoom. Skipped when resetting to defaults (skipPlotSync=true).
-  if (!skipPlotSync) {
-    const acqDiv = document.getElementById('acq-plot');
-    if (acqDiv?._fullLayout?.xaxis?.range?.length === 2) {
-      const isLog = acqDiv._fullLayout.xaxis.type === 'log';
-      const xr = acqDiv._fullLayout.xaxis.range;
-      _S.xMin = isLog ? Math.pow(10, xr[0]) : xr[0];
-      _S.xMax = isLog ? Math.pow(10, xr[1]) : xr[1];
-    }
-  }
   set('inp-threshold',   prefs.threshold);
   set('inp-thr-disp',    Number(prefs.threshold ?? 0.05).toFixed(3));
-  set('inp-frf-x-min',   Math.round(_S.xMin ?? prefs.frf_x_min ?? 100));
-  set('inp-frf-x-max',   Math.round(_S.xMax ?? prefs.frf_x_max ?? 12000));
+  set('inp-frf-x-min',   Math.round(prefs.frf_x_min ?? _S.xMin ?? 100));
+  set('inp-frf-x-max',   Math.round(prefs.frf_x_max ?? _S.xMax ?? 12000));
   set('inp-pre',         prefs.pre_trig_s);
   set('inp-post',        prefs.post_trig_s);
   set('inp-time-cutoff',     prefs.time_cutoff_s);
@@ -1200,29 +1228,24 @@ function _populatePrefsForm(overridePrefs, skipPlotSync) {
   if (instrDisp) instrDisp.textContent = instrVal;
   _mirrorInstrumentName();
   set('inp-line-width',  prefs.line_width);
-  // Read mini-plot ranges from Plotly's layout — ground truth after user zoom.
-  const hamDiv = document.getElementById('plot-hammer');
-  if (hamDiv?._fullLayout?.xaxis?.range?.length === 2)
-    _hamXRange = [...hamDiv._fullLayout.xaxis.range];
-  const micDiv = document.getElementById('plot-mic');
-  if (micDiv?._fullLayout?.xaxis?.range?.length === 2)
-    _micXRange = [...micDiv._fullLayout.xaxis.range];
-  set('inp-ham-x-min',   _hamXRange[0]);
-  set('inp-ham-x-max',   _hamXRange[1]);
-  set('inp-ham-y-min',   _hamYRange ? _hamYRange[0] : (prefs.ham_y_min ?? -0.1));
-  set('inp-ham-y-max',   _hamYRange ? _hamYRange[1] : (prefs.ham_y_max ?? 1));
-  set('inp-mic-x-min',   _micXRange[0]);
-  set('inp-mic-x-max',   _micXRange[1]);
-  set('inp-mic-y-min',   _micYRange ? _micYRange[0] : (prefs.mic_y_min ?? -1));
-  set('inp-mic-y-max',   _micYRange ? _micYRange[1] : (prefs.mic_y_max ?? 1));
-  set('inp-fft-x-min',   _fftXRange[0]);
-  set('inp-fft-x-max',   _fftXRange[1]);
-  set('inp-fft-y-min',   _fftYRange[0]);
-  set('inp-fft-y-max',   _fftYRange[1]);
+  // The form shows the template (prefs) values, never the live zoom — zoom is
+  // session-only and must not become permanent just by opening and saving this dialog.
+  set('inp-ham-x-min',   prefs.ham_x_min ?? 0);
+  set('inp-ham-x-max',   prefs.ham_x_max ?? 0.1);
+  set('inp-ham-y-min',   prefs.ham_y_min ?? -0.1);
+  set('inp-ham-y-max',   prefs.ham_y_max ?? 1);
+  set('inp-mic-x-min',   prefs.mic_x_min ?? 0);
+  set('inp-mic-x-max',   prefs.mic_x_max ?? 0.3);
+  set('inp-mic-y-min',   prefs.mic_y_min ?? -1);
+  set('inp-mic-y-max',   prefs.mic_y_max ?? 1);
+  set('inp-fft-x-min',   prefs.fft_x_min ?? 200);
+  set('inp-fft-x-max',   prefs.fft_x_max ?? 10000);
+  set('inp-fft-y-min',   prefs.fft_y_min ?? -25);
+  set('inp-fft-y-max',   prefs.fft_y_max ?? 0);
   const frfYMinEl = document.getElementById('inp-frf-y-min');
   const frfYMaxEl = document.getElementById('inp-frf-y-max');
-  if (frfYMinEl) frfYMinEl.value = (_S.yMin != null) ? _S.yMin : (prefs.frf_y_min != null ? prefs.frf_y_min : '');
-  if (frfYMaxEl) frfYMaxEl.value = (_S.yMax != null) ? _S.yMax : (prefs.frf_y_max != null ? prefs.frf_y_max : '');
+  if (frfYMinEl) frfYMinEl.value = (prefs.frf_y_min != null) ? prefs.frf_y_min : '';
+  if (frfYMaxEl) frfYMaxEl.value = (prefs.frf_y_max != null) ? prefs.frf_y_max : '';
   set('inp-db-spread',   prefs.db_spread  ?? 38);
   set('inp-db-offset',   prefs.db_offset  ?? 0);
   set('inp-bit-depth',   (prefs.bit_depth ?? 24) >= 20 ? 24 : 16);
@@ -1243,7 +1266,7 @@ function _patchPrefs(updates) {
 function _callPyApplySettings() {
   if (!window.pyApplySettings) return;
   const p  = _loadPrefs();
-  const sr = audioCtx?.sampleRate || 44100;
+  const sr = _currentSampleRate(p);
   window.pyApplySettings(
     p.threshold, p.pre_trig_s, p.post_trig_s,
     p.time_cutoff_s ?? p.post_trig_s ?? 0.30,
@@ -1301,6 +1324,7 @@ function _buildPrefsFromForm() {
   // state — this is the path when the user types a new value directly in the modal.
   // Using _hamXRange/_micXRange as the authoritative source prevents stale form values
   // from reverting a user's interactive plot zoom.
+  _miniAuto = { hamX: false, micX: false, fftX: false, fftY: false };
   const formHamMin = parseFloat(g('inp-ham-x-min'));
   const formHamMax = parseFloat(g('inp-ham-x-max'));
   if (!isNaN(formHamMin) && !isNaN(formHamMax) && formHamMax > 0.001) {
@@ -1402,8 +1426,8 @@ function _applyPrefsToRun(prefs, deviceChanged) {
   _saveAcqSettings();
   _pushSettingsFromPrefs(prefs);
   _updateSoundcardDisplay();
-  if (deviceChanged && audioCtx) {
-    _stopAudio().then(() => _startAudio());
+  if (deviceChanged && (audioCtx || _simInterval)) {
+    _restartAudio();
   }
 }
 
@@ -1483,7 +1507,7 @@ window.acqTplExitUpdateTemplate = async function() {
 
 window.acqTplExitCreateTemplate = async function() {
   if (!_templatesHandle) {
-    alert('Set a Data Folder first — templates are saved to ObieAppSettings/Templates/ inside it.');
+    alert('Set a Data Folder first — templates are saved to ObieWebSettings/Templates/ inside it.');
     return;
   }
   const built = _buildPrefsFromForm();
@@ -1525,6 +1549,7 @@ window.acqTplExitCancel = function() {
 };
 
 function _resetAxisRanges(prefs) {
+  _miniAuto = { hamX: false, micX: false, fftX: false, fftY: false };
   const p = prefs || {};
   _S.xMin     = p.frf_x_min  ?? 0;     _S.xMax     = p.frf_x_max  ?? 7000;
   _S.yMin     = p.frf_y_min  ?? -10;   _S.yMax     = p.frf_y_max  ?? 30;
@@ -1559,6 +1584,15 @@ window.acqResetPrefs = async function() {
 
 // skipRangeSync=true when resuming audio (Stop → Start) so that interactive
 // zoom the user applied while paused is not overwritten by saved prefs values.
+// Rate Python should expect: the simulator generates at the sample_rate pref
+// (it has no AudioContext); a real device reports its own.
+function _currentSampleRate(prefs) {
+  if (prefs.deviceId === '__simulated__') return prefs.sample_rate ?? 48000;
+  return audioCtx?.sampleRate || 44100;
+}
+
+let _lastPushedSr = null;   // sample rate last sent to Python
+
 function _pushSettingsFromPrefs(prefs, skipRangeSync = false) {
   _hamTimeCutoffS  = prefs.time_cutoff_s     ?? prefs.post_trig_s ?? 0.30;
   _micTimeCutoffS  = prefs.mic_time_cutoff_s ?? prefs.time_cutoff_s ?? prefs.post_trig_s ?? 0.30;
@@ -1584,7 +1618,16 @@ function _pushSettingsFromPrefs(prefs, skipRangeSync = false) {
   if (!window.pyApplySettings) return;
   _appliedPrefix   = (prefs.prefix || 'H').trim();
   _appliedPerGroup = Math.max(1, parseInt(prefs.positions) || 1);
-  const sr = audioCtx?.sampleRate || 44100;
+  const sr = _currentSampleRate(prefs);
+  // Python discards its accumulated hits when the sample rate changes — drop the
+  // matching plot data here so stale curves don't linger.
+  if (_lastPushedSr !== null && _lastPushedSr !== sr) {
+    frfCache = {};
+    tapCache = {};
+    renderFRF();
+    _clearTrigPlots();
+  }
+  _lastPushedSr = sr;
   window.pyApplySettings(
     prefs.threshold, prefs.pre_trig_s, prefs.post_trig_s,
     prefs.time_cutoff_s ?? prefs.post_trig_s ?? 0.30,
@@ -1690,18 +1733,21 @@ function _applyDeviceChangeFromSelect(selectId) {
   _updateSoundcardDisplay();
   _clearTemplateName();
   _updateTplPrimaryBtnLabel();
-  if (audioCtx) _stopAudio().then(() => _startAudio());
+  // Simulated input has no audioCtx, so check for its timer too
+  if (audioCtx || _simInterval) _restartAudio();
 }
 
 window.acqApplyDeviceSelection = function() { _applyDeviceChangeFromSelect('prefs-device'); };
 
 window.acqOpenDevicePicker = async function() {
   document.getElementById('device-picker-modal')?.classList.add('open');
+  _setDialogPause(true);   // hold audio while the picker is open (a hit already being captured finishes)
   await _enumerateDevicesInto('device-picker-select');
 };
 
 window.acqCloseDevicePicker = function() {
   document.getElementById('device-picker-modal')?.classList.remove('open');
+  _setDialogPause(false);
 };
 
 window.acqRecheckDevicePicker = function() { _enumerateDevicesInto('device-picker-select'); };
@@ -1932,7 +1978,7 @@ let _tplNameOnOpen = '';
 window.acqOpenTemplateSettings = async function() {
   _tplNameOnOpen = _currentTemplateName;
   document.getElementById('tpl-settings-modal')?.classList.add('open');
-  _dialogPause = true;   // hold audio while the dialog is open (a hit already being captured finishes)
+  _setDialogPause(true);   // hold audio while the dialog is open (a hit already being captured finishes)
   _populatePrefsForm();
   _enumeratePrefsDevices();
   _selectedTpl = null;
@@ -1993,7 +2039,7 @@ window.acqTogglePlotSettings = function() {
 };
 
 // Re-fetch the three built-in default templates from GitHub and overwrite
-// any same-named files in ObieAppSettings/Templates/. User-created templates
+// any same-named files in ObieWebSettings/Templates/. User-created templates
 // with other names are left untouched.
 window.acqResetDefaultTemplates = async function() {
   const st = document.getElementById('tpl-reset-msg');
@@ -2273,8 +2319,8 @@ let _rawHandle       = null;
 let _trfHandle       = null;
 let _testHandle      = null;   // current test folder (root of raw/ and TRF/)
 let _runName         = '';
-let _settingsHandle  = null;   // ObieAppSettings/ dir inside the data folder
-let _templatesHandle = null;   // ObieAppSettings/Templates/ dir
+let _settingsHandle  = null;   // ObieWebSettings/ dir inside the data folder
+let _templatesHandle = null;   // ObieWebSettings/Templates/ dir
 let _testsHandle     = null;   // <instrument>/test/ dir (set when data folder chosen)
 let _rootDirHandle   = null;   // root data folder handle
 let _folderGoneShown = false;  // debounce — only show the gone-folder UI once per event
@@ -2348,7 +2394,7 @@ window.acqRenameTest = async function() {
 
 // ── Instrument + Notes (column A of the Template & Settings modal) ──────
 
-const _NON_INSTRUMENT_DIRS = new Set(['ObieAppSettings', 'Test_Samples', 'Group Averages']);
+const _NON_INSTRUMENT_DIRS = new Set(['ObieWebSettings', 'ObieAppSettings', '_ObieAppSettings', 'Test_Samples', 'Group Averages']);
 
 async function _listInstrumentNames(rootDirHandle) {
   const names = [];
@@ -2684,7 +2730,7 @@ async function _refreshInstrumentFolder(instrumentName) {
 async function _applyDataFolder(dirHandle) {
   _rootDirHandle = dirHandle;
 
-  // ObieAppSettings first
+  // ObieWebSettings first
   let _acqFolderIsNew, _acqSeedsFailed;
   ({ settingsHandle: _settingsHandle, templatesHandle: _templatesHandle,
      isNew: _acqFolderIsNew, seedsFailed: _acqSeedsFailed } =
@@ -3369,10 +3415,25 @@ function _lvDrawTime(id, samples, color, thr, showThr) {
   }
   ctx.strokeStyle = color; ctx.lineWidth = 1.5*devicePixelRatio;
   ctx.beginPath();
-  const step = Math.max(1, Math.floor(n / w));
-  for (let i = 0; i < n; i += step) {
-    const x = w*i/n, y = yOf(samples[i]);
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  if (n <= w) {
+    for (let i = 0; i < n; i++) {
+      const x = w*i/n, y = yOf(samples[i]);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+  } else {
+    // Min/max per pixel column so short spikes (e.g. a hammer hit) are never decimated away.
+    for (let px = 0; px < w; px++) {
+      const i0 = Math.floor(px * n / w), i1 = Math.max(i0 + 1, Math.floor((px + 1) * n / w));
+      let lo = Infinity, hi = -Infinity;
+      for (let i = i0; i < i1 && i < n; i++) {
+        const v = samples[i];
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+      if (lo > hi) continue;
+      if (px === 0) ctx.moveTo(px, yOf(lo)); else ctx.lineTo(px, yOf(lo));
+      ctx.lineTo(px, yOf(hi));
+    }
   }
   ctx.stroke();
   ctx.fillStyle = '#aaa'; ctx.font = `${9*devicePixelRatio}px sans-serif`; ctx.textBaseline = 'top';
@@ -3659,6 +3720,7 @@ window.acqLiveView = function() {
   const isOpen = dlg.classList.contains('open');
   if (isOpen) {
     _lvStopCapture();
+    _setDialogPause(false);
     dlg.classList.remove('open');
     document.getElementById('lv-btn')?.classList.remove('active');
 
@@ -3679,6 +3741,7 @@ window.acqLiveView = function() {
     }
   } else {
     dlg.classList.add('open');
+    _setDialogPause(true);   // hold Acquire's audio while LiveView is open (a hit already being captured finishes)
     document.getElementById('lv-btn')?.classList.add('active');
     setTimeout(() => {
       _lvResizeCanvases();
@@ -3780,6 +3843,7 @@ window.acqToggleAcquire = async function() {
 };
 
 function _startSimulation(sr, swapChannels) {
+  _stopSimulation();   // never leave an orphaned timer feeding Python
   _simSample  = 0;
   _simNextHit = Math.round(sr * 1.5);                // first hit after 1.5 s
   const hitSpacing = Math.round(sr * 2.5);           // subsequent hits every 2.5 s
@@ -3942,6 +4006,16 @@ async function _startAudio() {
   }
 }
 
+// Restarts are chained so two quick device/settings changes can't interleave
+// (an overlapping stop/start would leave two streams or sim timers running).
+let _restartChain = Promise.resolve();
+function _restartAudio() {
+  _restartChain = _restartChain
+    .then(async () => { await _stopAudio(); await _startAudio(); })
+    .catch(err => console.error('Audio restart failed:', err));
+  return _restartChain;
+}
+
 async function _stopAudio() {
   _blockFRFUpdates = false;
   _stopSimulation();
@@ -3980,10 +4054,41 @@ function _resetForNextRun() {
 // Sidebar resize
 // ════════════════════════════════════════════════════════════════════════════
 
+// Plotly has no hover-label offset option, so nudge the FRF readout `px` pixels
+// further from the cursor (horizontally, whichever side Plotly put it on).
+// Plotly redraws the labels on every mouse move, hence the observer.
+function _offsetFrfHoverLabel(px) {
+  const plot = document.getElementById('acq-plot');
+  if (!plot) return;
+  let cursorX = 0;
+  plot.addEventListener('mousemove', e => { cursorX = e.clientX; });
+  const shifted = new WeakMap();   // label -> transform string we last wrote
+  const nudge = () => {
+    plot.querySelectorAll('.hoverlayer g.hovertext').forEach(g => {
+      const cur = g.getAttribute('transform') || '';
+      if (shifted.get(g) === cur) return;   // already offset
+      const m = /translate\(\s*([-\d.eE]+)[ ,]+([-\d.eE]+)\s*\)/.exec(cur);
+      if (!m) return;
+      const r = g.getBoundingClientRect();
+      const dx = (r.left + r.width / 2 >= cursorX) ? px : -px;
+      const next = `translate(${parseFloat(m[1]) + dx},${m[2]})`;
+      shifted.set(g, next);
+      g.setAttribute('transform', next);
+    });
+  };
+  new MutationObserver(nudge).observe(plot, {
+    subtree: true, childList: true, attributes: true, attributeFilter: ['transform'],
+  });
+}
+
 function _initResizer() {
   const resizer  = document.getElementById('acq-resizer');
   const sidebar  = document.querySelector('.acq-sidebar');
   if (!resizer || !sidebar) return;
+  try {
+    const saved = parseInt(localStorage.getItem('obieAcquire_sidebarW'));
+    if (saved) sidebar.style.width = Math.max(120, Math.min(400, saved)) + 'px';
+  } catch (_) {}
   let dragging = false, startX = 0, startW = 0;
   resizer.addEventListener('mousedown', e => {
     dragging = true; startX = e.clientX; startW = sidebar.offsetWidth;
@@ -4006,6 +4111,7 @@ function _initResizer() {
     resizer.classList.remove('dragging');
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
+    try { localStorage.setItem('obieAcquire_sidebarW', sidebar.offsetWidth); } catch (_) {}
   });
 }
 
@@ -4108,64 +4214,73 @@ function _initPlots() {
     miniLayout(_responseLabel(), 'Time (s)', 'Raw value', { range: _micXRange }, { range: _micYRange }),
     PCFG);
 
+  // acq-plot isn't a Plotly graph until renderFRF() below, so it can't take .on() handlers yet.
+  _offsetFrfHoverLabel(10);
+
   // Persist user zoom/pan — capture both x and y changes on mini plots.
   document.getElementById('plot-fft').on('plotly_afterplot', () => restepLogTicks('plot-fft', 8));
-  document.getElementById('acq-plot').on('plotly_afterplot', () => restepLogTicks('acq-plot', 10));
+  // Zoom/pan is kept for the session only (so it survives new hits) — it is never
+  // written to prefs or the settings form, so a reload gives the template values.
+  // Double-click autoscales that axis to the data.
   document.getElementById('plot-hammer').on('plotly_relayout', e => {
     if (_hamPlotUpdating) return;  // ignore relayout events fired by our own Plotly.react calls
-    if (e['yaxis.range[0]'] != null) _hamYRange = [e['yaxis.range[0]'], e['yaxis.range[1]']];
-    else if (e['yaxis.autorange'])   _hamYRange = null;
-    if (e['xaxis.range[0]'] != null) {
-      _hamXRange = [e['xaxis.range[0]'], e['xaxis.range[1]']];
-      const mn = document.getElementById('inp-ham-x-min');
-      const mx = document.getElementById('inp-ham-x-max');
-      if (mn) mn.value = _hamXRange[0].toFixed(3);
-      if (mx) mx.value = _hamXRange[1].toFixed(3);
-      _patchPrefs({ ham_x_min: _hamXRange[0], ham_x_max: _hamXRange[1] });
-    }
+    let redraw = false;
+    if (e['xaxis.autorange'])            { _miniAuto.hamX = true;  redraw = true; }
+    else if (e['xaxis.range[0]'] != null) { _miniAuto.hamX = false; _hamXRange = [e['xaxis.range[0]'], e['xaxis.range[1]']]; }
+    if (e['yaxis.autorange'])            { _hamYRange = null;      redraw = true; }
+    else if (e['yaxis.range[0]'] != null) { _hamYRange = [e['yaxis.range[0]'], e['yaxis.range[1]']]; }
+    if (redraw) _redrawMiniPlots();
   });
   document.getElementById('plot-mic').on('plotly_relayout', e => {
-    if (_micPlotUpdating) return;  // ignore relayout events fired by our own Plotly.react calls
-    if (e['yaxis.range[0]'] != null) _micYRange = [e['yaxis.range[0]'], e['yaxis.range[1]']];
-    else if (e['yaxis.autorange'])   _micYRange = null;
-    if (e['xaxis.range[0]'] != null) {
-      _micXRange = [e['xaxis.range[0]'], e['xaxis.range[1]']];
-      const mn = document.getElementById('inp-mic-x-min');
-      const mx = document.getElementById('inp-mic-x-max');
-      if (mn) mn.value = _micXRange[0].toFixed(3);
-      if (mx) mx.value = _micXRange[1].toFixed(3);
-      _patchPrefs({ mic_x_min: _micXRange[0], mic_x_max: _micXRange[1] });
-    }
+    if (_micPlotUpdating) return;
+    let redraw = false;
+    if (e['xaxis.autorange'])            { _miniAuto.micX = true;  redraw = true; }
+    else if (e['xaxis.range[0]'] != null) { _miniAuto.micX = false; _micXRange = [e['xaxis.range[0]'], e['xaxis.range[1]']]; }
+    if (e['yaxis.autorange'])            { _micYRange = null;      redraw = true; }
+    else if (e['yaxis.range[0]'] != null) { _micYRange = [e['yaxis.range[0]'], e['yaxis.range[1]']]; }
+    if (redraw) _redrawMiniPlots();
+  });
+  document.getElementById('plot-fft').on('plotly_relayout', e => {
+    if (_fftPlotUpdating) return;
+    let redraw = false;
+    // FFT x axis is log: Plotly reports log10 values
+    if (e['xaxis.autorange'])            { _miniAuto.fftX = true;  redraw = true; }
+    else if (e['xaxis.range[0]'] != null) { _miniAuto.fftX = false; _fftXRange = [Math.pow(10, e['xaxis.range[0]']), Math.pow(10, e['xaxis.range[1]'])]; }
+    if (e['yaxis.autorange'])            { _miniAuto.fftY = true;  redraw = true; }
+    else if (e['yaxis.range[0]'] != null) { _miniAuto.fftY = false; _fftYRange = [e['yaxis.range[0]'], e['yaxis.range[1]']]; }
+    if (redraw) _redrawMiniPlots();
   });
 
   renderFRF();
 
   // Track main FRF plot zoom/pan — must attach after first renderFRF() initialises the plot.
+  document.getElementById('acq-plot').on('plotly_afterplot', () => restepLogTicks('acq-plot', 10));
   document.getElementById('acq-plot').on('plotly_relayout', e => {
     if (_yTrueAutorange) return;  // ignore events triggered by our own Plotly.react calls
+    if (e['xaxis.autorange'] || e['yaxis.autorange']) {
+      // Double-click → back to the template values
+      const p = _loadPrefs();
+      _S.xMin = p.frf_x_min ?? 0;   _S.xMax = p.frf_x_max ?? 7000;
+      _S.yMin = p.frf_y_min ?? -10; _S.yMax = p.frf_y_max ?? 30;
+      _autoYRange = null;
+      renderFRF();
+      return;
+    }
     if (e['xaxis.range[0]'] != null) {
       // Plotly reports log10 values when axis type is 'log'
       _S.xMin = _S.xLog ? Math.pow(10, e['xaxis.range[0]']) : e['xaxis.range[0]'];
       _S.xMax = _S.xLog ? Math.pow(10, e['xaxis.range[1]']) : e['xaxis.range[1]'];
-      const mn = document.getElementById('inp-frf-x-min');
-      const mx = document.getElementById('inp-frf-x-max');
-      if (mn) mn.value = Math.round(_S.xMin);
-      if (mx) mx.value = Math.round(_S.xMax);
-      _patchPrefs({ frf_x_min: Math.round(_S.xMin), frf_x_max: Math.round(_S.xMax) });
-    } else if (e['xaxis.autorange']) {
-      _S.xMin = 100; _S.xMax = 12000;
-      const mn = document.getElementById('inp-frf-x-min');
-      const mx = document.getElementById('inp-frf-x-max');
-      if (mn) mn.value = 100;
-      if (mx) mx.value = 12000;
-      _patchPrefs({ frf_x_min: 100, frf_x_max: 12000 });
     }
     if (e['yaxis.range[0]'] != null) {
       _S.yMin = e['yaxis.range[0]']; _S.yMax = e['yaxis.range[1]'];
-    } else if (e['yaxis.autorange']) {
-      _S.yMin = null; _S.yMax = null; _autoYRange = null;
     }
   });
+}
+
+// Redraw the three mini plots from the last captured hit (after an autoscale).
+function _redrawMiniPlots() {
+  if (_lastTrigData) _drawTrigPlots(_lastTrigData.t, _lastTrigData.ham, _lastTrigData.mic, _lastTrigData.thr);
+  if (_lastFftData) _drawHammerFFT();
 }
 
 // Called once from Python after proxies are registered

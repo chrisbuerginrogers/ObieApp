@@ -69,7 +69,7 @@ def apply_settings(thr_js, pre_js, post_js, ham_time_cutoff_js,
     global _threshold, _pre_trig_s, _post_trig_s
     global _ham_time_cutoff_s, _mic_time_cutoff_s
     global _n_taps, _prefixes, _n_per_prefix, _mic_cal, _ham_cal, _sr, _swap_channels, _device_name
-    global _full_scale_v, _bit_depth, _frf_estimator
+    global _full_scale_v, _bit_depth, _frf_estimator, _state
     _threshold      = max(0.001, float(thr_js))
     _pre_trig_s        = max(0.001, float(pre_js))
     _post_trig_s       = max(0.05,  float(post_js))
@@ -86,11 +86,17 @@ def apply_settings(thr_js, pre_js, post_js, ham_time_cutoff_js,
     _swap_channels  = bool(swap_js)
     _device_name    = str(device_name_js)
     new_sr          = int(sr_js)
-    if new_sr != _sr:
+    sr_changed = new_sr != _sr
+    if sr_changed:
         _reallocate_ring(new_sr)
+        # A half-captured hit came from the old ring
+        if _state == "triggered":
+            _state = "armed"
     _n_per_prefix = max(1, int(npos_js))
     new_n = _n_per_prefix * len(_prefixes)
-    if new_n != _n_positions or not _pos_hits:
+    # Hits stored at another sample rate have different FFT lengths and can't be
+    # averaged with new ones (shape mismatch in the FRF accumulator) — start clean.
+    if new_n != _n_positions or not _pos_hits or sr_changed:
         _init_internal(new_n)
     else:
         # Only recompute the position being viewed — recomputing every position

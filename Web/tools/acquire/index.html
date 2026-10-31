@@ -195,6 +195,12 @@
         <div class="folder-overlay-sub" id="folder-overlay-sub"></div>
       </div>
 
+      <!-- Test-complete overlay — fades the FRF and offers to reset to a fresh test -->
+      <div id="test-done-overlay" class="test-done-overlay">
+        <div class="test-done-msg">✓ Test complete</div>
+        <button class="tb-btn accent" onclick="acqCloseTest()" style="padding:6px 18px;font-size:12px">Close Test</button>
+      </div>
+
       <!-- Plot controls toolbar -->
       <div class="plot-toolbar">
         <button class="tb-btn" onclick="acqRescaleY()" title="Rescale Y to data range">↕Y</button>

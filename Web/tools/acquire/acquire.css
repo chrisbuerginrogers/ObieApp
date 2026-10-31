@@ -302,6 +302,18 @@ header.obie-header .logo-icon { width: 26px; height: 26px; font-size: 14px; }
   font-size: 11px; color: var(--muted); font-style: italic; text-align: center;
 }
 
+/* ── Test-complete overlay ───────────────────────────────────────────── */
+.test-done-overlay {
+  position: absolute; inset: 0; z-index: 25;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; pointer-events: none; opacity: 0; transition: opacity 0.6s;
+}
+.test-done-overlay .tb-btn { pointer-events: auto; }
+.test-done-msg { font-size: 15px; font-weight: 600; color: var(--muted); text-align: center; }
+.acq-plot-wrap.test-done .test-done-overlay { opacity: 1; }
+#acq-plot { transition: opacity 0.6s; }
+.acq-plot-wrap.test-done #acq-plot { opacity: 0.15; pointer-events: none; }
+
 .plot-toolbar {
   display: flex; align-items: center; gap: 10px; flex-shrink: 0;
   padding: 4px 8px; min-height: 34px;
