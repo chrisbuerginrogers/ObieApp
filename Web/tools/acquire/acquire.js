@@ -1541,6 +1541,93 @@ window.acqTplExitCreateTemplate = async function() {
   acqCloseTemplateSettings();
 };
 
+// Copies template file(s) into ObieWebSettings/Templates/, translating where
+// needed: LabVIEW *_template.txt → JSON, and flat settings JSON → {name, settings}.
+// A template with the same name already in the folder is overwritten after confirming.
+const _tplFileSafe = name => name.trim().replace(/[\\/:*?"<>|]/g, '_') + '.json';
+
+async function _tplFromImportedFile(file) {
+  const text = await file.text();
+  const lower = file.name.toLowerCase();
+  if (lower.endsWith('.txt')) {
+    if (!window.pyParseLabviewTxt) throw new Error('Python is still loading — try again in a moment.');
+    const fields = JSON.parse(window.pyParseLabviewTxt(text));
+    const notes  = (fields['Default Notes'] || '').trim();
+    return [{
+      name:        file.name.replace(/\.txt$/i, '').replace(/_template$/i, '').replace(/_/g, ' ').trim(),
+      description: `Imported from ${file.name}`,
+      settings:    _lvFieldsToSettings(fields),
+      ...(notes ? { notes } : {}),
+    }];
+  }
+  const data = JSON.parse(text);
+  const base = file.name.replace(/\.json$/i, '');
+  return (Array.isArray(data) ? data : [data])
+    .filter(t => t && typeof t === 'object' && t.type !== 'node-stencil')
+    .map(t => {
+      const { _file, ...tpl } = t;
+      // A bare settings object (no wrapper) becomes the template's settings
+      if (!tpl.settings && ('threshold' in tpl || 'taps' in tpl || 'positions' in tpl)) {
+        return { name: base, description: `Imported from ${file.name}`, settings: tpl };
+      }
+      return { ...tpl, name: (tpl.name || base).trim() };
+    })
+    .filter(t => t.settings && typeof t.settings === 'object');
+}
+
+window.acqImportTemplates = async function(input) {
+  const files = [...(input.files || [])];
+  input.value = '';
+  if (!files.length) return;
+  if (!_templatesHandle) {
+    alert('Set a Data Folder first — templates are saved to ObieWebSettings/Templates/ inside it.');
+    return;
+  }
+  const st = document.getElementById('tpl-reset-msg');
+  const say = msg => { if (st) { st.textContent = msg; setTimeout(() => st.textContent = '', 2500); } };
+  const imported = [];
+  for (const file of files) {
+    let tpls;
+    try { tpls = await _tplFromImportedFile(file); }
+    catch (e) { alert(`Could not read "${file.name}": ${e.message}`); continue; }
+    if (!tpls.length) { alert(`"${file.name}" has no template settings in it.`); continue; }
+    for (const tpl of tpls) {
+      const existing = _templates.find(t => (t.name || '').toLowerCase() === tpl.name.toLowerCase());
+      if (existing && !confirm(`A template named "${existing.name}" already exists in your Templates folder.\n\nOverwrite it?`)) continue;
+      try {
+        await _withWriteRetry(async () => {
+          // Replace the existing template's own .json file when it has one; an old
+          // LabVIEW .txt is superseded by the new .json and removed.
+          const target = (existing?._file && existing._file.toLowerCase().endsWith('.json')) ? existing._file : _tplFileSafe(tpl.name);
+          let payload = tpl;
+          try {   // that file may hold several templates — replace only this one
+            const cur = JSON.parse(await (await (await _templatesHandle.getFileHandle(target)).getFile()).text());
+            if (Array.isArray(cur)) {
+              const i = cur.findIndex(t => (t.name || '').toLowerCase() === tpl.name.toLowerCase());
+              payload = i >= 0 ? cur.map((t, k) => k === i ? tpl : t) : [...cur, tpl];
+            }
+          } catch (_) { /* new file */ }
+          const fh = await _templatesHandle.getFileHandle(target, { create: true });
+          const w  = await fh.createWritable();
+          await w.write(JSON.stringify(payload, null, 2));
+          await w.close();
+          if (existing?._file && existing._file.toLowerCase().endsWith('.txt')) {
+            try { await _templatesHandle.removeEntry(existing._file); } catch (_) {}
+          }
+        });
+        imported.push(tpl.name);
+      } catch (e) {
+        if (_isFolderGoneError(e)) _handleFolderGone();
+        alert(`Failed to save template "${tpl.name}": ${e.message}`);
+      }
+    }
+  }
+  if (!imported.length) return;
+  _templates = [];
+  await _loadTemplatesFromFolder(_templatesHandle);
+  say(imported.length === 1 ? `✓ Imported "${imported[0]}"` : `✓ Imported ${imported.length} templates`);
+};
+
 window.acqTplExitCancel = function() {
   // Undo any in-modal template pick that was never committed — both the
   // toolbar's and the modal's own Template <select> must snap back to
@@ -2109,14 +2196,15 @@ function _renderTemplateList() { _renderTplDropdown(); }
 // a "Template: None" pick that's a no-op (see acqSelectAndApplyTpl(-1))
 // snaps back to the real applied template.
 function _renderTplDropdown() {
-  const optsHtml = '<option value="-1">None</option>' +
-    _templates.map((t, i) => `<option value="${i}">${_escHtml(t.name || 'Unnamed')}</option>`).join('');
+  const tplOpts = _templates.map((t, i) => `<option value="${i}">${_escHtml(t.name || 'Unnamed')}</option>`).join('');
   const curIdx = _currentTemplateName ? _templates.findIndex(t => t.name === _currentTemplateName) : -1;
-  ['tpl-dropdown-sel', 'tpl-modal-sel'].forEach(id => {
+  // The toolbar list only offers real templates; the dialog's list keeps "None".
+  [['tpl-dropdown-sel', false], ['tpl-modal-sel', true]].forEach(([id, withNone]) => {
     const sel = document.getElementById(id);
     if (!sel) return;
-    sel.innerHTML = optsHtml;
-    sel.value = String(curIdx);
+    sel.innerHTML = (withNone ? '<option value="-1">None</option>' : '') + tplOpts;
+    if (withNone || curIdx >= 0) sel.value = String(curIdx);
+    else sel.selectedIndex = -1;   // nothing applied: no entry shown as picked
   });
   const label = document.getElementById('tpl-name-btn-label');
   if (label) label.textContent = _currentTemplateName || 'New Test';

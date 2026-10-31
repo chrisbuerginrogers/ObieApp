@@ -90,7 +90,6 @@
         <div class="tpl-split-right">
           <button class="tb-btn tpl-split-caret" tabindex="-1" aria-hidden="true">▾</button>
           <select id="tpl-dropdown-sel" class="tpl-split-sel" onchange="acqPickTemplateFromDropdown(this.value)" title="Pick a saved template to set up a run">
-            <option value="-1" selected>None</option>
           </select>
         </div>
       </div>
@@ -562,6 +561,10 @@
       <span id="prefs-save-msg" class="save-msg"></span>
       <div style="flex:1"></div>
       <button class="act-btn" id="tpl-cancel-btn" onclick="acqTplExitCancel()" title="Close this dialog and discard any changes">Cancel</button>
+      <label class="act-btn" style="cursor:pointer;margin:0" title="Copy a template file (.json, or an old LabVIEW .txt) into your Templates folder">
+        Import Template…
+        <input type="file" accept=".json,.txt" multiple onchange="acqImportTemplates(this)" style="display:none">
+      </label>
       <button class="act-btn" id="tpl-create-btn" onclick="acqTplExitCreateTemplate()" title="Save these settings as a brand-new template">Create New Template</button>
       <button id="tpl-primary-btn" class="act-btn accent" onclick="acqTplExitPrimary()" title="Apply these settings to this run">Run Test</button>
     </div>
