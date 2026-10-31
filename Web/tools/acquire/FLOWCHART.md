@@ -38,6 +38,9 @@ flowchart TD
     Q -- yes --> M
     Q -- no --> R["complete\nAvC + AvR written for each prefix group"]
     R --> S["_resetForNextRun\nrolls to the next numbered run folder"]
+    R --> T["FRF plot fades, 'Close Test' button\n(.acq-plot-wrap.test-done)"]
+    T --> U["acqCloseTest\nno template, empty plots, hits + zoom cleared,\nchecklist reset, audio released"]
+    U --> J
     S --> J
 ```
 
@@ -63,6 +66,10 @@ stateDiagram-v2
   from the last hit can't immediately re-trigger.
 - `_blockFRFUpdates` — set on a fresh run after `complete`, suppresses Python's
   FRF-history replay until the first genuine hit of the new run lands.
+- `_dialogPause` (set via `_setDialogPause`) — true while the New Test dialog,
+  the Device picker or LiveView is open. Audio keeps flowing but isn't passed
+  to Python unless a hit is already `triggered`, so a capture in progress
+  finishes. `_updateStopBtn` shows **▶ Start** while it's set.
 - Pausing capture nulls `audioCtx` **before** stopping tracks, because Chrome
   fires the track's `ended` event synchronously inside `.stop()` — the
   `ended`/`onstatechange` handlers both guard on `if (!audioCtx) return` to
@@ -85,7 +92,18 @@ flowchart TD
     H --> K["Python process_audio()"]
     C -.->|"device lost"| L["track 'ended' / audioCtx.onstatechange"]
     L --> M["_stopAudio()"]
+    N["Device or input-type change\n(picker, dialog, template)"] --> O["_restartAudio\nchained promise: _stopAudio then _startAudio,\nso restarts never overlap"]
+    O --> A
 ```
+
+- The sample rate sent to Python comes from `_currentSampleRate(prefs)`: the
+  `sample_rate` pref for the simulator (it has no AudioContext), the
+  AudioContext's rate otherwise. `_startSimulation` clears any previous timer
+  first, so a stale simulator can't keep feeding Python.
+- When `apply_settings` sees a **new sample rate** it reallocates the ring
+  buffer and resets all positions/hits (hits of different FFT lengths can't be
+  averaged — that mismatch used to crash `add_hit`). `_pushSettingsFromPrefs`
+  drops `frfCache`/`tapCache` and clears the plots at the same moment.
 
 ## 4. Template & Settings modal — exit paths
 
@@ -102,8 +120,13 @@ flowchart TD
     H --> I["Saves prefs, pushes to Python,\nrestarts audio if device changed"]
     C --> J["Create New Template →\nacqTplExitCreateTemplate\nwrites a new file, then applies"]
     C --> K["Cancel → acqTplExitCancel\ncloses, discards edits, stops stencil polling"]
+    C --> L["Import Template… → acqImportTemplates\nJSON / flat settings / LabVIEW .txt → .json in Templates/,\nconfirm before overwriting a same-named template"]
+    C --> M["✎ Edit default notes → acqEditDefaultNotes\nDefaultNotes_<type>.txt in ObieWebSettings/"]
     J --> H
 ```
+
+The form always shows the saved template (prefs) values, never the live plot
+zoom, so opening and saving this dialog can't make a zoom permanent.
 
 ## 5. Per-hit capture loop (Python side)
 
@@ -147,6 +170,10 @@ flowchart TD
 | `window.onTriggered` (a real hit) | `_drawTrigPlots()` — Hammer + Mic time-domain mini plots, with threshold/cutoff lines |
 | `window.onHammerFFT` | Hammer FFT mini plot, normalized to 0 dB peak |
 | `window.onLivePlot` (continuous, non-triggered audio) | Intentionally a no-op — live audio doesn't redraw the mini plots, only real hits do |
+| Zoom / pan on any plot (`plotly_relayout`) | Updates only in-memory ranges (`_S`, `_hamXRange`, …) so zoom survives new hits. **Never** written to prefs or the settings form. |
+| Double-click the FRF | Resets `_S` axis ranges to the template (prefs) values, then `renderFRF()` |
+| Double-click a mini-plot axis | Sets `_miniAuto.<axis>` (x, FFT y) or nulls `_hamYRange`/`_micYRange`, then `_redrawMiniPlots()` — data-fitted until the next zoom |
+| Hover on the FRF | `_offsetFrfHoverLabel(10)` — a MutationObserver nudges Plotly's hover label 10 px away from the cursor; `hoverformat '.2f'` limits it to two decimals |
 | Clicking the FRF plot's camera icon | `_pngWhiteButton()` — temporarily swaps the transparent paper/plot background to white, downloads the PNG, restores the theme |
 
 ## 8. Other side systems
@@ -154,7 +181,10 @@ flowchart TD
 | System | Key functions | What it does |
 |---|---|---|
 | **LiveView** | `acqLiveView`, `_lvToggleCapture`, `_lvComputeH1`, `_lvFft*` | A separate mini audio pipeline (own worklet, own ring buffer, own H1/FFT math in JS) for previewing a device/threshold before committing to the real run. Can also pop out standalone via `acqOpenLiveViewStandalone`. On close, offers to sync its threshold/pre/post back into the real settings if they differ. |
-| **Notes** | `acqNotes`, `acqSaveNotes`, `acqDeleteNotes`, `acqAddNotesPhotos` | Reads/writes `notes.txt` in the instrument folder, with a localStorage draft fallback; photos save to a `photos/` subfolder. |
+| **Notes** | `acqNotes`, `acqSaveNotes`, `acqDeleteNotes`, `acqAddNotesPhotos`, `_tplInstrumentPreviewNow` | Reads/writes `notes.txt` in the instrument folder, with a localStorage draft fallback; photos save to a `photos/` subfolder. The New Test notes box is seeded with a dated header, the instrument line and the input type's default notes, unless the newest entry already belongs to the still-empty next test (`_wizReusedEntry`), in which case that entry is kept. |
+| **Default notes** | `_readDefaultNotes`, `_wizRefreshDefaultNotes`, `acqEditDefaultNotes`, `acqSaveDefaultNotes` | One file per input type (`DefaultNotes_Radiation / _Accelerance / _Vibrometer .txt`) in `ObieWebSettings/`. Switching input type swaps the default text in the notes box only if the user hasn't edited it. |
+| **Import Template** | `acqImportTemplates`, `_tplFromImportedFile`, `_lvFieldsToSettings` | Copies/translates template files into `_templatesHandle`; replaces an old LabVIEW `.txt` with the new `.json`. |
+| **Close Test** | `acqCloseTest`, `onStateChange` (`complete`) | Toggles `.test-done` on the plot wrapper (fade + button). Close Test clears caches, plots, Python state, checklist, template name and zoom. |
 | **Checklist** | `acqToggleChecklist`, `acqAgendaToggle`, `_restoreAgendaUI`, `_resetAgenda` | Per-item localStorage-persisted checkboxes; auto-resets on Start. |
 | **Device picker** | `acqOpenDevicePicker`, `_enumerateDevicesInto`, `_updateSoundcardDisplay` | Lists real input devices plus a synthetic "⚡ Simulated Input"; shared by the modal's dropdown and the quick blue status-row picker. |
 | **Undo / Clear / Start Over** | `acqDeleteLastHit`, `acqClearPosition`, `acqStartOver` | Pop the last hit (and delete its saved WAV), clear all hits at the current position, or wipe the entire run's `raw/`/`TRF/` contents and start a fresh run folder. |

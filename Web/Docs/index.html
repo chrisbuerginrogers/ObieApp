@@ -462,7 +462,7 @@
       unnamed "scratch" view — no instrument, no test name, calibrations reset to 1, cutoffs reset to
       0.30 s, nothing running — so you can plug in and watch the Hammer/Mic/FFT plots respond right
       away with nothing to configure first. Nothing is written to disk while you're in this state; the
-      toolbar's <strong>🎻 Instrument</strong> button and the test-name indicator next to it stay
+      toolbar's <strong>instrument name</strong> button and the test-name indicator next to it stay
       hidden until you actually name an instrument.
     </p>
 
@@ -486,9 +486,9 @@
       both commits the name and starts acquisition for you if nothing is already running, so there's
       no separate Start click needed the first time. Acquire creates a folder named after the
       instrument and automatically numbers successive test runs inside it (<code>Violin_01</code>,
-      <code>Violin_02</code>, …). Once an instrument is set, the toolbar's <strong>🎻 Instrument</strong>
-      button and the test-name indicator appear — click 🎻 any time afterwards to rename or switch
-      instruments (it reopens the same dialog), and click the test-name indicator to rename just the
+      <code>Violin_02</code>, …). Once an instrument is set, a toolbar button showing the instrument's name
+      (it widens to fit longer names) and the test-name indicator appear — click the instrument
+      button any time afterwards to rename or switch instruments (it reopens the same dialog), and click the test-name indicator to rename just the
       current run.
     </p>
     <p>
@@ -496,8 +496,10 @@
       running, or the test already has hits and isn't finished) the dialog is titled
       <strong>Current Test</strong>, keeps the current instrument and shows that test's notes
       unchanged, and the primary button reads <strong>Continue Test</strong>. <strong>Data taking
-      is paused while the dialog is open</strong> — a hit already being captured finishes first —
-      and resumes when you close it. Changing the instrument name turns it back into a new test.
+      is paused while the dialog is open</strong> — and likewise while the Device picker or
+      <strong>LiveView</strong> is open. A hit already being captured finishes first, the toolbar
+      button reads <strong>▶ Start</strong> while paused, and acquisition resumes when you close
+      the window. Changing the instrument name turns it back into a new test.
     </p>
     <div class="callout">
       <strong>Leaving Instrument blank</strong>
@@ -568,7 +570,7 @@
         <tr><td>FFT X / Y range</td><td>Frequency range (Hz) and dB range for the Hammer FFT plot.</td></tr>
       </tbody>
     </table>
-    <p>These axis limits are saved with your settings and are part of templates — loading a template restores all axis ranges.</p>
+    <p>These axis limits are saved with your settings and are part of templates — loading a template restores all axis ranges. Zooming on a plot does not change them (see Reviewing the FRF plot), and the boxes here always show the saved template values, never the current zoom.</p>
 
     <h3>Checklist</h3>
     <p>
@@ -600,8 +602,9 @@
     <ol class="steps">
       <li>Click <strong>📁 Data Folder</strong> and select the folder where results should be saved — Acquire lands in live view immediately (see above).</li>
       <li>Open <strong>Template &amp; Settings</strong> and name your instrument (see Naming an instrument, above) — this also starts acquisition automatically.</li>
-      <li>Strike the instrument. The three mini plots (Hammer FFT, Hammer time, Mic time) update
-          after each hit. Check that the hammer pulse is clean — a double-hit shows two bumps in the
+      <li>Strike the instrument. The toolbar shows the current position and hit number
+          (e.g. <strong>H01 · Hit 3</strong>), and the three mini plots (Hammer FFT, Hammer time,
+          Mic time) update after each hit. Check that the hammer pulse is clean — a double-hit shows two bumps in the
           Hammer time plot.</li>
       <li>After the required number of good hits the <em>Position complete</em> dialog appears.
           Choose <strong>Next Position →</strong> to advance (the mini plots and current FRF clear
@@ -617,6 +620,11 @@
           clears their data; the run then goes back to the first cleared position (finished runs
           become resumable) so the next hits refill it. Boxes with no data have no menu.</li>
       <li>When all positions are complete, AvR, AvC and RMS averages are saved automatically (per prefix group, plus a combined set if you used more than one — see <a href="#what-gets-saved" style="color:var(--accent)">What gets saved</a> below) and a <em>Run complete</em> banner appears.</li>
+      <li>When a run completes, the FRF plot fades and a <strong>Close Test</strong> button appears
+          over it. <strong>Close Test</strong> returns Acquire to its freshly loaded state: no
+          template (the button reads <em>New Test</em>), empty plots, hits cleared, the checklist
+          reset and any zoom forgotten. Nothing saved on disk is touched, and the Data Folder and
+          instrument stay connected.</li>
       <li>To start the next run on the same instrument, click <strong>▶ Start</strong> in the banner again — the test name increments automatically (e.g. <code>Violin_01</code> → <code>Violin_02</code>) and all positions reset.</li>
     </ol>
 
@@ -652,8 +660,19 @@
     <p>
       With no fixed Y limits set, the Y axis fits itself to your first data (top at the peak rounded
       up to 5 dB) and then <strong>stays put</strong> — it doesn't jump when the plot clears for the
-      next position or when later data peaks differently. Press <strong>↕Y</strong>, change the dB
-      span, or double-click the plot to re-fit it.
+      next position or when later data peaks differently. Press <strong>↕Y</strong> or change the dB
+      span to re-fit it.
+    </p>
+    <p>
+      <strong>Zoom and pan are temporary.</strong> Zoom any plot while you take data and it stays
+      that way, even as new hits arrive. It is never saved: the axis ranges in your template are what
+      you get when Acquire starts, after <strong>Close Test</strong>, and when you
+      <strong>double-click</strong> the FRF plot. On the Hammer, Mic and Hammer FFT mini plots,
+      double-clicking an axis instead <em>autoscales</em> that axis to the data and keeps it fitted
+      as new hits arrive, until you zoom again. Hovering over the FRF shows the frequency and dB
+      value (to two decimal places), offset slightly from the cursor so it doesn't cover the line.
+      The divider between the left sidebar and the FRF plot can be dragged, and Acquire remembers
+      where you left it.
     </p>
 
     <h3 id="acquire-templates">Templates</h3>
@@ -667,7 +686,9 @@
       <li>Inside the dialog, picking a different template from its own list applies it immediately (fields update right away). Closing with <strong>Cancel</strong> reverts the banner and dialog back to whichever template was actually active when you opened it.</li>
       <li>The primary button at the bottom reads <strong>Run Test</strong> (or <strong>Continue Test</strong> when resuming a test in progress) when your settings still match the applied template. Editing any field switches it to <strong>Update Template and Run Test</strong> (<strong>… Continue Test</strong>), which saves your changes back into that template as well as applying them. With no template applied, it applies your changes to this run only.</li>
       <li>Picking an existing instrument pre-selects the template its last test used (see Naming an instrument).</li>
+      <li>The dropdown on the toolbar lists only your saved templates; use the dropdown inside the dialog if you want to pick <em>None</em>.</li>
       <li>To save the current settings as a brand-new template, click <strong>Create New Template</strong>.</li>
+      <li><strong>Import Template…</strong> (bottom of the dialog) copies one or more template files into your Templates folder. It reads current <code>.json</code> templates, a bare settings file, or an old LabVIEW <code>.txt</code> template (translated to the current format, including its default notes). If a template with the same name already exists you are asked before it is overwritten; an old <code>.txt</code> template is replaced by the new <code>.json</code>. Importing doesn't apply the template — pick it from the list afterwards.</li>
       <li><strong>Reset Default Templates</strong> re-downloads the built-in templates ("HV 24 Obie Rig", "ScratchPad", "Scratchpad Obie 26") without touching your custom ones.</li>
     </ol>
     <div class="callout">
@@ -682,7 +703,9 @@
       If the USB audio interface is unplugged or interrupted while acquisition is running, Acquire
       stops immediately and shows an alert. Re-plug the device and click <strong>▶ Start</strong>
       again. If you change the selected input device in Settings while audio is active, the audio
-      stream restarts automatically on the new device.
+      stream restarts automatically on the new device — including when you switch to or from the
+      simulated input. If the new device runs at a different sample rate, the hits and plots
+      collected so far are cleared, because hits at different rates can't be averaged together.
     </p>
 
     <h3 id="acquire-photos">Session Notes &amp; Photos</h3>
@@ -694,7 +717,18 @@
       entry (e.g. "(3) 8/31/26 19:54   Test 03", pre-filled with the instrument name) sits on top and
       every earlier entry follows below — all of it is editable, and exactly what's in the box is
       written to <code>notes.txt</code> when you click Run Test or Continue Test. While a test is in
-      progress the box shows the file as it is, with no new entry added.
+      progress the box shows the file as it is, with no new entry added. If the next test folder
+      is still empty because the last test never recorded anything, the existing entry for it is
+      kept rather than adding a duplicate.
+    </p>
+    <p>
+      <strong>Default notes.</strong> Click <strong>✎ Edit default notes</strong> above the notes box
+      to edit the text that starts every new test's notes, below the instrument line. There is one
+      default per input type — <em>Radiation</em>, <em>Accelerance</em> and <em>Vibrometer</em> — saved
+      as <code>DefaultNotes_Radiation.txt</code>, <code>DefaultNotes_Accelerance.txt</code> and
+      <code>DefaultNotes_Vibrometer.txt</code> in your <code>ObieWebSettings</code> folder. Changing
+      the input type (or picking a template that uses a different one) swaps the default text in
+      the notes box for that type's, leaving anything you have typed alone.
     </p>
     <p>
       The <strong>Photos</strong> tab, next to Notes: <strong>Add Photos…</strong>

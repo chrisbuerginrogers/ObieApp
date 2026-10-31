@@ -214,6 +214,33 @@
     </div>
 
     <div class="log-group">
+      <h3>Acquire — workflow and plots</h3>
+      <ul>
+        <li><strong>Pause while dialogs are open.</strong> Data taking now also pauses for the
+            Device picker and LiveView (as it already did for New Test); the toolbar button reads
+            <strong>▶ Start</strong> while paused.</li>
+        <li><strong>Close Test.</strong> A finished run fades the FRF plot and shows a
+            <strong>Close Test</strong> button that returns Acquire to its freshly loaded state.</li>
+        <li><strong>Zoom is temporary.</strong> Zoom/pan now stays through new hits but is never
+            saved; the template's ranges apply on load, after Close Test and on double-click.
+            Double-clicking a mini-plot axis autoscales it. Previously the zoom handlers silently
+            never attached, because of an error while the plots were being set up.</li>
+        <li>FRF hover readout shows two decimals and sits further from the cursor; the sidebar
+            divider position is remembered; the toolbar shows the position with the hit number
+            (<code>H01 · Hit 3</code>); the instrument button lost its emoji and widens with the name.</li>
+        <li>Switching input device — including between the simulator and a soundcard — now restarts
+            audio cleanly. Changing sample rate clears the hits and plots, fixing a freeze caused by
+            averaging hits of different lengths.</li>
+        <li><strong>Default notes</strong> per input type (Radiation, Accelerance, Vibrometer) can be
+            edited from the New Test dialog and swap when the input type changes. A still-empty test
+            no longer gets a duplicate notes entry.</li>
+        <li><strong>Import Template…</strong> copies template files (JSON or old LabVIEW
+            <code>.txt</code>, translated) into the Templates folder, confirming before it overwrites
+            one with the same name. The toolbar template list no longer has a <em>None</em> entry.</li>
+      </ul>
+    </div>
+
+    <div class="log-group">
       <h3>Acquire</h3>
       <ul>
         <li>Run folders now write a single consolidated <code>template.json</code> (settings +
