@@ -2334,7 +2334,7 @@ let _currentTemplateName = '';  // template last applied
 window.acqRenameTest = async function() {
   if (!_rootDirHandle) { alert('Set a Data Folder first.'); return; }
   const instrument = (document.getElementById('inp-instrument-banner')?.textContent || '').trim() || 'scratch';
-  if (instrument === 'scratch') { alert('Please name your instrument first — click the 🎻 Instrument button in the toolbar.'); return; }
+  if (instrument === 'scratch') { alert('Please name your instrument first — click the instrument name button in the toolbar.'); return; }
   const current = _runName || _pendingTestName || '';
   const newName = prompt('Rename this test:', current);
   if (!newName || !newName.trim() || newName.trim() === current) return;
