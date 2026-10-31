@@ -7,7 +7,7 @@
 // I/O or canonical DSP, so there's nothing here that belongs in Python/.
 //
 // Settings (threshold / pre-trig / post-trig / device) are read from
-// ObieAppSettings/acquire.json in the shared Data Folder, layered under
+// ObieWebSettings/acquire.json in the shared Data Folder, layered under
 // whatever's in this browser's obieAcquire_prefs localStorage (so if Acquire
 // has been used in this browser, its live settings take precedence). This
 // tool never calls into a running Acquire tab directly — instead "Save as
@@ -67,7 +67,7 @@ window.lvSetDataFolder = async function() {
 window.lvSaveAsDefaultSettings = async function() {
   const st = document.getElementById('lv-save-msg');
   if (!_settingsHandle) {
-    alert('Set a Data Folder first — default settings save to ObieAppSettings/acquire.json.');
+    alert('Set a Data Folder first — default settings save to ObieWebSettings/acquire.json.');
     return;
   }
   const thr  = parseFloat(document.getElementById('lv-inp-thr')?.value);
@@ -294,10 +294,25 @@ function _lvDrawTime(id, samples, color, thr, showThr) {
   }
   ctx.strokeStyle = color; ctx.lineWidth = 1.5*devicePixelRatio;
   ctx.beginPath();
-  const step = Math.max(1, Math.floor(n / w));
-  for (let i = 0; i < n; i += step) {
-    const x = w*i/n, y = yOf(samples[i]);
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  if (n <= w) {
+    for (let i = 0; i < n; i++) {
+      const x = w*i/n, y = yOf(samples[i]);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+  } else {
+    // Min/max per pixel column so short spikes (e.g. a hammer hit) are never decimated away.
+    for (let px = 0; px < w; px++) {
+      const i0 = Math.floor(px * n / w), i1 = Math.max(i0 + 1, Math.floor((px + 1) * n / w));
+      let lo = Infinity, hi = -Infinity;
+      for (let i = i0; i < i1 && i < n; i++) {
+        const v = samples[i];
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+      if (lo > hi) continue;
+      if (px === 0) ctx.moveTo(px, yOf(lo)); else ctx.lineTo(px, yOf(lo));
+      ctx.lineTo(px, yOf(hi));
+    }
   }
   ctx.stroke();
   ctx.fillStyle = '#aaa'; ctx.font = `${9*devicePixelRatio}px sans-serif`; ctx.textBaseline = 'top';
