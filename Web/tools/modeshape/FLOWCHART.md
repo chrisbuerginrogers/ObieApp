@@ -35,7 +35,7 @@ flowchart TD
     B --> C{"Handle found\nand readwrite granted?"}
     C -- no --> D["Idle — status:\n'Load a run folder to begin.'"]
     C -- yes --> E["_applyDataFolder(handle)"]
-    E --> F["Try ObieAppSettings/Templates\n(no create) → _loadStencils()"]
+    E --> F["Try ObieWebSettings/Templates\n(no create) → _loadStencils()"]
     F --> G["_refreshRunList(false)\nscans root for dirs with a TRF/ subfolder\n(direct or one level deeper: Instrument/Run/TRF)"]
     G --> H["_applyStartupDeepLink()\nreads ?run=&freq= from URL"]
     H --> I{"run= param present\nand matches a scanned run?"}
@@ -197,7 +197,7 @@ flowchart TD
 |---|---|---|
 | **Data Folder** | `msSetDataFolder`, `_applyDataFolder` | Standard `showDirectoryPicker()` + shared `saveDataFolderHandle`/`loadDataFolderHandle` pattern; on apply, re-scans stencils and run list |
 | **Run discovery** | `_refreshRunList`, `msLoadRun`, `msRefreshRunList` | Scans the Data Folder root for any directory with a `TRF/` subfolder, either directly (`Root/Run/TRF`) or one level deeper (`Root/Instrument/Run/TRF`) |
-| **Stencil modal** | `msLoadStencil`, `_renderStencilList`, `msBrowseStencil`, `msCloseStencilModal` | Lists stencils found in `ObieAppSettings/Templates/` (type `node-stencil`/`node-layout`), or lets the user browse to an arbitrary JSON file |
+| **Stencil modal** | `msLoadStencil`, `_renderStencilList`, `msBrowseStencil`, `msCloseStencilModal` | Lists stencils found in `ObieWebSettings/Templates/` (type `node-stencil`/`node-layout`), or lets the user browse to an arbitrary JSON file |
 | **Deep link from Circle Fit** | `_applyStartupDeepLink`, `_waitForPyReady` | `?run=&freq=` URL params auto-load a run and jump straight to a frequency on the Mode Shape tab |
 | **Average-only display** | `msToggleAverageOnly`, `_computeAverageFRF` | Toggles both the FRF View and reference FRF plots between per-node traces and a single averaged trace (linear-magnitude mean, converted back to dB) with gray context traces for the nodes that fed it |
 | **Frequency band zoom** | `msSetFRFBand`, `msResetFRFBand` | Restricts the FRF View x-axis to a Hz range and renormalizes the y-axis to just the data inside that band (unlike Plotly's own zoom, which keeps the full-sweep y-range) |

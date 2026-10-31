@@ -177,7 +177,7 @@ polling the shared Data Folder's file layout that Acquire also writes to
 
 ```mermaid
 flowchart TD
-    A["tplOpenWatchModal()"] --> B["tplRefreshRunList() -> _scanRuns()\nwalks every folder under _rootDirHandle\n(skips ObieAppSettings), looking for a TRF/\nsubfolder to identify Acquire run folders"]
+    A["tplOpenWatchModal()"] --> B["tplRefreshRunList() -> _scanRuns()\nwalks every folder under _rootDirHandle\n(skips ObieWebSettings), looking for a TRF/\nsubfolder to identify Acquire run folders"]
     B --> C["_renderRunList() - one row per run,\nshowing current TRF file count"]
     C --> D["User clicks Watch on a run"]
     D --> E["tplStartWatching(i)\nfirst calls tplStopWatching(true) to clear\nany prior watch session"]

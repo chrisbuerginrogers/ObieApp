@@ -175,7 +175,7 @@
       <strong>Folder layout expected by the tools</strong>
       Measurement files (AvR, AvC, RMS, TRF, CSV) can be anywhere inside the Data Folder.
       Acquire saves each run into a timestamped sub-folder. Settings files
-      (templates, band presets, lists) are stored in <code>ObieAppSettings/</code> inside
+      (templates, band presets, lists) are stored in <code>ObieWebSettings/</code> inside
       your Data Folder and are loaded automatically on startup.
     </div>
 
@@ -286,7 +286,7 @@
     <h4>Band averaging</h4>
     <p>
       Select a band preset from the <strong>Bands</strong> dropdown (presets are loaded from
-      <code>ObieAppSettings/bands/</code> in your Data Folder). The band table shows one column
+      <code>ObieWebSettings/bands/</code> in your Data Folder). The band table shows one column
       of results <em>per visible dataset</em> — average dB level and spectral centroid for each
       band, in each dataset's colour. Toggle <strong>shade</strong> to highlight the band regions
       on the plot. Click <strong>Excel</strong> to export all datasets' band data as a CSV file.
@@ -660,7 +660,7 @@
     <p>
       A template stores your complete measurement setup — trigger settings, calibration factors,
       position count, and all plot axis limits. Templates live in
-      <code>ObieAppSettings/Templates/</code> inside your Data Folder.
+      <code>ObieWebSettings/Templates/</code> inside your Data Folder.
     </p>
     <ol class="steps">
       <li>The banner's Template control is a split button: click <strong>Template: <em>name</em></strong> to reopen the current template's settings, or click the ▾ caret next to it for a dropdown of every saved template — picking one opens the dialog with that template's settings already applied.</li>
@@ -892,7 +892,7 @@
       <strong>Settings persist automatically</strong>
       Device, channel, N, and snippet length are saved to this browser immediately as you change
       them — there's no separate save button. Set a <strong>Data Folder</strong> to also persist
-      them to <code>ObieAppSettings/spectrum.json</code>, so they roam across browsers/machines
+      them to <code>ObieWebSettings/spectrum.json</code>, so they roam across browsers/machines
       the same way Acquire's and LiveView's settings do.
     </div>
   </section>

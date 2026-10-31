@@ -192,12 +192,16 @@ async function _applyDataFolder(dirHandle) {
   _stencils = [];
   _runs = [];
 
-  // Access ObieAppSettings/Templates/ without { create: true } — avoids needing write permission
-  try {
-    const settingsH = await dirHandle.getDirectoryHandle('ObieAppSettings');
-    _templatesHandle = await settingsH.getDirectoryHandle('Templates');
-    await _loadStencils();
-  } catch { /* ObieAppSettings or Templates not yet created — OK */ }
+  // Access ObieWebSettings/Templates/ without { create: true } — avoids needing write permission.
+  // Falls back to the pre-rename "ObieAppSettings" folder if the new one doesn't exist yet.
+  for (const dirName of ['ObieWebSettings', 'ObieAppSettings']) {
+    try {
+      const settingsH = await dirHandle.getDirectoryHandle(dirName);
+      _templatesHandle = await settingsH.getDirectoryHandle('Templates');
+      await _loadStencils();
+      break;
+    } catch { /* this settings folder or its Templates not present — try next */ }
+  }
 
   await _refreshRunList(false);
 }

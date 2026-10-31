@@ -38,7 +38,7 @@ async function _scanDir(dh, relPath) {
       if (_SCAN_EXTS.has(ext))
         out.push({ name, ext, path: relPath ? relPath + '/' + name : name, handle: h });
     } else if (h.kind === 'directory') {
-      if (name === 'ObieAppSettings') continue;
+      if (name === 'ObieWebSettings' || name === 'ObieAppSettings' || name === '_ObieAppSettings') continue;
       const sub = await _scanDir(h, relPath ? relPath + '/' + name : name);
       out.push(...sub);
     }

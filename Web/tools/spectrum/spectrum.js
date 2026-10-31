@@ -11,7 +11,7 @@
 // with no Python equivalent, matching the precedent set by tools/liveview.
 //
 // Settings (device / channel / N / snippet length) persist to
-// ObieAppSettings/spectrum.json in the shared Data Folder, layered under
+// ObieWebSettings/spectrum.json in the shared Data Folder, layered under
 // this browser's obieSpectrum_prefs localStorage — same pattern as LiveView.
 // ═══════════════════════════════════════════════════════════════════════════
 

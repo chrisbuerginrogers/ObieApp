@@ -14,11 +14,11 @@ Acquire (`acquire.js`) — that near-duplicate is not documented here; this file
 covers only the standalone `tools/liveview/` version.
 
 - JS owns everything: the UI, the Data Folder handle (read-only use — just to
-  find `ObieAppSettings/acquire.json`), `getUserMedia` + `AudioWorklet` audio
+  find `ObieWebSettings/acquire.json`), `getUserMedia` + `AudioWorklet` audio
   capture, a hand-rolled FFT/H1, and raw `<canvas>` 2D rendering (no Plotly on
   this page at all).
 - Settings (threshold / pre-trig / post-trig / device) are layered: disk
-  values from `ObieAppSettings/acquire.json` (`_diskPrefs`) are the base,
+  values from `ObieWebSettings/acquire.json` (`_diskPrefs`) are the base,
   overridden by whatever's in this browser's `obieAcquire_prefs` localStorage
   (`_loadPrefs()`). This tool never talks to a running Acquire tab directly —
   "Save as Default Settings" writes back to `acquire.json` on disk, which a
@@ -196,7 +196,7 @@ flowchart TD
 
 | System | Key functions | What it does |
 |---|---|---|
-| **Data Folder** | `lvSetDataFolder`, `_applyDataFolder` | Picks a folder via `window.showDirectoryPicker`, calls shared `openObieAppSettings`/`saveDataFolderHandle` (same IndexedDB handle used by Explore/Acquire/Convolve), then reads `ObieAppSettings/acquire.json` into `_diskPrefs`. |
+| **Data Folder** | `lvSetDataFolder`, `_applyDataFolder` | Picks a folder via `window.showDirectoryPicker`, calls shared `openObieAppSettings`/`saveDataFolderHandle` (same IndexedDB handle used by Explore/Acquire/Convolve), then reads `ObieWebSettings/acquire.json` into `_diskPrefs`. |
 | **Save as Default Settings** | `lvSaveAsDefaultSettings` | Reads the current threshold/pre-trig/post-trig/device fields from the form, merges into `_diskPrefs`, writes them to `acquire.json` on disk, and also mirrors them into this browser's `obieAcquire_prefs` localStorage so a live Acquire tab session stays consistent. Status text (`lv-save-msg`) clears after 2500 ms, matching the rest of the suite. |
 | **Device picker** | `_lvEnumerateMics` | Requests a throwaway `getUserMedia` grant to unlock device labels, enumerates `audioinput` devices (skipping the synthetic `default`/`communications` entries), and pre-selects whatever `deviceId` is in prefs. |
 | **Mode toggle** | `lvSetMode('live' \| 'trigger')` | Swaps the FRF title text, shows/hides the "Clear FRF" button, resets all accumulators, and re-arms the trigger state machine when switching into trigger mode. |

@@ -18,7 +18,7 @@
   };
   const BAND_COLORS = ['#e74c3c','#e67e22','#2ecc71','#3498db','#9b59b6','#1abc9c','#f39c12'];
 
-  // Band presets — loaded from ObieAppSettings/bands/ when a data folder is set.
+  // Band presets — loaded from ObieWebSettings/bands/ when a data folder is set.
   // Empty until a folder is selected; the dropdown shows only "No bands" + "Custom…".
   let _dynamicBandPresets = {};  // key → { label, bands: [{label,f_lo,f_hi}] }
 
@@ -113,10 +113,10 @@
   let _palette   = PALETTES.default;
   let _templates = [];
   let _dataDir              = null;  // FileSystemDirectoryHandle
-  let _exploreSettingsHandle = null;  // ObieAppSettings/ dir
-  let _bandsHandle          = null;  // ObieAppSettings/bands/ dir
-  let _listsHandle          = null;  // ObieAppSettings/lists/ dir
-  let _colorsHandle         = null;  // ObieAppSettings/colors/ dir
+  let _exploreSettingsHandle = null;  // ObieWebSettings/ dir
+  let _bandsHandle          = null;  // ObieWebSettings/bands/ dir
+  let _listsHandle          = null;  // ObieWebSettings/lists/ dir
+  let _colorsHandle         = null;  // ObieWebSettings/colors/ dir
   let _customPalettesList   = [];   // cached from folder (or localStorage)
   let _dirFiles  = [];     // [{name, ext, path, handle}] — scanned from data folder
   let _searchScopeDir   = null; // FileSystemDirectoryHandle — set when scope is a specific folder
@@ -318,7 +318,7 @@
     });
   }
 
-  // ── Band loading from ObieAppSettings/bands/ ─────────────────────────
+  // ── Band loading from ObieWebSettings/bands/ ─────────────────────────
   function _edgesToBands(edges) {
     const bands = [];
     for (let i = 0; i < edges.length - 1; i++)
@@ -850,7 +850,7 @@
     localStorage.setItem('obieExplore_defaultWavUrl', p.defaultWavUrl);
     _S.yDbRange = p.yDbRange; _S.xMin = p.xMin; _S.xMax = p.xMax; _S.lineWidth = p.lineWidth;
     _syncControls(); render();
-    _saveExploreJson();   // also persist to ObieAppSettings/explore.json
+    _saveExploreJson();   // also persist to ObieWebSettings/explore.json
     expClosePrefs();
   };
 
@@ -891,7 +891,7 @@
   // ── Data Folder helpers ───────────────────────────────────────────────
   const _SCAN_EXTS = new Set(['.trf','.trv','.avc','.avr','.rms','.csv','.mat']);
 
-  const _NON_INSTRUMENT_DIRS = new Set(['ObieAppSettings', 'Test_Samples', 'Group Averages']);
+  const _NON_INSTRUMENT_DIRS = new Set(['ObieWebSettings', 'ObieAppSettings', '_ObieAppSettings', 'Test_Samples', 'Group Averages']);
   async function _countTopDirs(dh) {
     let n = 0;
     for await (const [name, h] of dh.entries()) {
@@ -908,7 +908,7 @@
         if (_SCAN_EXTS.has(ext))
           out.push({ name, ext, path: relPath ? relPath + '/' + name : name, handle: h });
       } else if (h.kind === 'directory') {
-        if (name === 'ObieAppSettings') continue;
+        if (/^_?Obie(Web|App)Settings$/.test(name)) continue;
         const sub = await _scanDir(h, relPath ? relPath + '/' + name : name);
         for (const f of sub) out.push(f);
       }
@@ -950,16 +950,16 @@
         render();
       } catch (_) {}
 
-      // Load bands from ObieAppSettings/bands/
+      // Load bands from ObieWebSettings/bands/
       if (_bandsHandle) await _loadBandsFromFolder(_bandsHandle);
 
-      // Load lists from ObieAppSettings/lists/
+      // Load lists from ObieWebSettings/lists/
       if (_listsHandle) await _loadListsFromFolder(_listsHandle);
 
-      // Load custom palettes from ObieAppSettings/colors/
+      // Load custom palettes from ObieWebSettings/colors/
       if (_colorsHandle) await _loadCustomPalettesFromFolder(_colorsHandle);
 
-      // Load templates from ObieAppSettings/Templates/
+      // Load templates from ObieWebSettings/Templates/
       try {
         for await (const [name, h] of templatesHandle.entries()) {
           if (h.kind !== 'file' || !name.toLowerCase().endsWith('.json')) continue;
@@ -1244,7 +1244,7 @@
               <ul class="list-files">${(l.files||[]).map(f=>`<li>${_esc(f)}</li>`).join('')}</ul>
             </div>`
           ).join('')
-        : '<p class="muted-txt">No lists found in ObieAppSettings/lists/.</p>';
+        : '<p class="muted-txt">No lists found in ObieWebSettings/lists/.</p>';
     }
     modal.classList.add('open');
   };
@@ -1282,7 +1282,7 @@
 
   window.expSaveCurrentList = async function() {
     if (!_listsHandle) {
-      alert('Set a Data Folder first — lists are saved in ObieAppSettings/lists/.');
+      alert('Set a Data Folder first — lists are saved in ObieWebSettings/lists/.');
       return;
     }
     if (!_datasets.length) {
@@ -1510,7 +1510,7 @@
     const box = $('custom-palettes-list'); if (!box) return;
     const list = _colorsHandle ? _customPalettesList : _lsLoadPalettes();
     if (!list.length) {
-      box.innerHTML = `<p class="muted-txt" style="font-size:10px;margin:0">${_colorsHandle ? 'No custom palettes in ObieAppSettings/colors/ yet.' : 'No saved custom palettes yet.'}</p>`;
+      box.innerHTML = `<p class="muted-txt" style="font-size:10px;margin:0">${_colorsHandle ? 'No custom palettes in ObieWebSettings/colors/ yet.' : 'No saved custom palettes yet.'}</p>`;
       return;
     }
     box.innerHTML = `<div class="palette-grid">${
@@ -1665,7 +1665,7 @@
     }
     render(true);
 
-    // Offer to save as a preset to ObieAppSettings/bands/
+    // Offer to save as a preset to ObieWebSettings/bands/
     if (_bandsHandle) {
       const saveName = prompt('Save as a band preset? Enter a name (or Cancel to skip):', '');
       if (saveName?.trim()) {

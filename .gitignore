@@ -9,3 +9,6 @@
 
 # LabVIEW VIs
 *.vi
+
+# Editor config
+.vscode/

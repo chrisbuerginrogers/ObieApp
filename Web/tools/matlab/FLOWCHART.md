@@ -48,7 +48,7 @@ flowchart TD
     A["matlabSetDataFolder() — toolbar button"] --> B["showDirectoryPicker({mode:'read'})"]
     B --> C["saveDataFolderHandle(dir)\n— shared handle, all tools stay in sync"]
     C --> D["_applyFolder(dir)"]
-    D --> E["_scanDir(dir) — recursive walk\nskips 'ObieAppSettings' folder\ncollects .trf .trv .avc .avr into _allFiles"]
+    D --> E["_scanDir(dir) — recursive walk\nskips 'ObieWebSettings' folder\ncollects .trf .trv .avc .avr into _allFiles"]
     E --> F["_populateInstrumentSelect()\ntop-level folder names become\n'instrument' dropdown entries with counts;\nfiles with no folder become synthetic '__root__'"]
     F --> G["_renderFileList()\ndraws one checkbox row per visible file\nwith an extension badge (TRF/AVC/AVR)"]
     G --> H["mat-output-name input defaulted to\n<folder name>.mat"]

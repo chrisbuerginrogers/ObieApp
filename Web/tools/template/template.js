@@ -473,7 +473,7 @@ window.tplSetDataFolder = async function() {
 // ─── Template save ────────────────────────────────────────────────────────────
 window.tplSaveTemplate = async function() {
   if (!_templatesHandle) {
-    alert('Set a Data Folder first — templates save to ObieAppSettings/Templates/.');
+    alert('Set a Data Folder first — templates save to ObieWebSettings/Templates/.');
     return;
   }
   const name = prompt('Template name:', _currentName || 'Violin Layout');
@@ -665,7 +665,7 @@ async function _scanRuns() {
   if (!_rootDirHandle) return runs;
   try {
     for await (const instrEntry of _rootDirHandle.values()) {
-      if (instrEntry.kind !== 'directory' || instrEntry.name === 'ObieAppSettings') continue;
+      if (instrEntry.kind !== 'directory' || /^_?Obie(Web|App)Settings$/.test(instrEntry.name)) continue;
       try {
         for await (const runEntry of instrEntry.values()) {
           if (runEntry.kind !== 'directory') continue;

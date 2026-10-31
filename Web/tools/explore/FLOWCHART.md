@@ -75,17 +75,17 @@ flowchart TD
 flowchart TD
     A["expSetDataFolder() click"] --> B["window.showDirectoryPicker({mode:'read'})"]
     B --> C["_applyFolder(dir)"]
-    C --> D["openObieAppSettings(dir)\ncreates/reuses ObieAppSettings/{Templates,bands,lists,colors}"]
+    C --> D["openObieAppSettings(dir)\ncreates/reuses ObieWebSettings/{Templates,bands,lists,colors}"]
     D --> E{"isNew folder?"}
     E -- yes --> F["alert: 'moved over the default settings folder'\n(+ note if seeding a template/band download failed)"]
-    E -- no --> G["Load ObieAppSettings/explore.json\n-> _S.lineWidth/yDbRange/xMin/xMax"]
+    E -- no --> G["Load ObieWebSettings/explore.json\n-> _S.lineWidth/yDbRange/xMin/xMax"]
     F --> G
     G --> H["_loadBandsFromFolder(bandsHandle) -> _dynamicBandPresets\n(.json with edges or bands, or legacy tab-separated .txt)"]
     H --> I["_loadListsFromFolder(listsHandle) -> _lists\n(.json {name,files,colors}, or legacy LabVIEW <Array><Cluster> XML via _parseLVList)"]
     I --> J["_loadCustomPalettesFromFolder(colorsHandle) -> _customPalettesList\n(.json {name,colors}, or legacy 4-byte-per-color .txt)"]
     J --> K["Read Templates/*.json -> _templates,\npopulate #new-test-menu"]
-    K --> L["_scanDir(dir, '') recursively -> _dirFiles [{name,ext,path,handle}]\n(skips ObieAppSettings/; keeps .trf .trv .avc .avr .csv .mat)"]
-    L --> M["_countTopDirs() (excludes ObieAppSettings/Test_Samples/Group Averages)\n-> '(N instruments)' label"]
+    K --> L["_scanDir(dir, '') recursively -> _dirFiles [{name,ext,path,handle}]\n(skips ObieWebSettings/; keeps .trf .trv .avc .avr .csv .mat)"]
+    L --> M["_countTopDirs() (excludes ObieWebSettings/Test_Samples/Group Averages)\n-> '(N instruments)' label"]
     M --> N["Update folder button + #folder-name-ind; hide #folder-overlay"]
     N --> O["saveDataFolderHandle(dir) — synced to shared cross-tool IndexedDB"]
 ```
@@ -172,7 +172,7 @@ flowchart TD
 
 | Action | Function(s) | What happens |
 |---|---|---|
-| Open Lists modal | `expLists` | Renders `_lists` (populated by `_loadListsFromFolder` from `ObieAppSettings/lists/`: JSON `{name,description,files,colors}`, or legacy LabVIEW `<Array><Cluster>` XML parsed by `_parseLVList`) |
+| Open Lists modal | `expLists` | Renders `_lists` (populated by `_loadListsFromFolder` from `ObieWebSettings/lists/`: JSON `{name,description,files,colors}`, or legacy LabVIEW `<Array><Cluster>` XML parsed by `_parseLVList`) |
 | Load a list | `expLoadList(idx)` | Per file path: match `_dirFiles` by exact path, else by basename; skip names already loaded; `pyExploreLoadFile` per match; reports "N loaded, M not found" |
 | Save current datasets as a list | `expSaveCurrentList` | Prompts for name/description, writes `{name,description,files:[d.path or d.name,...]}` as JSON under `_listsHandle`, then reloads `_lists` |
 | Save Group Average — CSV | `expSaveGroupAverage` -> `format:'csv'` | Requires `_lastAvgTrace` (only set while `normMode` is `complex_avg`/`real_avg`); requests readwrite permission on `_dataDir`, writes `Frequency_Hz,<mode>_Average_dB` rows into `Group Averages/<name>.csv` |
@@ -205,7 +205,7 @@ flowchart TD
     D --> E{"User action"}
     E -- "Browse… (WAV)" --> F["expBrowseWav: file picker ->\nstores bytes in _IDB('wavData'), remembers name,\nclears the URL-default override"]
     E -- "Save" --> G["expSavePrefs: reads form ->\nlocalStorage 'obieExplore_prefs' + 'obieExplore_defaultWavUrl';\nupdates _S; _syncControls(); render()"]
-    G --> H["_saveExploreJson(): also persists\nlineWidth/yDbRange/xMin/xMax to ObieAppSettings/explore.json\nif a Data Folder is connected"]
+    G --> H["_saveExploreJson(): also persists\nlineWidth/yDbRange/xMin/xMax to ObieWebSettings/explore.json\nif a Data Folder is connected"]
     E -- "Reset defaults" --> I["expResetPrefs: clears prefs + WAV keys/IDB entry,\nrestores _PREF_DEFAULTS, render()"]
     E -- "Close" --> J["expClosePrefs"]
     K["Standalone preferences.html tab\n(same 'obieExplore_prefs' keys + IDB store)"] -.->|"user saves there"| L["'storage' event fires in the open Explore tab"]

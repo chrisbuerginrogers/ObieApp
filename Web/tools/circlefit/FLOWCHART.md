@@ -27,7 +27,7 @@ flowchart TD
     A["Page loads"] --> B{"Data Folder handle\nin IndexedDB and readwrite granted?"}
     B -- yes --> C["_applyDataFolder(handle)"]
     B -- no --> D["Toolbar shows empty folder name;\nuser must click Data Folder"]
-    C --> E["openObieAppSettings\ncreates/reuses ObieAppSettings, Templates, etc."]
+    C --> E["openObieAppSettings\ncreates/reuses ObieWebSettings, Templates, etc."]
     E --> F["_refreshRunList(false)\nscans root for TRF/ subfolders,\ndoes not open the modal yet"]
     D --> G["cfSetDataFolder() —\nshowDirectoryPicker, saveDataFolderHandle"]
     G --> C

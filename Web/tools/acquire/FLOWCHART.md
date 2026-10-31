@@ -21,7 +21,7 @@ flowchart TD
     B --> C{"Data Folder handle\nin IndexedDB and granted?"}
     C -- yes --> D["_applyDataFolder(handle)"]
     C -- no --> E["Show 'Select Data Folder' overlay"]
-    D --> F["openObieAppSettings\ncreates ObieAppSettings/Templates,bands,colors,lists"]
+    D --> F["openObieAppSettings\ncreates ObieWebSettings/Templates,bands,colors,lists"]
     F --> G{"Instrument named?"}
     G -- no --> H["Scratch mode — measure freely, unnamed"]
     G -- yes --> I["_refreshInstrumentFolder\ncreates/reuses run folder, writes template.json"]
